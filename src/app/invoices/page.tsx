@@ -93,7 +93,6 @@ export default function InvoicesPage() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [authUser, setAuthUser] = useState<string | null>(null);
   const [rawResponseError, setRawResponseError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -101,77 +100,69 @@ export default function InvoicesPage() {
     setJobsLoading(true);
     setMessage(null);
 
-    console.log("📋 DEBUG - Starting fetchData for invoice creation page");
+    console.log("📋 DEBUG - Starting fetchData for ADMIN invoice creation page");
     console.log("🔍 Time:", new Date().toISOString());
 
-    // Check authentication status
-    const { data: authData, error: authError } = await supabase.auth.getSession();
-    console.log("🔐 Auth Status:");
-    console.log("  User:", authData?.session?.user?.email ?? "No user logged in");
-    console.log("  User ID:", authData?.session?.user?.id ?? "null");
-    console.log("  Auth error:", authError);
-    setAuthUser(authData?.session?.user?.email ?? "No user logged in");
+    // Fetch completed jobs via admin API (uses service role key, bypasses RLS)
+    console.log("📋 DEBUG - Calling /api/admin-jobs to fetch jobs (service role key, no RLS)");
+    try {
+      const apiResponse = await fetch("/api/admin-jobs");
+      const apiData = await apiResponse.json();
 
-    // Query 0: Test raw select with error details
-    console.log("📋 DEBUG - Query 0: Raw select('*') to check response structure");
-    const rawResponse = await supabase
-      .from("jobs")
-      .select("*");
+      console.log("✅ API Response received:");
+      console.log("  Status:", apiResponse.status);
+      console.log("  Data:", apiData);
 
-    console.log("✅ Query 0 Complete - FULL RAW RESPONSE:");
-    console.log("  Status:", rawResponse.status);
-    console.log("  Data:", rawResponse.data);
-    console.log("  Error:", rawResponse.error);
-    console.log("  Response object keys:", Object.keys(rawResponse));
-    if (rawResponse.error) {
-      console.log("  Full error details:", {
-        message: rawResponse.error.message,
-        code: rawResponse.error.code,
-        details: rawResponse.error.details,
-        hint: rawResponse.error.hint,
-      });
+      if (apiResponse.status !== 200) {
+        console.error("❌ API returned error status:", {
+          status: apiResponse.status,
+          error: apiData.error,
+          message: apiData.message,
+          advice: apiData.advice,
+        });
+        setMessage(`❌ API Error (${apiResponse.status}): ${apiData.message || apiData.error}`);
+        setRawResponseError(apiData.advice || apiData.error);
+        setAllJobs([]);
+        setJobs([]);
+      } else {
+        console.log("  Authentication method:", apiData.authenticated_method);
+        console.log("  All jobs count:", apiData.all_jobs.count);
+        console.log("  Completed jobs count:", apiData.completed_jobs.count);
+        console.log("  All jobs data:", apiData.all_jobs.data);
+        console.log("  Completed jobs data:", apiData.completed_jobs.data);
+
+        // Store all jobs (unfiltered)
+        if (apiData.all_jobs.error) {
+          console.error("❌ API Error - All jobs:", apiData.all_jobs.error);
+          setRawResponseError(`All jobs error: ${apiData.all_jobs.error.message}`);
+          setAllJobs([]);
+        } else {
+          setRawResponseError(null);
+          const allJobsData = apiData.all_jobs.data ?? [];
+          console.log(`✓ Successfully fetched ${allJobsData.length} total jobs (via API)`);
+          setAllJobs(allJobsData);
+        }
+
+        // Use completed jobs
+        if (apiData.completed_jobs.error) {
+          console.error("❌ API Error - Completed jobs:", apiData.completed_jobs.error);
+          setMessage(`❌ API Error: ${apiData.completed_jobs.error.message}`);
+          setJobs([]);
+        } else {
+          const completedJobs = apiData.completed_jobs.data ?? [];
+          console.log(`✓ Successfully fetched ${completedJobs.length} completed jobs (via API)`);
+          setJobs(completedJobs);
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Fetch error:", errorMsg);
+      setMessage(`❌ Failed to fetch jobs: ${errorMsg}`);
+      setAllJobs([]);
+      setJobs([]);
     }
 
-    // Query 1: Fetch ALL jobs without any filter (to see raw state)
-    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
-    console.log("  Exact query: supabase.from('jobs').select('*')");
-    const allJobsResponse = await supabase
-      .from("jobs")
-      .select("*");
-
-    console.log("✅ Query 1 Complete - Raw Response:");
-    console.log("  Total rows returned:", allJobsResponse.data?.length ?? 0);
-    console.log("  Status code:", allJobsResponse.status);
-    console.log("  Error:", allJobsResponse.error);
-    if (allJobsResponse.data && allJobsResponse.data.length > 0) {
-      console.log("  Raw Data:", allJobsResponse.data);
-      console.log("  Detailed breakdown:");
-      allJobsResponse.data.forEach((job: any, idx: number) => {
-        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, estimated_value=${job.estimated_value}`);
-      });
-    }
-
-    // Query 2: Fetch ONLY jobs with status = "Completed" (exact match, capital C)
-    console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
-    console.log("  Exact query: supabase.from('jobs').select('*').eq('status', 'Completed')");
-    const completedJobsResponse = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("status", "Completed");
-
-    console.log("✅ Query 2 Complete - Raw Response:");
-    console.log("  Total rows returned:", completedJobsResponse.data?.length ?? 0);
-    console.log("  Status code:", completedJobsResponse.status);
-    console.log("  Error:", completedJobsResponse.error);
-    if (completedJobsResponse.data && completedJobsResponse.data.length > 0) {
-      console.log("  Raw Data:", completedJobsResponse.data);
-      console.log("  Detailed breakdown:");
-      completedJobsResponse.data.forEach((job: any, idx: number) => {
-        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, estimated_value=${job.estimated_value}`);
-      });
-    }
-
-    // Fetch invoices and customers in parallel
+    // Fetch invoices and customers in parallel (using regular anon key)
     const [invoicesResponse, customersResponse] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
@@ -187,39 +178,6 @@ export default function InvoicesPage() {
     } else {
       setInvoices(invoicesResponse.data ?? []);
       console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
-    }
-
-    // Store all jobs (unfiltered)
-    if (allJobsResponse.error) {
-      console.error("❌ SUPABASE ERROR - Failed to fetch all jobs:", {
-        message: allJobsResponse.error.message,
-        code: allJobsResponse.error.code,
-        details: allJobsResponse.error.details,
-        hint: allJobsResponse.error.hint,
-      });
-      setRawResponseError(`${allJobsResponse.error.message} (Code: ${allJobsResponse.error.code})`);
-      setAllJobs([]);
-    } else {
-      setRawResponseError(null);
-      const allJobsData = allJobsResponse.data ?? [];
-      console.log(`✓ Successfully fetched ${allJobsData.length} total jobs`);
-      setAllJobs(allJobsData);
-    }
-
-    // Use Query 2 results (completed jobs with capital C)
-    if (completedJobsResponse.error) {
-      console.error("❌ SUPABASE ERROR - Failed to fetch completed jobs:", {
-        message: completedJobsResponse.error.message,
-        code: completedJobsResponse.error.code,
-        details: completedJobsResponse.error.details,
-        hint: completedJobsResponse.error.hint,
-      });
-      setMessage(`❌ Supabase Error: ${completedJobsResponse.error.message} (Code: ${completedJobsResponse.error.code})`);
-      setJobs([]);
-    } else {
-      const completedJobs = completedJobsResponse.data ?? [];
-      console.log(`✓ Successfully fetched ${completedJobs.length} jobs with status="Completed"`);
-      setJobs(completedJobs);
     }
 
     if (customersResponse.error) {
@@ -607,7 +565,7 @@ export default function InvoicesPage() {
               {/* DISPLAY AUTH AND CONNECTION INFO */}
               <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-4">
                 <p className="mb-2 text-sm font-semibold text-blue-900">
-                  🔐 CONNECTION & AUTH DEBUG
+                  🔐 ADMIN PAGE CONNECTION & QUERY INFO
                 </p>
                 
                 <div className="rounded-lg border-l-4 border-blue-500 bg-white p-3 text-xs">
@@ -615,10 +573,16 @@ export default function InvoicesPage() {
                     <strong>Supabase Project:</strong> <span className="font-mono">gnkypmonqlkibaisfgnp.supabase.co</span>
                   </p>
                   <p className="mb-2">
-                    <strong>Authenticated User:</strong> <span className="font-mono">{authUser}</span>
+                    <strong>Jobs Query Method:</strong> <span className="inline-block rounded bg-green-100 px-2 py-0.5">API Route + Service Role Key</span>
                   </p>
                   <p className="mb-2">
-                    <strong>Using:</strong> Anon Key (subject to RLS policies)
+                    <strong>Query Endpoint:</strong> <span className="font-mono">/api/admin-jobs</span>
+                  </p>
+                  <p className="mb-2">
+                    <strong>RLS Bypass:</strong> <span className="inline-block rounded bg-green-100 px-2 py-0.5">✓ Enabled (service role key)</span>
+                  </p>
+                  <p className="mb-2">
+                    <strong>Filters Applied:</strong> None (raw data only)
                   </p>
                   {rawResponseError && (
                     <div className="mt-3 rounded bg-red-50 p-2 text-red-700">
@@ -637,9 +601,12 @@ export default function InvoicesPage() {
                 
                 <div className="mb-3 rounded-lg border-l-4 border-orange-500 bg-white p-3">
                   <p className="text-xs font-mono text-orange-900">
-                    <strong>Exact Query:</strong>
+                    <strong>Query via API:</strong>
                   </p>
                   <p className="mt-1 font-mono text-xs text-slate-700">
+                    GET /api/admin-jobs → all_jobs
+                  </p>
+                  <p className="mt-2 font-mono text-xs text-slate-700 bg-slate-50 p-2 rounded">
                     supabase.from('jobs').select('*')
                   </p>
                 </div>
@@ -692,9 +659,12 @@ export default function InvoicesPage() {
                 
                 <div className="mb-3 rounded-lg border-l-4 border-purple-500 bg-white p-3">
                   <p className="text-xs font-mono text-purple-900">
-                    <strong>Exact Query:</strong>
+                    <strong>Query via API:</strong>
                   </p>
                   <p className="mt-1 font-mono text-xs text-slate-700">
+                    GET /api/admin-jobs → completed_jobs
+                  </p>
+                  <p className="mt-2 font-mono text-xs text-slate-700 bg-slate-50 p-2 rounded">
                     supabase.from('jobs').select('*').eq('status', 'Completed')
                   </p>
                 </div>
