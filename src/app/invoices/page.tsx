@@ -100,10 +100,58 @@ export default function InvoicesPage() {
 
     console.log("📋 DEBUG - Starting fetchData for invoice creation page");
 
-    const [invoicesResponse, jobsResponse, customersResponse] = await Promise.all([
+    // Query 1: Fetch ALL jobs (no filter)
+    const allJobsResponse = await supabase
+      .from("jobs")
+      .select("id, status, customer_id, estimated_value, scheduled_date, quote_id, assigned_employee, notes, created_at")
+      .order("scheduled_date", { ascending: true });
+
+    console.log("📋 DEBUG - Query 1: Fetching ALL jobs");
+    console.log("Query 1 Result:", {
+      count: allJobsResponse.data?.length ?? 0,
+      error: allJobsResponse.error ? {
+        message: allJobsResponse.error.message,
+        code: allJobsResponse.error.code,
+        details: allJobsResponse.error.details,
+        hint: allJobsResponse.error.hint,
+      } : null,
+      data: allJobsResponse.data,
+    });
+
+    // Query 2: Fetch ONLY jobs with status = "Completed"
+    const completedJobsResponse = await supabase
+      .from("jobs")
+      .select("id, status, customer_id, estimated_value, scheduled_date, quote_id, assigned_employee, notes, created_at")
+      .eq("status", "Completed")
+      .order("scheduled_date", { ascending: true });
+
+    console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
+    console.log("Query 2 Result:", {
+      count: completedJobsResponse.data?.length ?? 0,
+      error: completedJobsResponse.error ? {
+        message: completedJobsResponse.error.message,
+        code: completedJobsResponse.error.code,
+        details: completedJobsResponse.error.details,
+        hint: completedJobsResponse.error.hint,
+      } : null,
+      data: completedJobsResponse.data,
+    });
+
+    // Log comparison
+    console.log("📊 DEBUG - Status Value Comparison:");
+    if (allJobsResponse.data) {
+      const statusCounts: Record<string, number> = {};
+      allJobsResponse.data.forEach((job: any) => {
+        const status = job.status;
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+        console.log(`  Job ${job.id}: status="${job.status}" (type: ${typeof job.status}, length: ${job.status?.length})`);
+      });
+      console.log("📊 Status value distribution:", statusCounts);
+    }
+
+    // Now fetch invoices and customers in parallel
+    const [invoicesResponse, customersResponse] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
-      // Fetch ALL jobs (not just Completed) to allow invoice creation from any job status
-      supabase.from("jobs").select("*").order("scheduled_date", { ascending: true }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
     ]);
 
@@ -119,26 +167,28 @@ export default function InvoicesPage() {
       console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
     }
 
-    if (jobsResponse.error) {
-      console.error("❌ Failed to fetch jobs - SUPABASE ERROR:", {
-        message: jobsResponse.error.message,
-        code: jobsResponse.error.code,
-        details: jobsResponse.error.details,
-        hint: jobsResponse.error.hint,
+    // Use Query 2 results (completed jobs only) for the form
+    if (completedJobsResponse.error) {
+      console.error("❌ Failed to fetch completed jobs:", {
+        message: completedJobsResponse.error.message,
+        code: completedJobsResponse.error.code,
+        details: completedJobsResponse.error.details,
+        hint: completedJobsResponse.error.hint,
       });
-      setMessage(`❌ Error fetching jobs: ${jobsResponse.error.message} (Code: ${jobsResponse.error.code})`);
+      setMessage(`❌ Error fetching completed jobs: ${completedJobsResponse.error.message} (Code: ${completedJobsResponse.error.code})`);
+      setJobs([]);
     } else {
-      const jobsData = jobsResponse.data ?? [];
-      console.log(`✓ Fetched ${jobsData.length} jobs from public.jobs table`);
-      console.log("📊 DEBUG - All job statuses in database:", jobsData.map((j: Job) => ({
+      const completedJobs = completedJobsResponse.data ?? [];
+      console.log(`✓ Fetched ${completedJobs.length} COMPLETED jobs (status="Completed")`);
+      console.log("📊 DEBUG - Completed jobs details:", completedJobs.map((j: Job) => ({
         id: j.id,
         status: j.status,
-        status_type: typeof j.status,
+        status_length: j.status?.length,
         customer_id: j.customer_id,
         estimated_value: j.estimated_value,
         scheduled_date: j.scheduled_date,
       })));
-      setJobs(jobsData);
+      setJobs(completedJobs);
     }
 
     if (customersResponse.error) {
@@ -439,11 +489,11 @@ export default function InvoicesPage() {
         <div className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4">
           <p className="mb-2 text-sm font-semibold text-purple-900">🔍 Database Status Summary:</p>
           <div className="space-y-1 font-mono text-xs text-purple-800">
-            <p>📊 Total Jobs in Database: <strong>{jobs.length}</strong></p>
-            <p>📊 Total Customers: <strong>{customers.length}</strong></p>
-            <p>📊 Jobs with Status="Completed": <strong>{jobs.filter(j => j.status === "Completed").length}</strong></p>
+            <p>📊 Total Customers in DB: <strong>{customers.length}</strong></p>
+            <p>✓ Jobs with status="Completed": <strong className="text-green-700">{jobs.length}</strong></p>
             <p>📋 Invoice Numbers Format: INV-YYYYMMDD-XXXX</p>
-            <p>📝 Required Fields: job_id, customer_id, invoice_number, amount, due_date, status="Pending"</p>
+            <p>📝 Required Fields: job_id, customer_id, invoice_number, amount, due_date</p>
+            <p>🔎 Check browser console for detailed query logs and status value comparison</p>
           </div>
         </div>
 
@@ -523,22 +573,29 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* DEBUG PANEL: Show all jobs with their status values */}
+              {/* DEBUG PANEL: Show all jobs returned from Supabase */}
               {!jobsLoading && jobs.length > 0 ? (
-                <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
-                  <p className="mb-3 text-sm font-semibold text-amber-900">📊 DEBUG - Jobs in Database ({jobs.length} total):</p>
+                <div className="rounded-2xl border-2 border-green-300 bg-green-50 p-4">
+                  <p className="mb-3 text-sm font-semibold text-green-900">✓ JOBS FOUND: {jobs.length} job(s) with status="Completed"</p>
                   <div className="space-y-2">
                     {jobs.map((job) => {
                       const customer = customers.find((c) => c.id === job.customer_id);
-                      const isCompleted = job.status === "Completed";
                       return (
-                        <div key={job.id} className={`rounded-lg px-3 py-2 text-xs font-mono ${isCompleted ? 'bg-green-100 text-green-900' : 'bg-slate-100 text-slate-900'}`}>
-                          <strong>{customer?.company_name || "Unknown"}</strong> | Status: <strong>"{job.status}"</strong> | Value: {formatCurrency(job.estimated_value)} | Date: {job.scheduled_date}
+                        <div key={job.id} className="rounded-lg bg-white px-3 py-2 text-xs font-mono border-l-4 border-green-500">
+                          <div><strong>ID:</strong> {job.id}</div>
+                          <div><strong>Status:</strong> <span className="bg-green-200 px-1 rounded">{job.status}</span></div>
+                          <div><strong>Customer:</strong> {customer?.company_name || `ID: ${job.customer_id}`}</div>
+                          <div><strong>Amount:</strong> ${job.estimated_value}</div>
+                          <div><strong>Date:</strong> {job.scheduled_date}</div>
                         </div>
                       );
                     })}
                   </div>
-                  <p className="mt-3 text-xs text-amber-800">Green = "Completed" status (eligible for invoice)</p>
+                </div>
+              ) : !jobsLoading && jobs.length === 0 ? (
+                <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-4">
+                  <p className="mb-3 text-sm font-semibold text-red-900">❌ NO COMPLETED JOBS FOUND</p>
+                  <p className="text-xs text-red-800">The query for status="Completed" returned 0 results. Check browser console for detailed query logs.</p>
                 </div>
               ) : null}
 
@@ -547,11 +604,11 @@ export default function InvoicesPage() {
                 <select
                   value={form.job_id}
                   onChange={(event) => handleJobSelect(event.target.value)}
-                  disabled={jobsLoading}
+                  disabled={jobsLoading || jobs.length === 0}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="">{jobsLoading ? "Loading jobs..." : jobs.filter(j => j.status === "Completed").length === 0 ? `No completed jobs available (${jobs.length} jobs total)` : "Choose a completed job..."}</option>
-                  {jobs.filter(j => j.status === "Completed").map((job) => {
+                  <option value="">{jobsLoading ? "Loading jobs..." : jobs.length === 0 ? "No completed jobs available" : "Choose a completed job..."}</option>
+                  {jobs.map((job) => {
                     const customer = customers.find((c) => c.id === job.customer_id);
                     return (
                       <option key={job.id} value={job.id}>
