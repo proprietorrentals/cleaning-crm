@@ -25,7 +25,7 @@ type Job = {
   notes: string;
 };
 
-type Invoice = {
+type InvoiceWithCustomer = {
   id: string;
   invoice_number: string;
   customer_id: string;
@@ -34,6 +34,15 @@ type Invoice = {
   due_date: string;
   status: string;
   notes: string;
+  customers: {
+    company_name: string;
+  } | null;
+};
+
+type Invoice = Omit<InvoiceWithCustomer, "customers"> & {
+  customers?: {
+    company_name: string;
+  } | null;
 };
 
 function formatCurrency(value: number) {
@@ -95,10 +104,10 @@ export default function CustomerInvoicesPage() {
 
       setCustomer(customerData);
 
-      // Fetch invoices
+      // Fetch invoices with customer data joined
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
-        .select("*")
+        .select("*, customers(company_name)")
         .eq("customer_id", customerData.id)
         .order("created_at", { ascending: false });
 
@@ -106,7 +115,7 @@ export default function CustomerInvoicesPage() {
         console.error("❌ Failed to fetch invoices:", invoicesError);
         setMessage(`Error loading invoices: ${invoicesError.message}`);
       } else {
-        setInvoices(invoicesData || []);
+        setInvoices((invoicesData as Invoice[]) || []);
       }
 
       // Fetch jobs for invoice details
@@ -213,12 +222,15 @@ export default function CustomerInvoicesPage() {
           ? "bg-red-50 text-red-700"
           : "bg-yellow-50 text-yellow-700";
 
+    const companyName = invoice.customers?.company_name || customer?.company_name || "Invoice";
+
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <div className="mb-4 flex items-start justify-between">
           <div>
             <p className="text-sm text-slate-600">{invoice.invoice_number}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="text-xs text-slate-500 mt-1">{companyName}</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
               {formatCurrency(invoice.amount)}
             </p>
           </div>
