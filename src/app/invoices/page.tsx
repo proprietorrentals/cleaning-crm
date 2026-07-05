@@ -435,6 +435,18 @@ export default function InvoicesPage() {
           </div>
         ) : null}
 
+        {/* DEBUG SUMMARY PANEL */}
+        <div className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4">
+          <p className="mb-2 text-sm font-semibold text-purple-900">🔍 Database Status Summary:</p>
+          <div className="space-y-1 font-mono text-xs text-purple-800">
+            <p>📊 Total Jobs in Database: <strong>{jobs.length}</strong></p>
+            <p>📊 Total Customers: <strong>{customers.length}</strong></p>
+            <p>📊 Jobs with Status="Completed": <strong>{jobs.filter(j => j.status === "Completed").length}</strong></p>
+            <p>📋 Invoice Numbers Format: INV-YYYYMMDD-XXXX</p>
+            <p>📝 Required Fields: job_id, customer_id, invoice_number, amount, due_date, status="Pending"</p>
+          </div>
+        </div>
+
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
