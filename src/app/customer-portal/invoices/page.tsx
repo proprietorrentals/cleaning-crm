@@ -10,6 +10,7 @@ import { loadStripe } from "@stripe/stripe-js";
 
 type Customer = {
   id: string;
+  user_id: string;
   company_name: string;
   contact_name: string;
   email: string;
@@ -83,6 +84,8 @@ export default function CustomerInvoicesPage() {
         return;
       }
 
+      console.log("🔐 DEBUG - Logged-in auth user ID:", session.user.id);
+
       // Get customer data
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
@@ -102,6 +105,12 @@ export default function CustomerInvoicesPage() {
         return;
       }
 
+      console.log("👤 DEBUG - Matched customer:", {
+        id: customerData.id,
+        user_id: customerData.user_id,
+        company_name: customerData.company_name,
+      });
+
       setCustomer(customerData);
 
       // Fetch invoices with customer data joined
@@ -113,8 +122,23 @@ export default function CustomerInvoicesPage() {
 
       if (invoicesError) {
         console.error("❌ Failed to fetch invoices:", invoicesError);
+        console.error("❌ Invoice fetch error details:", {
+          message: invoicesError.message,
+          code: invoicesError.code,
+          details: invoicesError.details,
+        });
         setMessage(`Error loading invoices: ${invoicesError.message}`);
       } else {
+        console.log("📄 DEBUG - Invoices returned:", invoicesData?.length ?? 0);
+        if (invoicesData && invoicesData.length > 0) {
+          console.log("📄 DEBUG - First invoice sample:", {
+            id: invoicesData[0].id,
+            invoice_number: invoicesData[0].invoice_number,
+            customer_id: invoicesData[0].customer_id,
+            amount: invoicesData[0].amount,
+            status: invoicesData[0].status,
+          });
+        }
         setInvoices((invoicesData as Invoice[]) || []);
       }
 
@@ -287,6 +311,13 @@ export default function CustomerInvoicesPage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* DEBUG SECTION */}
+        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-xs font-mono text-blue-900">
+            <strong>DEBUG:</strong> Customer: {customer?.id} | User ID: {customer?.user_id} | Invoices: {invoices.length} (Pending: {invoices.filter(i => i.status === "Pending").length}, Overdue: {invoices.filter(i => i.status === "Overdue").length}, Paid: {invoices.filter(i => i.status === "Paid").length})
+          </p>
+        </div>
+
         {message && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {message}
