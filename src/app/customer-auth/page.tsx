@@ -46,7 +46,15 @@ export default function CustomerAuthPage() {
 
         if (error) {
           console.error("Login error:", error);
-          setMessage(`❌ Login failed: ${error.message}`);
+          console.error("Error status:", error.status);
+          console.error("Error code:", error.code);
+          
+          let errorMsg = error.message;
+          if (error.message.includes("invalid")) {
+            errorMsg += " - Email or password may be incorrect";
+          }
+          
+          setMessage(`❌ Login failed: ${errorMsg}`);
           setLoading(false);
           return;
         }
@@ -75,7 +83,16 @@ export default function CustomerAuthPage() {
 
         if (signupError) {
           console.error("Signup error:", signupError);
-          setMessage(`❌ Signup failed: ${signupError.message}`);
+          console.error("Error status:", signupError.status);
+          console.error("Error code:", signupError.code);
+          
+          // Provide detailed error message
+          let errorMsg = signupError.message;
+          if (signupError.message.includes("invalid")) {
+            errorMsg += " - Check Supabase Email Provider configuration in dashboard";
+          }
+          
+          setMessage(`❌ Signup failed: ${errorMsg}`);
           setLoading(false);
           return;
         }
