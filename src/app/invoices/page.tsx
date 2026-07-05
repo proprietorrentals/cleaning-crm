@@ -93,6 +93,8 @@ export default function InvoicesPage() {
 
   const fetchData = async () => {
     setLoading(true);
+    setJobsLoading(true);
+    setMessage(null);
 
     const [invoicesResponse, jobsResponse, customersResponse] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
@@ -101,22 +103,27 @@ export default function InvoicesPage() {
     ]);
 
     if (invoicesResponse.error) {
-      console.error("Failed to fetch invoices:", invoicesResponse.error);
-      setMessage(invoicesResponse.error.message);
+      console.error("❌ Failed to fetch invoices:", invoicesResponse.error);
+      setMessage(`❌ Error fetching invoices: ${invoicesResponse.error.message}`);
     } else {
       setInvoices(invoicesResponse.data ?? []);
+      console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
     }
 
     if (jobsResponse.error) {
-      console.error("Failed to fetch jobs:", jobsResponse.error);
+      console.error("❌ Failed to fetch completed jobs:", jobsResponse.error);
+      setMessage(`❌ Error fetching completed jobs: ${jobsResponse.error.message}`);
     } else {
       setJobs(jobsResponse.data ?? []);
+      console.log(`✓ Fetched ${jobsResponse.data?.length ?? 0} completed jobs`);
     }
 
     if (customersResponse.error) {
-      console.error("Failed to fetch customers:", customersResponse.error);
+      console.error("❌ Failed to fetch customers:", customersResponse.error);
+      setMessage(`❌ Error fetching customers: ${customersResponse.error.message}`);
     } else {
       setCustomers(customersResponse.data ?? []);
+      console.log(`✓ Fetched ${customersResponse.data?.length ?? 0} customers`);
     }
 
     setLoading(false);

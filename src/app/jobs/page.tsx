@@ -90,7 +90,7 @@ export default function JobsPage() {
     ]);
 
     if (jobsResponse.error) {
-      console.error("Failed to fetch jobs:", jobsResponse.error);
+      console.error("❌ Failed to fetch jobs:", jobsResponse.error);
       setMessage(`❌ Error fetching jobs: ${jobsResponse.error.message}`);
     } else {
       setJobs(jobsResponse.data ?? []);
@@ -98,17 +98,19 @@ export default function JobsPage() {
     }
 
     if (customersResponse.error) {
-      console.error("Failed to fetch customers:", customersResponse.error);
+      console.error("❌ Failed to fetch customers:", customersResponse.error);
       setMessage((current) => current ? `${current}; Also failed to fetch customers: ${customersResponse.error.message}` : `❌ Error fetching customers: ${customersResponse.error.message}`);
     } else {
       setCustomers(customersResponse.data ?? []);
+      console.log(`✓ Fetched ${customersResponse.data?.length ?? 0} customers`);
     }
 
     if (quotesResponse.error) {
-      console.error("Failed to fetch quotes:", quotesResponse.error);
+      console.error("❌ Failed to fetch quotes:", quotesResponse.error);
       setMessage((current) => current ? `${current}; Also failed to fetch quotes: ${quotesResponse.error.message}` : `❌ Error fetching quotes: ${quotesResponse.error.message}`);
     } else {
       setQuotes(quotesResponse.data ?? []);
+      console.log(`✓ Fetched ${quotesResponse.data?.length ?? 0} quotes`);
     }
 
     setLoading(false);
@@ -188,6 +190,18 @@ export default function JobsPage() {
     }
 
     setMessage("✓ Job deleted successfully.");
+    await fetchData();
+  };
+
+  const handleStatusChange = async (jobId: string, newStatus: string) => {
+    const { error } = await supabase.from("jobs").update({ status: newStatus }).eq("id", jobId);
+    if (error) {
+      console.error("Status update error:", error);
+      setMessage(`❌ Error updating job status: ${error.message}`);
+      return;
+    }
+
+    setMessage(`✓ Job status changed to ${newStatus}.`);
     await fetchData();
   };
 
@@ -425,6 +439,15 @@ export default function JobsPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
+                            {job.status !== "Completed" && (
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(job.id, "Completed")}
+                                className="rounded-lg bg-green-50 px-2 py-1 text-xs font-medium text-green-600 transition hover:bg-green-100"
+                              >
+                                ✓ Mark Complete
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleEdit(job)}
