@@ -120,20 +120,25 @@ export default function InvoicesPage() {
     }
 
     if (jobsResponse.error) {
-      console.error("❌ Failed to fetch jobs:", {
+      console.error("❌ Failed to fetch jobs - SUPABASE ERROR:", {
         message: jobsResponse.error.message,
         code: jobsResponse.error.code,
         details: jobsResponse.error.details,
+        hint: jobsResponse.error.hint,
       });
-      setMessage(`❌ Error fetching jobs: ${jobsResponse.error.message}`);
+      setMessage(`❌ Error fetching jobs: ${jobsResponse.error.message} (Code: ${jobsResponse.error.code})`);
     } else {
-      console.log(`✓ Fetched ${jobsResponse.data?.length ?? 0} jobs (all statuses):`, jobsResponse.data?.map((j: Job) => ({
+      const jobsData = jobsResponse.data ?? [];
+      console.log(`✓ Fetched ${jobsData.length} jobs from public.jobs table`);
+      console.log("📊 DEBUG - All job statuses in database:", jobsData.map((j: Job) => ({
         id: j.id,
         status: j.status,
+        status_type: typeof j.status,
         customer_id: j.customer_id,
         estimated_value: j.estimated_value,
+        scheduled_date: j.scheduled_date,
       })));
-      setJobs(jobsResponse.data ?? []);
+      setJobs(jobsData);
     }
 
     if (customersResponse.error) {
@@ -175,11 +180,13 @@ export default function InvoicesPage() {
   const handleJobSelect = (jobId: string) => {
     const selected = jobs.find((j) => j.id === jobId);
     console.log("📋 DEBUG - Job selected:", jobId);
-    console.log("📋 DEBUG - Selected job details:", selected);
+    console.log("📋 DEBUG - Selected job object:", selected);
+    console.log("📋 DEBUG - Selected job status:", selected?.status, "| Type:", typeof selected?.status);
+    console.log("📋 DEBUG - Is status === 'Completed'?", selected?.status === "Completed");
     
     if (selected) {
       const customer = customers.find((c) => c.id === selected.customer_id);
-      console.log("📋 DEBUG - Found customer for job:", customer?.company_name);
+      console.log("📋 DEBUG - Found customer for job:", customer?.company_name, "| ID:", selected.customer_id);
       
       const dueDate = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const invoiceNum = generateInvoiceNumber();
@@ -190,6 +197,7 @@ export default function InvoicesPage() {
         amount: String(selected.estimated_value),
         invoice_number: invoiceNum,
         due_date: dueDate,
+        job_status: selected.status,
       });
       
       setForm((current) => ({
@@ -503,16 +511,35 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+              {/* DEBUG PANEL: Show all jobs with their status values */}
+              {!jobsLoading && jobs.length > 0 ? (
+                <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
+                  <p className="mb-3 text-sm font-semibold text-amber-900">📊 DEBUG - Jobs in Database ({jobs.length} total):</p>
+                  <div className="space-y-2">
+                    {jobs.map((job) => {
+                      const customer = customers.find((c) => c.id === job.customer_id);
+                      const isCompleted = job.status === "Completed";
+                      return (
+                        <div key={job.id} className={`rounded-lg px-3 py-2 text-xs font-mono ${isCompleted ? 'bg-green-100 text-green-900' : 'bg-slate-100 text-slate-900'}`}>
+                          <strong>{customer?.company_name || "Unknown"}</strong> | Status: <strong>"{job.status}"</strong> | Value: {formatCurrency(job.estimated_value)} | Date: {job.scheduled_date}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-amber-800">Green = "Completed" status (eligible for invoice)</p>
+                </div>
+              ) : null}
+
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a completed job</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a job for invoice (Completed status only)</label>
                 <select
                   value={form.job_id}
                   onChange={(event) => handleJobSelect(event.target.value)}
                   disabled={jobsLoading}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="">{jobsLoading ? "Loading jobs..." : jobs.length === 0 ? "No completed jobs available" : "Choose a job..."}</option>
-                  {jobs.map((job) => {
+                  <option value="">{jobsLoading ? "Loading jobs..." : jobs.filter(j => j.status === "Completed").length === 0 ? `No completed jobs available (${jobs.length} jobs total)` : "Choose a completed job..."}</option>
+                  {jobs.filter(j => j.status === "Completed").map((job) => {
                     const customer = customers.find((c) => c.id === job.customer_id);
                     return (
                       <option key={job.id} value={job.id}>
