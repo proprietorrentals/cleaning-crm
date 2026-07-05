@@ -1,8 +1,10 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { InvoicePDF } from "@/lib/invoice-pdf";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { pdf } from "@react-pdf/renderer";
 
 type Customer = {
   id: string;
@@ -227,6 +229,30 @@ export default function InvoicesPage() {
     await fetchData();
   };
 
+  const handleDownloadPDF = async (invoice: Invoice) => {
+    try {
+      const customer = customers.find((c) => c.id === invoice.customer_id);
+      const job = jobs.find((j) => j.id === invoice.job_id);
+
+      const doc = <InvoicePDF invoice={invoice} customer={customer} job={job} />;
+      const blob = await pdf(doc).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${invoice.invoice_number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log(`✓ Downloaded invoice ${invoice.invoice_number}`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      setMessage(`Error generating invoice PDF: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
   const handleEdit = (invoice: Invoice) => {
     setEditingId(invoice.id);
     const job = jobs.find((j) => j.id === invoice.job_id);
@@ -313,6 +339,13 @@ export default function InvoicesPage() {
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPDF(invoice)}
+                          className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+                        >
+                          ⬇ PDF
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleEdit(invoice)}
