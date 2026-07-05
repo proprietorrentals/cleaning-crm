@@ -4,19 +4,46 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+type Customer = {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  building_size: string;
+  cleaning_frequency: string;
+  notes: string;
+  created_at: string;
+};
+
+type Job = {
+  id: string;
+  quote_id: string;
+  customer_id: string;
+  scheduled_date: string;
+  assigned_employee: string | null;
+  status: string;
+  estimated_value: number;
+  notes: string;
+  created_at: string;
+};
+
 type Invoice = {
   id: string;
-  customer_name: string;
   invoice_number: string;
+  customer_id: string;
+  job_id: string;
   amount: number;
-  status: string;
   due_date: string;
+  status: string;
   notes: string;
   created_at: string;
 };
 
 type InvoiceFormState = {
-  customer_name: string;
+  job_id: string;
+  customer_id: string;
   invoice_number: string;
   amount: string;
   status: string;
@@ -25,7 +52,8 @@ type InvoiceFormState = {
 };
 
 const emptyForm: InvoiceFormState = {
-  customer_name: "",
+  job_id: "",
+  customer_id: "",
   invoice_number: "",
   amount: "",
   status: "Pending",
@@ -41,34 +69,62 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function generateInvoiceNumber(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const random = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+  return `INV-${year}${month}${day}-${random}`;
+}
+
 export default function InvoicesPage() {
   const supabase = useMemo(() => createClient(), []);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<InvoiceFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jobsLoading, setJobsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const fetchInvoices = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .order("created_at", { ascending: false });
 
-    if (error) {
-      setMessage(error.message);
+    const [invoicesResponse, jobsResponse, customersResponse] = await Promise.all([
+      supabase.from("invoices").select("*").order("created_at", { ascending: false }),
+      supabase.from("jobs").select("*").eq("status", "Completed").order("scheduled_date", { ascending: false }),
+      supabase.from("customers").select("*").order("created_at", { ascending: false }),
+    ]);
+
+    if (invoicesResponse.error) {
+      console.error("Failed to fetch invoices:", invoicesResponse.error);
+      setMessage(invoicesResponse.error.message);
     } else {
-      setInvoices(data ?? []);
+      setInvoices(invoicesResponse.data ?? []);
+    }
+
+    if (jobsResponse.error) {
+      console.error("Failed to fetch jobs:", jobsResponse.error);
+    } else {
+      setJobs(jobsResponse.data ?? []);
+    }
+
+    if (customersResponse.error) {
+      console.error("Failed to fetch customers:", customersResponse.error);
+    } else {
+      setCustomers(customersResponse.data ?? []);
     }
 
     setLoading(false);
+    setJobsLoading(false);
   };
 
   useEffect(() => {
-    fetchInvoices();
+    fetchData();
   }, [supabase]);
 
   const filteredInvoices = useMemo(() => {
@@ -77,21 +133,48 @@ export default function InvoicesPage() {
       return invoices;
     }
 
-    return invoices.filter((invoice) =>
-      [invoice.customer_name, invoice.invoice_number, invoice.status]
+    return invoices.filter((invoice) => {
+      const customer = customers.find((c) => c.id === invoice.customer_id);
+      const customerName = customer?.company_name || "";
+      return [invoice.invoice_number, customerName, invoice.status]
         .join(" ")
         .toLowerCase()
-        .includes(query),
-    );
-  }, [invoices, search]);
+        .includes(query);
+    });
+  }, [invoices, search, customers]);
+
+  const handleJobSelect = (jobId: string) => {
+    const selected = jobs.find((j) => j.id === jobId);
+    if (selected) {
+      const customer = customers.find((c) => c.id === selected.customer_id);
+      setForm((current) => ({
+        ...current,
+        job_id: jobId,
+        customer_id: selected.customer_id,
+        amount: String(selected.estimated_value),
+        invoice_number: generateInvoiceNumber(),
+        due_date: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        notes: selected.notes || "",
+      }));
+    } else {
+      setForm(emptyForm);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setMessage(null);
 
+    if (!form.job_id || !form.invoice_number || !form.amount) {
+      setMessage("Please select a job, enter invoice number and amount.");
+      setSaving(false);
+      return;
+    }
+
     const payload = {
-      customer_name: form.customer_name.trim(),
+      job_id: form.job_id,
+      customer_id: form.customer_id,
       invoice_number: form.invoice_number.trim(),
       amount: Number(form.amount),
       status: form.status,
@@ -99,39 +182,50 @@ export default function InvoicesPage() {
       notes: form.notes.trim(),
     };
 
-    if (!payload.customer_name || !payload.invoice_number || !payload.amount) {
-      setMessage("Customer name, invoice number, and amount are required.");
-      setSaving(false);
-      return;
-    }
-
     if (editingId) {
       const { error } = await supabase.from("invoices").update(payload).eq("id", editingId);
       if (error) {
-        setMessage(error.message);
+        console.error("Update error:", error);
+        setMessage(`Error updating invoice: ${error.message}`);
         setSaving(false);
         return;
       }
+      setMessage("Invoice updated successfully.");
     } else {
       const { error } = await supabase.from("invoices").insert(payload);
       if (error) {
-        setMessage(error.message);
+        console.error("Insert error:", error);
+        setMessage(`Error creating invoice: ${error.message}`);
         setSaving(false);
         return;
       }
+      setMessage("Invoice created successfully.");
     }
 
     setForm(emptyForm);
     setEditingId(null);
     setSaving(false);
-    await fetchInvoices();
-    setMessage(editingId ? "Invoice updated successfully." : "Invoice added successfully.");
+    await fetchData();
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("invoices").delete().eq("id", id);
+    if (error) {
+      console.error("Delete error:", error);
+      setMessage(`Error deleting invoice: ${error.message}`);
+      return;
+    }
+
+    setMessage("Invoice deleted successfully.");
+    await fetchData();
   };
 
   const handleEdit = (invoice: Invoice) => {
     setEditingId(invoice.id);
+    const job = jobs.find((j) => j.id === invoice.job_id);
     setForm({
-      customer_name: invoice.customer_name,
+      job_id: invoice.job_id,
+      customer_id: invoice.customer_id,
       invoice_number: invoice.invoice_number,
       amount: String(invoice.amount),
       status: invoice.status,
@@ -139,17 +233,6 @@ export default function InvoicesPage() {
       notes: invoice.notes,
     });
     setMessage("Editing invoice record.");
-  };
-
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("invoices").delete().eq("id", id);
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setMessage("Invoice removed.");
-    await fetchInvoices();
   };
 
   const resetForm = () => {
@@ -207,22 +290,29 @@ export default function InvoicesPage() {
               <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No invoices found.</div>
             ) : (
               <div className="mt-6 space-y-3">
-                {filteredInvoices.map((invoice) => (
-                  <div key={invoice.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-900">{invoice.invoice_number}</p>
-                      <p className="text-sm text-slate-500">{invoice.customer_name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{formatCurrency(invoice.amount)}</p>
-                      <p className="mt-1 text-sm text-slate-500">Due {invoice.due_date}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(invoice)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                      >
-                        Edit
-                      </button>
+                {filteredInvoices.map((invoice) => {
+                  const customer = customers.find((c) => c.id === invoice.customer_id);
+                  const job = jobs.find((j) => j.id === invoice.job_id);
+                  return (
+                    <div key={invoice.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-slate-900">{invoice.invoice_number}</p>
+                        <p className="text-sm text-slate-500">{customer?.company_name || "Unknown"}</p>
+                        <p className="mt-1 text-sm text-slate-600">Job: {job?.scheduled_date || "N/A"}</p>
+                        <p className="text-lg font-semibold text-slate-900 mt-2">{formatCurrency(invoice.amount)}</p>
+                        <p className="text-sm text-slate-500">Due {invoice.due_date}</p>
+                        <p className={`text-sm font-medium mt-1 ${invoice.status === "Paid" ? "text-green-600" : invoice.status === "Overdue" ? "text-red-600" : "text-yellow-600"}`}>
+                          {invoice.status}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(invoice)}
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(invoice.id)}
@@ -232,7 +322,8 @@ export default function InvoicesPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -253,36 +344,72 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Customer name</label>
-                  <input
-                    value={form.customer_name}
-                    onChange={(event) => setForm((current) => ({ ...current, customer_name: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="Acme Properties"
-                  />
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a completed job</label>
+                <select
+                  value={form.job_id}
+                  onChange={(event) => handleJobSelect(event.target.value)}
+                  disabled={jobsLoading}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">{jobsLoading ? "Loading jobs..." : jobs.length === 0 ? "No completed jobs available" : "Choose a job..."}</option>
+                  {jobs.map((job) => {
+                    const customer = customers.find((c) => c.id === job.customer_id);
+                    return (
+                      <option key={job.id} value={job.id}>
+                        {customer?.company_name || "Unknown"} - {job.scheduled_date} ({formatCurrency(job.estimated_value)})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {form.job_id ? (
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600">Customer</label>
+                      <p className="text-sm text-slate-900 font-medium">{customers.find((c) => c.id === form.customer_id)?.company_name || "Unknown"}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600">Job Date</label>
+                      <p className="text-sm text-slate-900">{jobs.find((j) => j.id === form.job_id)?.scheduled_date || "N/A"}</p>
+                    </div>
+                  </div>
                 </div>
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">Invoice number</label>
                   <input
                     value={form.invoice_number}
                     onChange={(event) => setForm((current) => ({ ...current, invoice_number: event.target.value }))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="INV-1001"
+                    placeholder="INV-20260704-0001"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.amount}
+                    onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                    placeholder="4200"
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Amount</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Due date</label>
                   <input
-                    type="number"
-                    value={form.amount}
-                    onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                    type="date"
+                    value={form.due_date}
+                    onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="4200"
                   />
                 </div>
                 <div>
@@ -300,22 +427,12 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Due date</label>
-                <input
-                  type="date"
-                  value={form.due_date}
-                  onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Notes</label>
                 <textarea
                   value={form.notes}
                   onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                   className="min-h-24 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                  placeholder="Payment terms or service notes"
+                  placeholder="Payment terms, service notes, or additional information"
                 />
               </div>
 
