@@ -93,6 +93,8 @@ export default function InvoicesPage() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<string | null>(null);
+  const [rawResponseError, setRawResponseError] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -102,8 +104,36 @@ export default function InvoicesPage() {
     console.log("📋 DEBUG - Starting fetchData for invoice creation page");
     console.log("🔍 Time:", new Date().toISOString());
 
-    // Query 1: Fetch ALL jobs without any filter (raw state - no filters at all)
-    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs (NO FILTERS)");
+    // Check authentication status
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    console.log("🔐 Auth Status:");
+    console.log("  User:", authData?.session?.user?.email ?? "No user logged in");
+    console.log("  User ID:", authData?.session?.user?.id ?? "null");
+    console.log("  Auth error:", authError);
+    setAuthUser(authData?.session?.user?.email ?? "No user logged in");
+
+    // Query 0: Test raw select with error details
+    console.log("📋 DEBUG - Query 0: Raw select('*') to check response structure");
+    const rawResponse = await supabase
+      .from("jobs")
+      .select("*");
+
+    console.log("✅ Query 0 Complete - FULL RAW RESPONSE:");
+    console.log("  Status:", rawResponse.status);
+    console.log("  Data:", rawResponse.data);
+    console.log("  Error:", rawResponse.error);
+    console.log("  Response object keys:", Object.keys(rawResponse));
+    if (rawResponse.error) {
+      console.log("  Full error details:", {
+        message: rawResponse.error.message,
+        code: rawResponse.error.code,
+        details: rawResponse.error.details,
+        hint: rawResponse.error.hint,
+      });
+    }
+
+    // Query 1: Fetch ALL jobs without any filter (to see raw state)
+    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
     console.log("  Exact query: supabase.from('jobs').select('*')");
     const allJobsResponse = await supabase
       .from("jobs")
@@ -167,8 +197,10 @@ export default function InvoicesPage() {
         details: allJobsResponse.error.details,
         hint: allJobsResponse.error.hint,
       });
+      setRawResponseError(`${allJobsResponse.error.message} (Code: ${allJobsResponse.error.code})`);
       setAllJobs([]);
     } else {
+      setRawResponseError(null);
       const allJobsData = allJobsResponse.data ?? [];
       console.log(`✓ Successfully fetched ${allJobsData.length} total jobs`);
       setAllJobs(allJobsData);
@@ -572,7 +604,32 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* DISPLAY RAW ALL JOBS - NO FILTERS */}
+              {/* DISPLAY AUTH AND CONNECTION INFO */}
+              <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-blue-900">
+                  🔐 CONNECTION & AUTH DEBUG
+                </p>
+                
+                <div className="rounded-lg border-l-4 border-blue-500 bg-white p-3 text-xs">
+                  <p className="mb-2">
+                    <strong>Supabase Project:</strong> <span className="font-mono">gnkypmonqlkibaisfgnp.supabase.co</span>
+                  </p>
+                  <p className="mb-2">
+                    <strong>Authenticated User:</strong> <span className="font-mono">{authUser}</span>
+                  </p>
+                  <p className="mb-2">
+                    <strong>Using:</strong> Anon Key (subject to RLS policies)
+                  </p>
+                  {rawResponseError && (
+                    <div className="mt-3 rounded bg-red-50 p-2 text-red-700">
+                      <p className="font-semibold">⚠️ Query Error:</p>
+                      <p className="font-mono text-xs mt-1">{rawResponseError}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* DISPLAY ALL JOBS - NO FILTERS */}
               <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4">
                 <p className="mb-2 text-sm font-semibold text-orange-900">
                   🔍 ALL JOBS IN DATABASE (NO FILTERS)
