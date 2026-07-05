@@ -98,14 +98,21 @@ export default function InvoicesPage() {
     setJobsLoading(true);
     setMessage(null);
 
+    console.log("📋 DEBUG - Starting fetchData for invoice creation page");
+
     const [invoicesResponse, jobsResponse, customersResponse] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
-      supabase.from("jobs").select("*").eq("status", "Completed").order("scheduled_date", { ascending: false }),
+      // Fetch ALL jobs (not just Completed) to allow invoice creation from any job status
+      supabase.from("jobs").select("*").order("scheduled_date", { ascending: true }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
     ]);
 
     if (invoicesResponse.error) {
-      console.error("❌ Failed to fetch invoices:", invoicesResponse.error);
+      console.error("❌ Failed to fetch invoices:", {
+        message: invoicesResponse.error.message,
+        code: invoicesResponse.error.code,
+        details: invoicesResponse.error.details,
+      });
       setMessage(`❌ Error fetching invoices: ${invoicesResponse.error.message}`);
     } else {
       setInvoices(invoicesResponse.data ?? []);
@@ -113,15 +120,28 @@ export default function InvoicesPage() {
     }
 
     if (jobsResponse.error) {
-      console.error("❌ Failed to fetch completed jobs:", jobsResponse.error);
-      setMessage(`❌ Error fetching completed jobs: ${jobsResponse.error.message}`);
+      console.error("❌ Failed to fetch jobs:", {
+        message: jobsResponse.error.message,
+        code: jobsResponse.error.code,
+        details: jobsResponse.error.details,
+      });
+      setMessage(`❌ Error fetching jobs: ${jobsResponse.error.message}`);
     } else {
+      console.log(`✓ Fetched ${jobsResponse.data?.length ?? 0} jobs (all statuses):`, jobsResponse.data?.map((j: Job) => ({
+        id: j.id,
+        status: j.status,
+        customer_id: j.customer_id,
+        estimated_value: j.estimated_value,
+      })));
       setJobs(jobsResponse.data ?? []);
-      console.log(`✓ Fetched ${jobsResponse.data?.length ?? 0} completed jobs`);
     }
 
     if (customersResponse.error) {
-      console.error("❌ Failed to fetch customers:", customersResponse.error);
+      console.error("❌ Failed to fetch customers:", {
+        message: customersResponse.error.message,
+        code: customersResponse.error.code,
+        details: customersResponse.error.details,
+      });
       setMessage(`❌ Error fetching customers: ${customersResponse.error.message}`);
     } else {
       setCustomers(customersResponse.data ?? []);
@@ -154,18 +174,35 @@ export default function InvoicesPage() {
 
   const handleJobSelect = (jobId: string) => {
     const selected = jobs.find((j) => j.id === jobId);
+    console.log("📋 DEBUG - Job selected:", jobId);
+    console.log("📋 DEBUG - Selected job details:", selected);
+    
     if (selected) {
       const customer = customers.find((c) => c.id === selected.customer_id);
+      console.log("📋 DEBUG - Found customer for job:", customer?.company_name);
+      
+      const dueDate = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const invoiceNum = generateInvoiceNumber();
+      
+      console.log("📋 DEBUG - Setting form with:", {
+        job_id: jobId,
+        customer_id: selected.customer_id,
+        amount: String(selected.estimated_value),
+        invoice_number: invoiceNum,
+        due_date: dueDate,
+      });
+      
       setForm((current) => ({
         ...current,
         job_id: jobId,
         customer_id: selected.customer_id,
         amount: String(selected.estimated_value),
-        invoice_number: generateInvoiceNumber(),
-        due_date: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        invoice_number: invoiceNum,
+        due_date: dueDate,
         notes: selected.notes || "",
       }));
     } else {
+      console.error("❌ Job not found:", jobId);
       setForm(emptyForm);
     }
   };
@@ -175,8 +212,41 @@ export default function InvoicesPage() {
     setSaving(true);
     setMessage(null);
 
-    if (!form.job_id || !form.invoice_number || !form.amount) {
-      setMessage("Please select a job, enter invoice number and amount.");
+    console.log("📋 DEBUG - Starting invoice submission");
+
+    // Validate all required fields
+    if (!form.job_id) {
+      setMessage("❌ Please select a job.");
+      setSaving(false);
+      return;
+    }
+
+    if (!form.customer_id) {
+      setMessage("❌ Customer ID is missing.");
+      setSaving(false);
+      return;
+    }
+
+    if (!form.invoice_number) {
+      setMessage("❌ Please enter an invoice number.");
+      setSaving(false);
+      return;
+    }
+
+    if (!form.amount || Number(form.amount) <= 0) {
+      setMessage("❌ Please enter a valid amount.");
+      setSaving(false);
+      return;
+    }
+
+    if (!form.due_date) {
+      setMessage("❌ Please enter a due date.");
+      setSaving(false);
+      return;
+    }
+
+    if (!form.status) {
+      setMessage("❌ Please select a status.");
       setSaving(false);
       return;
     }
@@ -191,46 +261,93 @@ export default function InvoicesPage() {
       notes: form.notes.trim(),
     };
 
+    console.log("📋 DEBUG - Invoice payload to be saved:", payload);
+    console.log("📋 DEBUG - Payload field types:", {
+      job_id: typeof payload.job_id,
+      customer_id: typeof payload.customer_id,
+      invoice_number: typeof payload.invoice_number,
+      amount: typeof payload.amount,
+      status: typeof payload.status,
+      due_date: typeof payload.due_date,
+    });
+
     if (editingId) {
-      const { error } = await supabase.from("invoices").update(payload).eq("id", editingId);
-      if (error) {
-        console.error("Update error:", error);
-        setMessage(`Error updating invoice: ${error.message}`);
+      console.log("📋 DEBUG - Updating existing invoice:", editingId);
+      const { data: updateData, error: updateError } = await supabase
+        .from("invoices")
+        .update(payload)
+        .eq("id", editingId)
+        .select();
+
+      if (updateError) {
+        console.error("❌ Update error:", {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+        });
+        setMessage(`❌ Error updating invoice: ${updateError.message}`);
         setSaving(false);
         return;
       }
-      setMessage("Invoice updated successfully.");
+
+      console.log("✓ Invoice updated successfully:", updateData);
+      setMessage("✓ Invoice updated successfully.");
     } else {
-      const { error } = await supabase.from("invoices").insert(payload);
-      if (error) {
-        console.error("Insert error:", error);
-        setMessage(`Error creating invoice: ${error.message}`);
+      console.log("📋 DEBUG - Creating new invoice");
+      const { data: insertData, error: insertError } = await supabase
+        .from("invoices")
+        .insert(payload)
+        .select();
+
+      if (insertError) {
+        console.error("❌ Insert error:", {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+        });
+        setMessage(`❌ Error creating invoice: ${insertError.message}`);
         setSaving(false);
         return;
       }
-      setMessage("Invoice created successfully.");
+
+      if (!insertData || insertData.length === 0) {
+        console.error("❌ Insert returned no data");
+        setMessage("❌ Invoice created but no data returned. Please refresh.");
+        setSaving(false);
+        return;
+      }
+
+      console.log("✓ Invoice created successfully:", insertData[0].id);
+      setMessage(`✓ Invoice created successfully: ${insertData[0].invoice_number}`);
     }
 
     setForm(emptyForm);
     setEditingId(null);
     setSaving(false);
+    console.log("📋 DEBUG - Refreshing data after invoice save");
     await fetchData();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("invoices").delete().eq("id", id);
     if (error) {
-      console.error("Delete error:", error);
-      setMessage(`Error deleting invoice: ${error.message}`);
+      console.error("❌ Delete error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+      });
+      setMessage(`❌ Error deleting invoice: ${error.message}`);
       return;
     }
 
-    setMessage("Invoice deleted successfully.");
+    console.log("✓ Invoice deleted successfully");
+    setMessage("✓ Invoice deleted successfully.");
     await fetchData();
   };
 
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
+      console.log("📄 DEBUG - Generating PDF for invoice:", invoice.invoice_number);
       const customer = customers.find((c) => c.id === invoice.customer_id);
       const job = jobs.find((j) => j.id === invoice.job_id);
 
@@ -248,12 +365,13 @@ export default function InvoicesPage() {
 
       console.log(`✓ Downloaded invoice ${invoice.invoice_number}`);
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      setMessage(`Error generating invoice PDF: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error("❌ PDF generation error:", error);
+      setMessage(`❌ Error generating invoice PDF: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
   const handleEdit = (invoice: Invoice) => {
+    console.log("📋 DEBUG - Editing invoice:", invoice.id);
     setEditingId(invoice.id);
     const job = jobs.find((j) => j.id === invoice.job_id);
     setForm({
@@ -269,6 +387,7 @@ export default function InvoicesPage() {
   };
 
   const resetForm = () => {
+    console.log("📋 DEBUG - Resetting invoice form");
     setForm(emptyForm);
     setEditingId(null);
     setMessage(null);
