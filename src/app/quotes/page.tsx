@@ -28,6 +28,24 @@ type Quote = {
   created_at: string;
 };
 
+type Job = {
+  id: string;
+  quote_id: string;
+  customer_id: string;
+  scheduled_date: string;
+  assigned_employee: string | null;
+  status: string;
+  estimated_value: number;
+  notes: string;
+  created_at: string;
+};
+
+type ApprovalFormState = {
+  scheduled_date: string;
+  assigned_employee: string;
+  notes: string;
+};
+
 type QuoteFormState = {
   customer_id: string;
   customer_name: string;
@@ -102,6 +120,13 @@ export default function QuotesPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeQuote, setActiveQuote] = useState<Quote | null>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalForm, setApprovalForm] = useState<ApprovalFormState>({
+    scheduled_date: "",
+    assigned_employee: "",
+    notes: "",
+  });
+  const [approvingQuoteId, setApprovingQuoteId] = useState<string | null>(null);
 
   const estimate = useMemo(() => calculateEstimate(form), [form]);
 
@@ -262,6 +287,61 @@ export default function QuotesPage() {
       `Hello ${contactName},\n\nHere is your commercial cleaning estimate:\n- Company: ${customerName}\n- Square footage: ${quote.square_footage}\n- Frequency: ${quote.cleaning_frequency}\n- Estimated total: ${formatCurrency(quote.total_estimate)}\n\nThanks,\nCleaning CRM`,
     );
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
+
+  const handleApproveClick = (quote: Quote) => {
+    setApprovingQuoteId(quote.id);
+    setApprovalForm({
+      scheduled_date: new Date().toISOString().split("T")[0],
+      assigned_employee: "",
+      notes: quote.notes || "",
+    });
+    setShowApprovalModal(true);
+  };
+
+  const handleApproveSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!approvingQuoteId) return;
+
+    setSaving(true);
+    setMessage(null);
+
+    const quote = quotes.find((q) => q.id === approvingQuoteId);
+    if (!quote) {
+      setMessage("Quote not found.");
+      setSaving(false);
+      return;
+    }
+
+    if (!approvalForm.scheduled_date) {
+      setMessage("Please select a scheduled date.");
+      setSaving(false);
+      return;
+    }
+
+    const jobPayload = {
+      quote_id: quote.id,
+      customer_id: quote.customer_id,
+      scheduled_date: approvalForm.scheduled_date,
+      assigned_employee: approvalForm.assigned_employee || null,
+      status: "Scheduled",
+      estimated_value: quote.total_estimate,
+      notes: approvalForm.notes,
+    };
+
+    const { error } = await supabase.from("jobs").insert(jobPayload);
+
+    if (error) {
+      console.error("Error creating job:", error);
+      setMessage(`Error approving quote: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setMessage("Quote approved and job created successfully.");
+    setShowApprovalModal(false);
+    setApprovingQuoteId(null);
+    setSaving(false);
   };
 
   const resetForm = () => {
@@ -496,6 +576,13 @@ export default function QuotesPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleApproveClick(quote)}
+                            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDelete(quote.id)}
                             className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100"
                           >
@@ -512,6 +599,90 @@ export default function QuotesPage() {
           </section>
         </div>
       </div>
+
+      {showApprovalModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Approve Quote & Create Job</h2>
+            <p className="mt-1 text-sm text-slate-500">Schedule this cleaning job for approval.</p>
+
+            {message ? (
+              <div className="mt-4 rounded-2xl border border-yellow-100 bg-yellow-50 px-3 py-2 text-sm text-yellow-700">
+                {message}
+              </div>
+            ) : null}
+
+            <form className="mt-4 space-y-4" onSubmit={handleApproveSubmit}>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Scheduled date</label>
+                <input
+                  type="date"
+                  required
+                  value={approvalForm.scheduled_date}
+                  onChange={(event) =>
+                    setApprovalForm((current) => ({
+                      ...current,
+                      scheduled_date: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-green-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Assigned employee (optional)</label>
+                <input
+                  type="text"
+                  value={approvalForm.assigned_employee}
+                  onChange={(event) =>
+                    setApprovalForm((current) => ({
+                      ...current,
+                      assigned_employee: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-green-500 focus:bg-white"
+                  placeholder="e.g., John Smith"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Job notes</label>
+                <textarea
+                  value={approvalForm.notes}
+                  onChange={(event) =>
+                    setApprovalForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  className="min-h-20 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-green-500 focus:bg-white"
+                  placeholder="Special instructions or requirements..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-400"
+                >
+                  {saving ? "Creating job..." : "Approve & Create Job"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowApprovalModal(false);
+                    setApprovingQuoteId(null);
+                  }}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
