@@ -84,6 +84,7 @@ export default function InvoicesPage() {
   const supabase = useMemo(() => createClient(), []);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<InvoiceFormState>(emptyForm);
@@ -101,8 +102,8 @@ export default function InvoicesPage() {
     console.log("📋 DEBUG - Starting fetchData for invoice creation page");
     console.log("🔍 Time:", new Date().toISOString());
 
-    // Query 1: Fetch ALL jobs without any filter (to see raw state)
-    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
+    // Query 1: Fetch ALL jobs without any filter (raw state - no filters at all)
+    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs (NO FILTERS)");
     console.log("  Exact query: supabase.from('jobs').select('*')");
     const allJobsResponse = await supabase
       .from("jobs")
@@ -116,7 +117,7 @@ export default function InvoicesPage() {
       console.log("  Raw Data:", allJobsResponse.data);
       console.log("  Detailed breakdown:");
       allJobsResponse.data.forEach((job: any, idx: number) => {
-        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, quote_id=${job.quote_id}, estimated_value=${job.estimated_value}`);
+        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, estimated_value=${job.estimated_value}`);
       });
     }
 
@@ -136,7 +137,7 @@ export default function InvoicesPage() {
       console.log("  Raw Data:", completedJobsResponse.data);
       console.log("  Detailed breakdown:");
       completedJobsResponse.data.forEach((job: any, idx: number) => {
-        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, quote_id=${job.quote_id}, estimated_value=${job.estimated_value}`);
+        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, estimated_value=${job.estimated_value}`);
       });
     }
 
@@ -156,6 +157,21 @@ export default function InvoicesPage() {
     } else {
       setInvoices(invoicesResponse.data ?? []);
       console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
+    }
+
+    // Store all jobs (unfiltered)
+    if (allJobsResponse.error) {
+      console.error("❌ SUPABASE ERROR - Failed to fetch all jobs:", {
+        message: allJobsResponse.error.message,
+        code: allJobsResponse.error.code,
+        details: allJobsResponse.error.details,
+        hint: allJobsResponse.error.hint,
+      });
+      setAllJobs([]);
+    } else {
+      const allJobsData = allJobsResponse.data ?? [];
+      console.log(`✓ Successfully fetched ${allJobsData.length} total jobs`);
+      setAllJobs(allJobsData);
     }
 
     // Use Query 2 results (completed jobs with capital C)
@@ -556,10 +572,65 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* DISPLAY RAW QUERY RESULTS FROM SUPABASE */}
+              {/* DISPLAY RAW ALL JOBS - NO FILTERS */}
+              <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-orange-900">
+                  🔍 ALL JOBS IN DATABASE (NO FILTERS)
+                </p>
+                
+                <div className="mb-3 rounded-lg border-l-4 border-orange-500 bg-white p-3">
+                  <p className="text-xs font-mono text-orange-900">
+                    <strong>Exact Query:</strong>
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-slate-700">
+                    supabase.from('jobs').select('*')
+                  </p>
+                </div>
+
+                <div className="rounded-lg border-l-4 border-orange-500 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold text-orange-900">
+                    📊 Total rows returned: <span className="text-lg font-bold text-blue-600">{allJobs.length}</span>
+                  </p>
+                  
+                  {allJobs.length === 0 ? (
+                    <div className="text-xs text-red-700">
+                      <p>❌ No jobs found in database</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 overflow-x-auto">
+                      <table className="w-full text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-2 py-1 text-left">id</th>
+                            <th className="px-2 py-1 text-left">status</th>
+                            <th className="px-2 py-1 text-left">customer_id</th>
+                            <th className="px-2 py-1 text-right">estimated_value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allJobs.map((job, idx) => (
+                            <tr key={job.id} className="border-b border-slate-100 hover:bg-orange-50">
+                              <td className="px-2 py-1 text-slate-900">{job.id}</td>
+                              <td className="px-2 py-1">
+                                <span className="inline-block rounded bg-yellow-100 px-2 py-0.5 text-yellow-900">
+                                  {job.status}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1 text-slate-900">{job.customer_id}</td>
+                              <td className="px-2 py-1 text-right text-slate-900">${job.estimated_value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* DISPLAY RAW COMPLETED JOBS QUERY RESULTS */}
               <div className="rounded-2xl border-2 border-purple-300 bg-purple-50 p-4">
                 <p className="mb-2 text-sm font-semibold text-purple-900">
-                  🔍 RAW SUPABASE QUERY RESULTS
+                  🔍 COMPLETED JOBS (status = 'Completed')
                 </p>
                 
                 <div className="mb-3 rounded-lg border-l-4 border-purple-500 bg-white p-3">
@@ -573,7 +644,7 @@ export default function InvoicesPage() {
 
                 <div className="rounded-lg border-l-4 border-purple-500 bg-white p-3">
                   <p className="mb-2 text-xs font-semibold text-purple-900">
-                    📊 Total rows returned: <span className="text-lg font-bold text-blue-600">{jobs.length}</span>
+                    📊 Total rows returned: <span className="text-lg font-bold text-green-600">{jobs.length}</span>
                   </p>
                   
                   {jobs.length === 0 ? (
@@ -581,20 +652,19 @@ export default function InvoicesPage() {
                       <p>❌ No jobs returned from query</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 overflow-x-auto">
                       <table className="w-full text-xs font-mono">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-100">
                             <th className="px-2 py-1 text-left">id</th>
                             <th className="px-2 py-1 text-left">status</th>
                             <th className="px-2 py-1 text-left">customer_id</th>
-                            <th className="px-2 py-1 text-left">quote_id</th>
                             <th className="px-2 py-1 text-right">estimated_value</th>
                           </tr>
                         </thead>
                         <tbody>
                           {jobs.map((job, idx) => (
-                            <tr key={job.id} className="border-b border-slate-100 hover:bg-blue-50">
+                            <tr key={job.id} className="border-b border-slate-100 hover:bg-purple-50">
                               <td className="px-2 py-1 text-slate-900">{job.id}</td>
                               <td className="px-2 py-1">
                                 <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-green-900">
@@ -602,7 +672,6 @@ export default function InvoicesPage() {
                                 </span>
                               </td>
                               <td className="px-2 py-1 text-slate-900">{job.customer_id}</td>
-                              <td className="px-2 py-1 text-slate-900">{job.quote_id || "null"}</td>
                               <td className="px-2 py-1 text-right text-slate-900">${job.estimated_value}</td>
                             </tr>
                           ))}
