@@ -95,10 +95,13 @@ export default function CustomerQuotesPage() {
 
   const handleApproveQuote = async (quote: Quote) => {
     setApproving(quote.id);
+    setMessage(null);
 
     try {
-      // Create job from quote
-      const { error } = await supabase.from("jobs").insert({
+      console.log("📋 DEBUG - Starting quote approval for quote:", quote.id);
+
+      // Step 1: Create job from quote
+      console.log("📋 DEBUG - Creating job with data:", {
         quote_id: quote.id,
         customer_id: quote.customer_id,
         scheduled_date: new Date().toISOString().split("T")[0],
@@ -107,22 +110,82 @@ export default function CustomerQuotesPage() {
         notes: quote.notes,
       });
 
-      if (error) {
-        console.error("❌ Failed to approve quote:", error);
-        setMessage(`Error approving quote: ${error.message}`);
-      } else {
-        setMessage(`✓ Quote approved! A job has been scheduled for your company.`);
-        // Reload quotes
-        const { data: quotesData } = await supabase
-          .from("quotes")
-          .select("*")
-          .eq("customer_id", quote.customer_id)
-          .order("created_at", { ascending: false });
-        setQuotes(quotesData || []);
+      const jobPayload = {
+        quote_id: quote.id,
+        customer_id: quote.customer_id,
+        scheduled_date: new Date().toISOString().split("T")[0],
+        assigned_employee: null,
+        status: "Scheduled",
+        estimated_value: quote.total_estimate,
+        notes: quote.notes || "",
+      };
+
+      const { data: jobData, error: jobError } = await supabase
+        .from("jobs")
+        .insert(jobPayload)
+        .select();
+
+      if (jobError) {
+        console.error("❌ Job creation failed:", {
+          message: jobError.message,
+          code: jobError.code,
+          details: jobError.details,
+        });
+        setMessage(`❌ Failed to create job: ${jobError.message}`);
+        setApproving(null);
+        return;
       }
+
+      if (!jobData || jobData.length === 0) {
+        console.error("❌ Job created but no data returned");
+        setMessage("❌ Job created but failed to confirm. Please refresh.");
+        setApproving(null);
+        return;
+      }
+
+      console.log("✓ Job created successfully:", jobData[0].id);
+
+      // Step 2: Update quote status to "Approved"
+      console.log("📋 DEBUG - Updating quote status to Approved for quote:", quote.id);
+
+      const { error: updateError } = await supabase
+        .from("quotes")
+        .update({ status: "Approved" })
+        .eq("id", quote.id);
+
+      if (updateError) {
+        console.error("❌ Failed to update quote status:", {
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+        });
+        setMessage(`❌ Job created but failed to update quote status: ${updateError.message}`);
+        setApproving(null);
+        return;
+      }
+
+      console.log("✓ Quote status updated to Approved");
+
+      // Step 3: Refresh quotes list
+      console.log("📋 DEBUG - Refreshing quotes list");
+
+      const { data: quotesData, error: reloadError } = await supabase
+        .from("quotes")
+        .select("*")
+        .eq("customer_id", quote.customer_id)
+        .order("created_at", { ascending: false });
+
+      if (reloadError) {
+        console.error("⚠️ Warning - failed to reload quotes:", reloadError);
+      } else {
+        setQuotes(quotesData || []);
+        console.log("✓ Quotes reloaded successfully");
+      }
+
+      setMessage(`✓ Quote approved! Job #${jobData[0].id.slice(0, 8).toUpperCase()} has been scheduled.`);
     } catch (error) {
-      console.error("Error:", error);
-      setMessage(`An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error("❌ Unexpected error during quote approval:", error);
+      setMessage(`❌ An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setApproving(null);
     }

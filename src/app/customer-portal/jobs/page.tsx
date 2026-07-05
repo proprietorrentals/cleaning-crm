@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Job = {
   id: string;
+  quote_id: string;
   customer_id: string;
   scheduled_date: string;
   assigned_employee: string | null;
@@ -37,7 +38,39 @@ export default function CustomerJobsPage() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const fetchJobs = async (customerId: string) => {
+    console.log("📋 DEBUG - Fetching all jobs for customer:", customerId);
+
+    const { data: jobsData, error: jobsError } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("scheduled_date", { ascending: true });
+
+    if (jobsError) {
+      console.error("❌ Failed to fetch jobs:", {
+        message: jobsError.message,
+        code: jobsError.code,
+        details: jobsError.details,
+      });
+      setMessage(`Error loading jobs: ${jobsError.message}`);
+    } else {
+      console.log(`✓ Fetched ${jobsData?.length || 0} jobs:`, jobsData);
+      setJobs(jobsData || []);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!customerId) return;
+    setRefreshing(true);
+    setMessage(null);
+    await fetchJobs(customerId);
+    setRefreshing(false);
+    console.log("✓ Jobs refreshed");
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,6 +83,8 @@ export default function CustomerJobsPage() {
         return;
       }
 
+      console.log("🔐 DEBUG - Fetching jobs for user:", session.user.id);
+
       // Get customer ID
       const { data: customer, error: customerError } = await supabase
         .from("customers")
@@ -59,31 +94,23 @@ export default function CustomerJobsPage() {
 
       if (customerError) {
         console.error("❌ Failed to fetch customer:", customerError);
+        setMessage(`Error loading customer: ${customerError.message}`);
         setLoading(false);
         return;
       }
 
       if (!customer) {
         console.warn("⚠️ No customer profile found for user", session.user.id);
+        setMessage("⚠️ No customer profile found. Please contact support.");
         setLoading(false);
         return;
       }
 
+      console.log("👤 DEBUG - Found customer:", customer.id);
       setCustomerId(customer.id);
 
-      // Fetch jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("customer_id", customer.id)
-        .order("scheduled_date", { ascending: true });
-
-      if (jobsError) {
-        console.error("❌ Failed to fetch jobs:", jobsError);
-        setMessage(`Error loading jobs: ${jobsError.message}`);
-      } else {
-        setJobs(jobsData || []);
-      }
+      // Fetch all jobs for this customer
+      await fetchJobs(customer.id);
 
       setLoading(false);
     };
@@ -143,12 +170,25 @@ export default function CustomerJobsPage() {
             </Link>
             <h1 className="text-2xl font-bold text-slate-900">Your Jobs</h1>
           </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {refreshing ? "Refreshing..." : "🔄 Refresh"}
+          </button>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {message && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            className={`mb-6 rounded-2xl px-4 py-3 text-sm ${
+              message.includes("❌") || message.includes("Error") || message.includes("⚠️")
+                ? "border border-red-200 bg-red-50 text-red-700"
+                : "border border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
             {message}
           </div>
         )}
@@ -162,34 +202,49 @@ export default function CustomerJobsPage() {
           </div>
         ) : (
           <>
-            {/* Scheduled Jobs */}
-            {scheduledJobs.length > 0 && (
-              <section className="mb-8">
-                <h2 className="mb-4 text-xl font-bold text-slate-900">Scheduled & In Progress</h2>
+            {/* All Jobs */}
+            {jobs.length > 0 && (
+              <section className="mb-12">
+                <h2 className="mb-4 text-xl font-bold text-slate-900">All Jobs ({jobs.length})</h2>
                 <div className="grid gap-4">
-                  {scheduledJobs.map((job) => (
+                  {jobs.map((job) => (
                     <JobCard key={job.id} job={job} />
                   ))}
                 </div>
               </section>
             )}
 
-            {/* Completed Jobs */}
-            {completedJobs.length > 0 && (
-              <section>
-                <h2 className="mb-4 text-xl font-bold text-slate-900">Completed</h2>
-                <div className="grid gap-4">
-                  {completedJobs.map((job) => (
-                    <JobCard key={job.id} job={job} />
-                  ))}
-                </div>
-              </section>
+            {/* Job Status Breakdown */}
+            {jobs.length > 0 && (
+              <>
+                {scheduledJobs.length > 0 && (
+                  <section className="mb-8">
+                    <h2 className="mb-4 text-lg font-semibold text-slate-700">Breakdown - Scheduled & In Progress ({scheduledJobs.length})</h2>
+                    <div className="grid gap-4 opacity-75">
+                      {scheduledJobs.map((job) => (
+                        <JobCard key={job.id} job={job} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {completedJobs.length > 0 && (
+                  <section>
+                    <h2 className="mb-4 text-lg font-semibold text-slate-700">Breakdown - Completed ({completedJobs.length})</h2>
+                    <div className="grid gap-4 opacity-75">
+                      {completedJobs.map((job) => (
+                        <JobCard key={job.id} job={job} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
             )}
 
             {/* No Jobs */}
             {jobs.length === 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-                <p className="text-slate-600">No jobs scheduled yet.</p>
+                <p className="text-slate-600">No jobs scheduled yet. Approve a quote to get started!</p>
               </div>
             )}
           </>
