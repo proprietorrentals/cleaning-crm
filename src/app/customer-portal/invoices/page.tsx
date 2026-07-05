@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
+import { loadStripe } from "@stripe/stripe-js";
 
 type Customer = {
   id: string;
@@ -59,6 +60,7 @@ export default function CustomerInvoicesPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [paying, setPaying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -156,6 +158,49 @@ export default function CustomerInvoicesPage() {
     }
   };
 
+  const handlePayment = async (invoice: Invoice) => {
+    if (!customer) {
+      setMessage("Error: Customer information not loaded");
+      return;
+    }
+
+    setPaying(invoice.id);
+    setMessage(null);
+
+    try {
+      // Create Stripe checkout session
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.amount,
+          invoiceNumber: invoice.invoice_number,
+          customerEmail: customer.email,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create checkout session");
+      }
+
+      const { url } = await response.json();
+
+      if (url) {
+        // Redirect to Stripe checkout
+        window.location.href = url;
+      } else {
+        setMessage("❌ Failed to initialize payment");
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      setMessage(`❌ Payment error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setPaying(null);
+    }
+  };
+
   const pendingInvoices = invoices.filter((i) => i.status === "Pending");
   const paidInvoices = invoices.filter((i) => i.status === "Paid");
   const overdueInvoices = invoices.filter((i) => i.status === "Overdue");
@@ -191,13 +236,26 @@ export default function CustomerInvoicesPage() {
           </div>
         )}
 
-        <button
-          onClick={() => handleDownloadPDF(invoice)}
-          disabled={downloading === invoice.id}
-          className="w-full rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-        >
-          {downloading === invoice.id ? "Downloading..." : "⬇ Download PDF"}
-        </button>
+        <div className="flex gap-3">
+          {(invoice.status === "Pending" || invoice.status === "Overdue") && (
+            <button
+              onClick={() => handlePayment(invoice)}
+              disabled={paying === invoice.id}
+              className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+            >
+              {paying === invoice.id ? "Processing..." : "💳 Pay Now"}
+            </button>
+          )}
+          <button
+            onClick={() => handleDownloadPDF(invoice)}
+            disabled={downloading === invoice.id}
+            className={`flex-1 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
+              (invoice.status === "Pending" || invoice.status === "Overdue") ? "" : "w-full"
+            }`}
+          >
+            {downloading === invoice.id ? "Downloading..." : "⬇ PDF"}
+          </button>
+        </div>
       </div>
     );
   };
