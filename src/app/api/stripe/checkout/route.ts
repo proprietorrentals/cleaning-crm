@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-06-20",
+});
 
 export async function POST(request: NextRequest) {
+  console.log('APP_URL:', process.env.NEXT_PUBLIC_APP_URL);
+  console.log('Success URL:', `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`);
+  console.log('Cancel URL:', `${process.env.NEXT_PUBLIC_APP_URL}/payment-cancelled`);
+  
   try {
     const body = await request.json();
     const { invoiceId, amount, invoiceNumber, customerEmail } = body;
@@ -40,13 +46,22 @@ export async function POST(request: NextRequest) {
         invoiceNumber,
       },
     });
+    
+    console.log('Session created:', session.id);
 
     // Return session ID
     return NextResponse.json({
       sessionId: session.id,
       url: session.url,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Stripe error details:', {
+      type: error.type,
+      message: error.message,
+      code: error.code,
+      statusCode: error.statusCode,
+      raw: error.raw
+    });
     console.error("❌ Stripe checkout error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Checkout failed" },
