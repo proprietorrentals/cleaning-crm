@@ -99,57 +99,59 @@ export default function InvoicesPage() {
     setMessage(null);
 
     console.log("📋 DEBUG - Starting fetchData for invoice creation page");
+    console.log("🔍 Time:", new Date().toISOString());
 
-    // Query 1: Fetch ALL jobs (no filter)
+    // Query 1: Fetch ALL jobs without any filter (to see what exists)
+    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
     const allJobsResponse = await supabase
       .from("jobs")
-      .select("id, status, customer_id, estimated_value, scheduled_date, quote_id, assigned_employee, notes, created_at")
-      .order("scheduled_date", { ascending: true });
+      .select("*");
 
-    console.log("📋 DEBUG - Query 1: Fetching ALL jobs");
-    console.log("Query 1 Result:", {
-      count: allJobsResponse.data?.length ?? 0,
-      error: allJobsResponse.error ? {
-        message: allJobsResponse.error.message,
-        code: allJobsResponse.error.code,
-        details: allJobsResponse.error.details,
-        hint: allJobsResponse.error.hint,
-      } : null,
-      data: allJobsResponse.data,
-    });
-
-    // Query 2: Fetch ONLY jobs with status = "Completed"
-    const completedJobsResponse = await supabase
-      .from("jobs")
-      .select("id, status, customer_id, estimated_value, scheduled_date, quote_id, assigned_employee, notes, created_at")
-      .eq("status", "Completed")
-      .order("scheduled_date", { ascending: true });
-
-    console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
-    console.log("Query 2 Result:", {
-      count: completedJobsResponse.data?.length ?? 0,
-      error: completedJobsResponse.error ? {
-        message: completedJobsResponse.error.message,
-        code: completedJobsResponse.error.code,
-        details: completedJobsResponse.error.details,
-        hint: completedJobsResponse.error.hint,
-      } : null,
-      data: completedJobsResponse.data,
-    });
-
-    // Log comparison
-    console.log("📊 DEBUG - Status Value Comparison:");
+    console.log("✅ Query 1 Complete - Raw Response:");
+    console.log("  Count:", allJobsResponse.data?.length ?? 0);
+    console.log("  Status:", allJobsResponse.status);
+    console.log("  Error:", allJobsResponse.error);
     if (allJobsResponse.data) {
-      const statusCounts: Record<string, number> = {};
-      allJobsResponse.data.forEach((job: any) => {
-        const status = job.status;
-        statusCounts[status] = (statusCounts[status] || 0) + 1;
-        console.log(`  Job ${job.id}: status="${job.status}" (type: ${typeof job.status}, length: ${job.status?.length})`);
-      });
-      console.log("📊 Status value distribution:", statusCounts);
+      console.log("  Raw Data:", allJobsResponse.data);
+      console.log("  All status values:", allJobsResponse.data.map((j: any) => ({
+        id: j.id,
+        status: j.status,
+        status_type: typeof j.status,
+        status_length: j.status?.length,
+        status_trimmed: j.status?.trim(),
+        customer_id: j.customer_id,
+        estimated_value: j.estimated_value,
+        scheduled_date: j.scheduled_date,
+      })));
     }
 
-    // Now fetch invoices and customers in parallel
+    // Query 2: Fetch ONLY jobs with status = "Completed" (exact match, capital C)
+    console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
+    const completedJobsResponse = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("status", "Completed");
+
+    console.log("✅ Query 2 Complete - Raw Response:");
+    console.log("  Count:", completedJobsResponse.data?.length ?? 0);
+    console.log("  Status:", completedJobsResponse.status);
+    console.log("  Error:", completedJobsResponse.error);
+    if (completedJobsResponse.data) {
+      console.log("  Raw Data:", completedJobsResponse.data);
+    }
+
+    // Query 3: Test with lowercase "completed"
+    console.log("📋 DEBUG - Query 3: Testing lowercase status='completed'");
+    const completedLowerResponse = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("status", "completed");
+
+    console.log("✅ Query 3 Complete:");
+    console.log("  Count:", completedLowerResponse.data?.length ?? 0);
+    console.log("  Error:", completedLowerResponse.error);
+
+    // Fetch invoices and customers in parallel
     const [invoicesResponse, customersResponse] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
@@ -167,27 +169,20 @@ export default function InvoicesPage() {
       console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
     }
 
-    // Use Query 2 results (completed jobs only) for the form
+    // Use Query 2 results (completed jobs with capital C)
     if (completedJobsResponse.error) {
-      console.error("❌ Failed to fetch completed jobs:", {
+      console.error("❌ SUPABASE ERROR - Failed to fetch completed jobs:", {
         message: completedJobsResponse.error.message,
         code: completedJobsResponse.error.code,
         details: completedJobsResponse.error.details,
         hint: completedJobsResponse.error.hint,
       });
-      setMessage(`❌ Error fetching completed jobs: ${completedJobsResponse.error.message} (Code: ${completedJobsResponse.error.code})`);
+      setMessage(`❌ Supabase Error: ${completedJobsResponse.error.message} (Code: ${completedJobsResponse.error.code})`);
       setJobs([]);
     } else {
       const completedJobs = completedJobsResponse.data ?? [];
-      console.log(`✓ Fetched ${completedJobs.length} COMPLETED jobs (status="Completed")`);
-      console.log("📊 DEBUG - Completed jobs details:", completedJobs.map((j: Job) => ({
-        id: j.id,
-        status: j.status,
-        status_length: j.status?.length,
-        customer_id: j.customer_id,
-        estimated_value: j.estimated_value,
-        scheduled_date: j.scheduled_date,
-      })));
+      console.log(`✓ Successfully fetched ${completedJobs.length} jobs with status="Completed"`);
+      console.log("📊 DEBUG - Completed jobs array:", completedJobs);
       setJobs(completedJobs);
     }
 
@@ -573,34 +568,42 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* DEBUG PANEL: Show all jobs returned from Supabase */}
-              {!jobsLoading && jobs.length > 0 ? (
-                <div className="rounded-2xl border-2 border-green-300 bg-green-50 p-4">
-                  <p className="mb-3 text-sm font-semibold text-green-900">✓ JOBS FOUND: {jobs.length} job(s) with status="Completed"</p>
-                  <div className="space-y-2">
-                    {jobs.map((job) => {
-                      const customer = customers.find((c) => c.id === job.customer_id);
-                      return (
-                        <div key={job.id} className="rounded-lg bg-white px-3 py-2 text-xs font-mono border-l-4 border-green-500">
-                          <div><strong>ID:</strong> {job.id}</div>
-                          <div><strong>Status:</strong> <span className="bg-green-200 px-1 rounded">{job.status}</span></div>
-                          <div><strong>Customer:</strong> {customer?.company_name || `ID: ${job.customer_id}`}</div>
-                          <div><strong>Amount:</strong> ${job.estimated_value}</div>
-                          <div><strong>Date:</strong> {job.scheduled_date}</div>
-                        </div>
-                      );
-                    })}
+              {/* DISPLAY RAW COMPLETED JOBS FROM SUPABASE */}
+              <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-blue-900">
+                  📊 RAW COMPLETED JOBS FROM SUPABASE (Count: {jobs.length})
+                </p>
+                {jobs.length === 0 ? (
+                  <div className="text-xs text-blue-700">
+                    <p>❌ No jobs returned from .eq("status", "Completed") query</p>
+                    <p className="mt-2 text-blue-600">Check browser console for debugging info:</p>
+                    <p className="font-mono">Query 1: All jobs</p>
+                    <p className="font-mono">Query 2: status="Completed"</p>
+                    <p className="font-mono">Query 3: status="completed"</p>
                   </div>
-                </div>
-              ) : !jobsLoading && jobs.length === 0 ? (
-                <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-4">
-                  <p className="mb-3 text-sm font-semibold text-red-900">❌ NO COMPLETED JOBS FOUND</p>
-                  <p className="text-xs text-red-800">The query for status="Completed" returned 0 results. Check browser console for detailed query logs.</p>
-                </div>
-              ) : null}
+                ) : (
+                  <div className="space-y-3">
+                    {jobs.map((job) => (
+                      <div key={job.id} className="rounded-lg border-l-4 border-blue-500 bg-white p-3 text-xs font-mono">
+                        <div className="grid gap-2 text-blue-900">
+                          <div><strong>ID:</strong> {job.id}</div>
+                          <div><strong>Status:</strong> "{job.status}"</div>
+                          <div><strong>Customer ID:</strong> {job.customer_id}</div>
+                          <div><strong>Estimated Value:</strong> {job.estimated_value}</div>
+                          <div><strong>Scheduled Date:</strong> {job.scheduled_date}</div>
+                          <div><strong>Quote ID:</strong> {job.quote_id || "null"}</div>
+                          <div><strong>Assigned Employee:</strong> {job.assigned_employee || "null"}</div>
+                          <div><strong>Notes:</strong> {job.notes || "null"}</div>
+                          <div><strong>Created At:</strong> {job.created_at}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a job for invoice (Completed status only)</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a job for invoice</label>
                 <select
                   value={form.job_id}
                   onChange={(event) => handleJobSelect(event.target.value)}
@@ -612,7 +615,7 @@ export default function InvoicesPage() {
                     const customer = customers.find((c) => c.id === job.customer_id);
                     return (
                       <option key={job.id} value={job.id}>
-                        {customer?.company_name || "Unknown"} - {job.scheduled_date} ({formatCurrency(job.estimated_value)})
+                        {customer?.company_name || `Customer ${job.customer_id}`} - {job.scheduled_date} (${job.estimated_value})
                       </option>
                     );
                   })}
