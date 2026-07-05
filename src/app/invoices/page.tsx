@@ -101,55 +101,44 @@ export default function InvoicesPage() {
     console.log("📋 DEBUG - Starting fetchData for invoice creation page");
     console.log("🔍 Time:", new Date().toISOString());
 
-    // Query 1: Fetch ALL jobs without any filter (to see what exists)
+    // Query 1: Fetch ALL jobs without any filter (to see raw state)
     console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
+    console.log("  Exact query: supabase.from('jobs').select('*')");
     const allJobsResponse = await supabase
       .from("jobs")
       .select("*");
 
     console.log("✅ Query 1 Complete - Raw Response:");
-    console.log("  Count:", allJobsResponse.data?.length ?? 0);
-    console.log("  Status:", allJobsResponse.status);
+    console.log("  Total rows returned:", allJobsResponse.data?.length ?? 0);
+    console.log("  Status code:", allJobsResponse.status);
     console.log("  Error:", allJobsResponse.error);
-    if (allJobsResponse.data) {
+    if (allJobsResponse.data && allJobsResponse.data.length > 0) {
       console.log("  Raw Data:", allJobsResponse.data);
-      console.log("  All status values:", allJobsResponse.data.map((j: any) => ({
-        id: j.id,
-        status: j.status,
-        status_type: typeof j.status,
-        status_length: j.status?.length,
-        status_trimmed: j.status?.trim(),
-        customer_id: j.customer_id,
-        estimated_value: j.estimated_value,
-        scheduled_date: j.scheduled_date,
-      })));
+      console.log("  Detailed breakdown:");
+      allJobsResponse.data.forEach((job: any, idx: number) => {
+        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, quote_id=${job.quote_id}, estimated_value=${job.estimated_value}`);
+      });
     }
 
     // Query 2: Fetch ONLY jobs with status = "Completed" (exact match, capital C)
     console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
+    console.log("  Exact query: supabase.from('jobs').select('*').eq('status', 'Completed')");
     const completedJobsResponse = await supabase
       .from("jobs")
       .select("*")
       .eq("status", "Completed");
 
     console.log("✅ Query 2 Complete - Raw Response:");
-    console.log("  Count:", completedJobsResponse.data?.length ?? 0);
-    console.log("  Status:", completedJobsResponse.status);
+    console.log("  Total rows returned:", completedJobsResponse.data?.length ?? 0);
+    console.log("  Status code:", completedJobsResponse.status);
     console.log("  Error:", completedJobsResponse.error);
-    if (completedJobsResponse.data) {
+    if (completedJobsResponse.data && completedJobsResponse.data.length > 0) {
       console.log("  Raw Data:", completedJobsResponse.data);
+      console.log("  Detailed breakdown:");
+      completedJobsResponse.data.forEach((job: any, idx: number) => {
+        console.log(`    [${idx}] id=${job.id}, status="${job.status}", customer_id=${job.customer_id}, quote_id=${job.quote_id}, estimated_value=${job.estimated_value}`);
+      });
     }
-
-    // Query 3: Test with lowercase "completed"
-    console.log("📋 DEBUG - Query 3: Testing lowercase status='completed'");
-    const completedLowerResponse = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("status", "completed");
-
-    console.log("✅ Query 3 Complete:");
-    console.log("  Count:", completedLowerResponse.data?.length ?? 0);
-    console.log("  Error:", completedLowerResponse.error);
 
     // Fetch invoices and customers in parallel
     const [invoicesResponse, customersResponse] = await Promise.all([
@@ -182,7 +171,6 @@ export default function InvoicesPage() {
     } else {
       const completedJobs = completedJobsResponse.data ?? [];
       console.log(`✓ Successfully fetched ${completedJobs.length} jobs with status="Completed"`);
-      console.log("📊 DEBUG - Completed jobs array:", completedJobs);
       setJobs(completedJobs);
     }
 
@@ -568,38 +556,61 @@ export default function InvoicesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* DISPLAY RAW COMPLETED JOBS FROM SUPABASE */}
-              <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-4">
-                <p className="mb-2 text-sm font-semibold text-blue-900">
-                  📊 RAW COMPLETED JOBS FROM SUPABASE (Count: {jobs.length})
+              {/* DISPLAY RAW QUERY RESULTS FROM SUPABASE */}
+              <div className="rounded-2xl border-2 border-purple-300 bg-purple-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-purple-900">
+                  🔍 RAW SUPABASE QUERY RESULTS
                 </p>
-                {jobs.length === 0 ? (
-                  <div className="text-xs text-blue-700">
-                    <p>❌ No jobs returned from .eq("status", "Completed") query</p>
-                    <p className="mt-2 text-blue-600">Check browser console for debugging info:</p>
-                    <p className="font-mono">Query 1: All jobs</p>
-                    <p className="font-mono">Query 2: status="Completed"</p>
-                    <p className="font-mono">Query 3: status="completed"</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {jobs.map((job) => (
-                      <div key={job.id} className="rounded-lg border-l-4 border-blue-500 bg-white p-3 text-xs font-mono">
-                        <div className="grid gap-2 text-blue-900">
-                          <div><strong>ID:</strong> {job.id}</div>
-                          <div><strong>Status:</strong> "{job.status}"</div>
-                          <div><strong>Customer ID:</strong> {job.customer_id}</div>
-                          <div><strong>Estimated Value:</strong> {job.estimated_value}</div>
-                          <div><strong>Scheduled Date:</strong> {job.scheduled_date}</div>
-                          <div><strong>Quote ID:</strong> {job.quote_id || "null"}</div>
-                          <div><strong>Assigned Employee:</strong> {job.assigned_employee || "null"}</div>
-                          <div><strong>Notes:</strong> {job.notes || "null"}</div>
-                          <div><strong>Created At:</strong> {job.created_at}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                
+                <div className="mb-3 rounded-lg border-l-4 border-purple-500 bg-white p-3">
+                  <p className="text-xs font-mono text-purple-900">
+                    <strong>Exact Query:</strong>
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-slate-700">
+                    supabase.from('jobs').select('*').eq('status', 'Completed')
+                  </p>
+                </div>
+
+                <div className="rounded-lg border-l-4 border-purple-500 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold text-purple-900">
+                    📊 Total rows returned: <span className="text-lg font-bold text-blue-600">{jobs.length}</span>
+                  </p>
+                  
+                  {jobs.length === 0 ? (
+                    <div className="text-xs text-red-700">
+                      <p>❌ No jobs returned from query</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <table className="w-full text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-100">
+                            <th className="px-2 py-1 text-left">id</th>
+                            <th className="px-2 py-1 text-left">status</th>
+                            <th className="px-2 py-1 text-left">customer_id</th>
+                            <th className="px-2 py-1 text-left">quote_id</th>
+                            <th className="px-2 py-1 text-right">estimated_value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {jobs.map((job, idx) => (
+                            <tr key={job.id} className="border-b border-slate-100 hover:bg-blue-50">
+                              <td className="px-2 py-1 text-slate-900">{job.id}</td>
+                              <td className="px-2 py-1">
+                                <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-green-900">
+                                  {job.status}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1 text-slate-900">{job.customer_id}</td>
+                              <td className="px-2 py-1 text-slate-900">{job.quote_id || "null"}</td>
+                              <td className="px-2 py-1 text-right text-slate-900">${job.estimated_value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
