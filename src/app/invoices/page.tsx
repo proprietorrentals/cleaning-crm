@@ -2,8 +2,10 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { InvoicePDF } from "@/lib/invoice-pdf";
+import { AdminGuard } from "@/components/admin-guard";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { pdf } from "@react-pdf/renderer";
 
 type Customer = {
@@ -80,7 +82,8 @@ function generateInvoiceNumber(): string {
   return `INV-${year}${month}${day}-${random}`;
 }
 
-export default function InvoicesPage() {
+function InvoicesPageContent() {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -103,63 +106,40 @@ export default function InvoicesPage() {
     console.log("📋 DEBUG - Starting fetchData for ADMIN invoice creation page");
     console.log("🔍 Time:", new Date().toISOString());
 
-    // Fetch completed jobs via admin API (uses service role key, bypasses RLS)
-    console.log("📋 DEBUG - Calling /api/admin-jobs to fetch jobs (service role key, no RLS)");
-    try {
-      const apiResponse = await fetch("/api/admin-jobs");
-      const apiData = await apiResponse.json();
+    // Get authenticated user
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user;
+    console.log("🔐 Authenticated user:", user?.email ?? "No user");
 
-      console.log("✅ API Response received:");
-      console.log("  Status:", apiResponse.status);
-      console.log("  Data:", apiData);
+    // Query 1: Fetch ALL jobs (with authenticated user, RLS will filter admin access)
+    console.log("📋 DEBUG - Query 1: Fetching ALL jobs from public.jobs");
+    console.log("  Query: supabase.from('jobs').select('*')");
+    const allJobsResponse = await supabase
+      .from("jobs")
+      .select("*");
 
-      if (apiResponse.status !== 200) {
-        console.error("❌ API returned error status:", {
-          status: apiResponse.status,
-          error: apiData.error,
-          message: apiData.message,
-          advice: apiData.advice,
-        });
-        setMessage(`❌ API Error (${apiResponse.status}): ${apiData.message || apiData.error}`);
-        setRawResponseError(apiData.advice || apiData.error);
-        setAllJobs([]);
-        setJobs([]);
-      } else {
-        console.log("  Authentication method:", apiData.authenticated_method);
-        console.log("  All jobs count:", apiData.all_jobs.count);
-        console.log("  Completed jobs count:", apiData.completed_jobs.count);
-        console.log("  All jobs data:", apiData.all_jobs.data);
-        console.log("  Completed jobs data:", apiData.completed_jobs.data);
+    console.log("✅ Query 1 Complete - Raw Response:");
+    console.log("  Total rows returned:", allJobsResponse.data?.length ?? 0);
+    console.log("  Status code:", allJobsResponse.status);
+    console.log("  Error:", allJobsResponse.error);
+    if (allJobsResponse.data && allJobsResponse.data.length > 0) {
+      console.log("  Raw Data:", allJobsResponse.data);
+    }
 
-        // Store all jobs (unfiltered)
-        if (apiData.all_jobs.error) {
-          console.error("❌ API Error - All jobs:", apiData.all_jobs.error);
-          setRawResponseError(`All jobs error: ${apiData.all_jobs.error.message}`);
-          setAllJobs([]);
-        } else {
-          setRawResponseError(null);
-          const allJobsData = apiData.all_jobs.data ?? [];
-          console.log(`✓ Successfully fetched ${allJobsData.length} total jobs (via API)`);
-          setAllJobs(allJobsData);
-        }
+    // Query 2: Fetch ONLY jobs with status = "Completed"
+    console.log("📋 DEBUG - Query 2: Fetching ONLY status='Completed' jobs");
+    console.log("  Query: supabase.from('jobs').select('*').eq('status', 'Completed')");
+    const completedJobsResponse = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("status", "Completed");
 
-        // Use completed jobs
-        if (apiData.completed_jobs.error) {
-          console.error("❌ API Error - Completed jobs:", apiData.completed_jobs.error);
-          setMessage(`❌ API Error: ${apiData.completed_jobs.error.message}`);
-          setJobs([]);
-        } else {
-          const completedJobs = apiData.completed_jobs.data ?? [];
-          console.log(`✓ Successfully fetched ${completedJobs.length} completed jobs (via API)`);
-          setJobs(completedJobs);
-        }
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      console.error("❌ Fetch error:", errorMsg);
-      setMessage(`❌ Failed to fetch jobs: ${errorMsg}`);
-      setAllJobs([]);
-      setJobs([]);
+    console.log("✅ Query 2 Complete - Raw Response:");
+    console.log("  Total rows returned:", completedJobsResponse.data?.length ?? 0);
+    console.log("  Status code:", completedJobsResponse.status);
+    console.log("  Error:", completedJobsResponse.error);
+    if (completedJobsResponse.data && completedJobsResponse.data.length > 0) {
+      console.log("  Raw Data:", completedJobsResponse.data);
     }
 
     // Fetch invoices and customers in parallel (using regular anon key)
@@ -178,6 +158,39 @@ export default function InvoicesPage() {
     } else {
       setInvoices(invoicesResponse.data ?? []);
       console.log(`✓ Fetched ${invoicesResponse.data?.length ?? 0} invoices`);
+    }
+
+    // Store all jobs (unfiltered)
+    if (allJobsResponse.error) {
+      console.error("❌ SUPABASE ERROR - Failed to fetch all jobs:", {
+        message: allJobsResponse.error.message,
+        code: allJobsResponse.error.code,
+        details: allJobsResponse.error.details,
+        hint: allJobsResponse.error.hint,
+      });
+      setRawResponseError(`${allJobsResponse.error.message} (Code: ${allJobsResponse.error.code})`);
+      setAllJobs([]);
+    } else {
+      setRawResponseError(null);
+      const allJobsData = allJobsResponse.data ?? [];
+      console.log(`✓ Successfully fetched ${allJobsData.length} total jobs`);
+      setAllJobs(allJobsData);
+    }
+
+    // Use Query 2 results (completed jobs with capital C)
+    if (completedJobsResponse.error) {
+      console.error("❌ SUPABASE ERROR - Failed to fetch completed jobs:", {
+        message: completedJobsResponse.error.message,
+        code: completedJobsResponse.error.code,
+        details: completedJobsResponse.error.details,
+        hint: completedJobsResponse.error.hint,
+      });
+      setMessage(`❌ Supabase Error: ${completedJobsResponse.error.message} (Code: ${completedJobsResponse.error.code})`);
+      setJobs([]);
+    } else {
+      const completedJobs = completedJobsResponse.data ?? [];
+      console.log(`✓ Successfully fetched ${completedJobs.length} jobs with status="Completed"`);
+      setJobs(completedJobs);
     }
 
     if (customersResponse.error) {
@@ -440,6 +453,11 @@ export default function InvoicesPage() {
     setMessage(null);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin-login");
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
@@ -465,6 +483,12 @@ export default function InvoicesPage() {
             >
               Back to dashboard
             </Link>
+            <button
+              onClick={handleLogout}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            >
+              Logout
+            </button>
           </div>
         </header>
 
@@ -822,5 +846,13 @@ export default function InvoicesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InvoicesPage() {
+  return (
+    <AdminGuard>
+      <InvoicesPageContent />
+    </AdminGuard>
   );
 }
