@@ -4,11 +4,22 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+type Customer = {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  building_size: string;
+  cleaning_frequency: string;
+  notes: string;
+  created_at: string;
+};
+
 type Quote = {
   id: string;
-  client_name: string;
-  contact_name: string;
-  email: string;
+  customer_id: string;
   square_footage: number;
   cleaning_frequency: string;
   extra_services: string[];
@@ -18,7 +29,8 @@ type Quote = {
 };
 
 type QuoteFormState = {
-  client_name: string;
+  customer_id: string;
+  customer_name: string;
   contact_name: string;
   email: string;
   square_footage: string;
@@ -28,7 +40,8 @@ type QuoteFormState = {
 };
 
 const emptyForm: QuoteFormState = {
-  client_name: "",
+  customer_id: "",
+  customer_name: "",
   contact_name: "",
   email: "",
   square_footage: "",
@@ -80,15 +93,32 @@ function calculateEstimate(value: QuoteFormState) {
 
 export default function QuotesPage() {
   const supabase = useMemo(() => createClient(), []);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [form, setForm] = useState<QuoteFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customersLoading, setCustomersLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeQuote, setActiveQuote] = useState<Quote | null>(null);
 
   const estimate = useMemo(() => calculateEstimate(form), [form]);
+
+  const fetchCustomers = async () => {
+    setCustomersLoading(true);
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to fetch customers:", error);
+    } else {
+      setCustomers(data ?? []);
+    }
+    setCustomersLoading(false);
+  };
 
   const fetchQuotes = async () => {
     setLoading(true);
@@ -98,6 +128,7 @@ export default function QuotesPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
+      console.error("Failed to fetch quotes:", error);
       setMessage(error.message);
     } else {
       setQuotes(data ?? []);
@@ -107,24 +138,44 @@ export default function QuotesPage() {
   };
 
   useEffect(() => {
+    fetchCustomers();
     fetchQuotes();
   }, [supabase]);
+
+  const handleCustomerSelect = (customerId: string) => {
+    const selected = customers.find((c) => c.id === customerId);
+    if (selected) {
+      setForm((current) => ({
+        ...current,
+        customer_id: customerId,
+        customer_name: selected.company_name,
+        contact_name: selected.contact_name,
+        email: selected.email,
+      }));
+    } else {
+      setForm((current) => ({
+        ...current,
+        customer_id: "",
+        customer_name: "",
+        contact_name: "",
+        email: "",
+      }));
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setMessage(null);
 
-    if (!form.client_name || !form.contact_name || !form.email || !form.square_footage) {
-      setMessage("Please complete the client name, contact, email, and square footage fields.");
+    if (!form.customer_id || !form.square_footage) {
+      setMessage("Please select a customer and enter square footage.");
       setSaving(false);
       return;
     }
 
     const payload = {
-      client_name: form.client_name.trim(),
-      contact_name: form.contact_name.trim(),
-      email: form.email.trim(),
+      customer_id: form.customer_id,
       square_footage: Number(form.square_footage),
       cleaning_frequency: form.cleaning_frequency,
       extra_services: form.extra_services,
@@ -135,7 +186,8 @@ export default function QuotesPage() {
     if (editingId) {
       const { error } = await supabase.from("quotes").update(payload).eq("id", editingId);
       if (error) {
-        setMessage(error.message);
+        console.error("Update error:", error);
+        setMessage(`Error updating quote: ${error.message}`);
         setSaving(false);
         return;
       }
@@ -143,7 +195,8 @@ export default function QuotesPage() {
     } else {
       const { error } = await supabase.from("quotes").insert(payload);
       if (error) {
-        setMessage(error.message);
+        console.error("Insert error:", error);
+        setMessage(`Error saving quote: ${error.message}`);
         setSaving(false);
         return;
       }
@@ -157,11 +210,13 @@ export default function QuotesPage() {
   };
 
   const handleEdit = (quote: Quote) => {
+    const customer = customers.find((c) => c.id === quote.customer_id);
     setEditingId(quote.id);
     setForm({
-      client_name: quote.client_name,
-      contact_name: quote.contact_name,
-      email: quote.email,
+      customer_id: quote.customer_id,
+      customer_name: customer?.company_name || "",
+      contact_name: customer?.contact_name || "",
+      email: customer?.email || "",
       square_footage: String(quote.square_footage),
       cleaning_frequency: quote.cleaning_frequency,
       extra_services: quote.extra_services,
@@ -192,11 +247,21 @@ export default function QuotesPage() {
   };
 
   const handleEmail = (quote: Quote) => {
-    const subject = encodeURIComponent(`Cleaning estimate for ${quote.client_name}`);
+    const customer = customers.find((c) => c.id === quote.customer_id);
+    const customerName = customer?.company_name || "Customer";
+    const contactName = customer?.contact_name || "Contact";
+    const email = customer?.email || "";
+
+    if (!email) {
+      setMessage("No email address available for this customer.");
+      return;
+    }
+
+    const subject = encodeURIComponent(`Cleaning estimate for ${customerName}`);
     const body = encodeURIComponent(
-      `Hello ${quote.contact_name},\n\nHere is your commercial cleaning estimate for ${quote.client_name}:\n- Square footage: ${quote.square_footage}\n- Frequency: ${quote.cleaning_frequency}\n- Estimated total: ${formatCurrency(quote.total_estimate)}\n\nThanks,\nCleaning CRM`,
+      `Hello ${contactName},\n\nHere is your commercial cleaning estimate:\n- Company: ${customerName}\n- Square footage: ${quote.square_footage}\n- Frequency: ${quote.cleaning_frequency}\n- Estimated total: ${formatCurrency(quote.total_estimate)}\n\nThanks,\nCleaning CRM`,
     );
-    window.location.href = `mailto:${quote.email}?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
   };
 
   const resetForm = () => {
@@ -253,49 +318,50 @@ export default function QuotesPage() {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Client name</label>
-                  <input
-                    value={form.client_name}
-                    onChange={(event) => setForm((current) => ({ ...current, client_name: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="Acme Properties"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Contact name</label>
-                  <input
-                    value={form.contact_name}
-                    onChange={(event) => setForm((current) => ({ ...current, contact_name: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="Jamie Rivera"
-                  />
-                </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Select a customer</label>
+                <select
+                  value={form.customer_id}
+                  onChange={(event) => handleCustomerSelect(event.target.value)}
+                  disabled={customersLoading}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">{customersLoading ? "Loading customers..." : "Choose a customer..."}</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.company_name} ({customer.contact_name})
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="jamie@acme.com"
-                  />
+              {form.customer_id ? (
+                <div className="grid gap-4 sm:grid-cols-2 rounded-2xl bg-slate-50 p-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Company</label>
+                    <p className="text-sm text-slate-900">{form.customer_name}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Contact</label>
+                    <p className="text-sm text-slate-900">{form.contact_name}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600">Email</label>
+                    <p className="text-sm text-slate-900">{form.email}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Square footage</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.square_footage}
-                    onChange={(event) => setForm((current) => ({ ...current, square_footage: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="25000"
-                  />
-                </div>
+              ) : null}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Square footage</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.square_footage}
+                  onChange={(event) => setForm((current) => ({ ...current, square_footage: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                  placeholder="25000"
+                />
               </div>
 
               <div>
@@ -395,22 +461,25 @@ export default function QuotesPage() {
                 <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No quotes saved yet.</div>
               ) : (
                 <div className="mt-4 space-y-3">
-                  {quotes.map((quote) => (
-                    <div key={quote.id} className="rounded-2xl border border-slate-200 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-900">{quote.client_name}</p>
-                          <p className="text-sm text-slate-500">{quote.contact_name}</p>
-                          <p className="mt-1 text-sm text-slate-500">{formatCurrency(quote.total_estimate)}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(quote)}
-                            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                          >
-                            Edit
-                          </button>
+                  {quotes.map((quote) => {
+                    const customer = customers.find((c) => c.id === quote.customer_id);
+                    return (
+                      <div key={quote.id} className="rounded-2xl border border-slate-200 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">{customer?.company_name || "Unknown"}</p>
+                            <p className="text-sm text-slate-500">{customer?.contact_name || ""}</p>
+                            <p className="mt-1 text-sm text-slate-600">{quote.square_footage} sq ft • {quote.cleaning_frequency}</p>
+                            <p className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(quote.total_estimate)}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(quote)}
+                              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
                           <button
                             type="button"
                             onClick={() => handlePrint(quote)}
@@ -435,7 +504,8 @@ export default function QuotesPage() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -55,8 +55,9 @@ const formFields: Array<{
   { key: "cleaning_frequency", label: "Cleaning Frequency", placeholder: "Daily / Weekly / Monthly" },
 ];
 
+const supabaseClient = createClient();
+
 export default function CustomersPage() {
-  const supabase = useMemo(() => createClient(), []);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<CustomerFormState>(emptyForm);
@@ -64,26 +65,71 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalForm, setModalForm] = useState({
+    company_name: "",
+    contact_name: "",
+    phone: "",
+    email: "",
+  });
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
+  const [modalSaving, setModalSaving] = useState(false);
 
-  const fetchCustomers = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const fetchCustomers = async (client: ReturnType<typeof createClient>) => {
+    try {
+      setLoading(true);
+      
+      // Debug: Check env on fetch too
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      console.log("fetchCustomers - URL check:", {
+        urlSet: !!url && url !== "https://your-project-id.supabase.co",
+        urlValue: url?.slice(0, 20),
+      });
+      
+      const { data, error } = await client
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      setMessage(error.message);
-    } else {
-      setCustomers(data ?? []);
+      if (error) {
+        console.error("Fetch error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        let errorMsg = `Error loading customers: ${error.message}`;
+        if (error.details) errorMsg += ` (${error.details})`;
+        setMessage(errorMsg);
+        setCustomers([]);
+      } else {
+        setCustomers(data ?? []);
+      }
+    } catch (err) {
+      console.error("Catch error fetching customers:", err);
+      const errorDetail = err instanceof Error ? err.message : String(err);
+      setMessage(`Failed to load customers: ${errorDetail}`);
+      setCustomers([]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, [supabase]);
+    let isMounted = true;
+    
+    const load = async () => {
+      if (isMounted) {
+        await fetchCustomers(supabaseClient);
+      }
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -124,7 +170,7 @@ export default function CustomersPage() {
     }
 
     if (editingId) {
-      const { error } = await supabase.from("customers").update(payload).eq("id", editingId);
+      const { error } = await supabaseClient.from("customers").update(payload).eq("id", editingId);
 
       if (error) {
         setMessage(error.message);
@@ -132,7 +178,7 @@ export default function CustomersPage() {
         return;
       }
     } else {
-      const { error } = await supabase.from("customers").insert(payload);
+      const { error } = await supabaseClient.from("customers").insert(payload);
 
       if (error) {
         setMessage(error.message);
@@ -144,7 +190,7 @@ export default function CustomersPage() {
     setForm(emptyForm);
     setEditingId(null);
     setSaving(false);
-    await fetchCustomers();
+    await fetchCustomers(supabaseClient);
     setMessage(editingId ? "Customer updated successfully." : "Customer added successfully.");
   };
 
@@ -164,7 +210,7 @@ export default function CustomersPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("customers").delete().eq("id", id);
+    const { error } = await supabaseClient.from("customers").delete().eq("id", id);
 
     if (error) {
       setMessage(error.message);
@@ -172,7 +218,7 @@ export default function CustomersPage() {
     }
 
     setMessage("Customer removed.");
-    await fetchCustomers();
+    await fetchCustomers(supabaseClient);
   };
 
   const resetForm = () => {
@@ -181,9 +227,132 @@ export default function CustomersPage() {
     setMessage(null);
   };
 
+  const handleModalSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setModalSaving(true);
+    setModalMessage(null);
+
+    console.log("Modal submit started with form:", { ...modalForm });
+
+    const payload = {
+      company_name: modalForm.company_name.trim(),
+      contact_name: modalForm.contact_name.trim(),
+      phone: modalForm.phone.trim(),
+      email: modalForm.email.trim(),
+      address: "",
+      building_size: "",
+      cleaning_frequency: "",
+      notes: "",
+    };
+
+    console.log("Payload to insert:", payload);
+
+    if (!payload.company_name || !payload.contact_name || !payload.email) {
+      const errorMsg = "Company name, contact name, and email are required.";
+      console.log("Validation failed:", errorMsg);
+      setModalMessage(errorMsg);
+      setModalSaving(false);
+      return;
+    }
+
+    try {
+      console.log("Inserting customer into Supabase...");
+      
+      // Debug: Check if env variables are loaded
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const urlSet = !!url && url !== "https://your-project-id.supabase.co";
+      const keySet = !!key && key !== "your-anon-key";
+      
+      console.log("Env Debug:", {
+        urlSet,
+        urlValue: urlSet ? `${url?.slice(0, 10)}...${url?.slice(-10)}` : "NOT SET or placeholder",
+        keySet,
+        keyLength: key?.length,
+      });
+      
+      if (!urlSet || !keySet) {
+        setModalMessage(`❌ Config Error: ${!urlSet ? "NEXT_PUBLIC_SUPABASE_URL not set or placeholder. " : ""}${!keySet ? "NEXT_PUBLIC_SUPABASE_ANON_KEY not set or placeholder." : ""} Check .env.local and restart dev server.`);
+        setModalSaving(false);
+        return;
+      }
+      
+      const { data, error } = await supabaseClient.from("customers").insert([payload]);
+
+      console.log("Insert response - data:", data, "error:", error);
+
+      if (error) {
+        console.error("Insert error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error,
+        });
+        
+        // Build detailed error message
+        let errorMsg = `Supabase Error: ${error.message}`;
+        if (error.details) errorMsg += ` | Details: ${error.details}`;
+        if (error.hint) errorMsg += ` | Hint: ${error.hint}`;
+        if (error.code) errorMsg += ` | Code: ${error.code}`;
+        
+        setModalMessage(errorMsg);
+        setModalSaving(false);
+        return;
+      }
+
+      console.log("Insert successful, fetching customers...");
+      setModalForm({ company_name: "", contact_name: "", phone: "", email: "" });
+      setModalMessage("✓ Customer added successfully!");
+      
+      // Small delay to show success message before closing
+      setTimeout(() => {
+        setShowModal(false);
+        setModalMessage(null);
+        setModalSaving(false);
+      }, 1000);
+
+      await fetchCustomers(supabaseClient);
+    } catch (err) {
+      console.error("Catch error:", err);
+      const errorDetail = err instanceof Error ? err.message : String(err);
+      setModalMessage(`Network/Unexpected Error: ${errorDetail}`);
+      setModalSaving(false);
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setModalForm({ company_name: "", contact_name: "", phone: "", email: "" });
+    setModalMessage(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
+        {/* Debug Info */}
+        {(() => {
+          const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+          const urlSet = !!url && url !== "https://your-project-id.supabase.co";
+          const keySet = !!key && key !== "your-anon-key";
+          
+          if (!urlSet || !keySet) {
+            return (
+              <div className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                <strong>⚠️ Configuration Issue:</strong> {!urlSet ? "NEXT_PUBLIC_SUPABASE_URL missing or placeholder. " : ""}
+                {!keySet ? "NEXT_PUBLIC_SUPABASE_ANON_KEY missing or placeholder. " : ""}
+                Update .env.local and restart dev server (npm run dev).
+              </div>
+            );
+          }
+          
+          return (
+            <div className="rounded-2xl border-2 border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
+              ✓ Supabase configured: {url?.slice(0, 20)}... (Key set: {keySet ? "✓" : "✗"})
+            </div>
+          );
+        })()}
         <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white px-5 py-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-blue-600">Customer management</p>
@@ -200,6 +369,13 @@ export default function CustomersPage() {
                 aria-label="Search customers"
               />
             </label>
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+            >
+              + Add Customer
+            </button>
             <Link
               href="/"
               className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -355,6 +531,126 @@ export default function CustomersPage() {
           </section>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-slate-900">Add Customer</h2>
+              <p className="text-sm text-slate-500">Create a new customer profile in seconds.</p>
+            </div>
+
+            {modalMessage && (
+              <div className={`mb-4 rounded-xl px-3 py-2 text-sm max-h-40 overflow-y-auto ${
+                modalMessage.includes("✓") || modalMessage.includes("successfully")
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
+                {modalMessage}
+              </div>
+            )}
+
+            <form className="space-y-4" onSubmit={handleModalSubmit}>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  value={modalForm.company_name}
+                  onChange={(e) =>
+                    setModalForm((current) => ({
+                      ...current,
+                      company_name: e.target.value,
+                    }))
+                  }
+                  disabled={modalSaving}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Acme Corp"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Contact Name
+                </label>
+                <input
+                  type="text"
+                  value={modalForm.contact_name}
+                  onChange={(e) =>
+                    setModalForm((current) => ({
+                      ...current,
+                      contact_name: e.target.value,
+                    }))
+                  }
+                  disabled={modalSaving}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="John Smith"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={modalForm.phone}
+                  onChange={(e) =>
+                    setModalForm((current) => ({
+                      ...current,
+                      phone: e.target.value,
+                    }))
+                  }
+                  disabled={modalSaving}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={modalForm.email}
+                  onChange={(e) =>
+                    setModalForm((current) => ({
+                      ...current,
+                      email: e.target.value,
+                    }))
+                  }
+                  disabled={modalSaving}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="john@acmecorp.com"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={modalSaving}
+                  className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-400"
+                >
+                  {modalSaving ? "Saving..." : "Add Customer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={modalSaving}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
