@@ -1,23 +1,61 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 function PaymentSuccessContent() {
-  const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [invoiceUpdate, setInvoiceUpdate] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
       setMessage("❌ No payment session found");
+      setLoading(false);
       return;
     }
 
-    setMessage("✓ Payment received successfully!");
+    const confirmPayment = async () => {
+      try {
+        console.log("🔄 Confirming payment for session:", sessionId);
+        setMessage("⏳ Updating invoice status...");
+
+        // Call confirm-payment endpoint
+        const response = await fetch("/api/stripe/confirm-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error("❌ Payment confirmation failed:", data);
+          setError(
+            data.details || data.error || "Failed to confirm payment"
+          );
+          setMessage("❌ Payment confirmed but invoice update failed");
+          setLoading(false);
+          return;
+        }
+
+        console.log("✅ Payment confirmed successfully:", data);
+        setInvoiceUpdate(data.invoice);
+        setMessage("✓ Payment received successfully!");
+        setLoading(false);
+      } catch (err: any) {
+        console.error("❌ Error confirming payment:", err);
+        setError(err.message || "Failed to confirm payment");
+        setMessage("❌ Error processing payment confirmation");
+        setLoading(false);
+      }
+    };
+
+    confirmPayment();
   }, [sessionId]);
 
   return (
@@ -37,8 +75,19 @@ function PaymentSuccessContent() {
       </p>
 
       {message && (
-        <div className="mb-6 rounded-xl px-4 py-3 text-sm border border-green-200 bg-green-50 text-green-700">
+        <div className={`mb-6 rounded-xl px-4 py-3 text-sm border ${
+          error
+            ? "border-red-200 bg-red-50 text-red-700"
+            : "border-green-200 bg-green-50 text-green-700"
+        }`}>
           {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-xs text-red-600 font-medium mb-2">Error Details:</p>
+          <p className="text-xs text-red-700 break-all font-mono">{error}</p>
         </div>
       )}
 
@@ -50,6 +99,47 @@ function PaymentSuccessContent() {
           <p className="text-xs text-slate-700 break-all font-mono">
             {sessionId}
           </p>
+        </div>
+      )}
+
+      {invoiceUpdate && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-xs text-blue-600 font-medium mb-3">Invoice Update</p>
+          <div className="space-y-2 text-xs text-blue-700">
+            <div className="flex justify-between">
+              <span className="font-medium">Invoice ID:</span>
+              <span className="font-mono">{invoiceUpdate.id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Invoice Number:</span>
+              <span>{invoiceUpdate.invoice_number}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Status:</span>
+              <span className="font-semibold text-green-600">{invoiceUpdate.status}</span>
+            </div>
+            {invoiceUpdate.stripe_payment_id && (
+              <div className="flex justify-between">
+                <span className="font-medium">Payment ID:</span>
+                <span className="font-mono break-all">{invoiceUpdate.stripe_payment_id}</span>
+              </div>
+            )}
+            {invoiceUpdate.payment_date && (
+              <div className="flex justify-between">
+                <span className="font-medium">Payment Date:</span>
+                <span>{new Date(invoiceUpdate.payment_date).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="mb-6 text-center">
+          <div className="inline-block">
+            <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-blue-600 rounded-full"></div>
+          </div>
+          <p className="text-sm text-slate-600 mt-2">Processing payment...</p>
         </div>
       )}
 

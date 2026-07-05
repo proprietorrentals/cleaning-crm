@@ -23,22 +23,20 @@ export async function GET() {
       success: true,
       message: "Stripe API key is valid and working",
     });
-  } catch (error) {
-    const stripeError = error as Stripe.StripeError;
-
+  } catch (error: any) {
     return Response.json(
       {
         success: false,
         error: {
-          type: stripeError.type,
-          code: stripeError.code,
-          message: stripeError.message,
-          request_id: stripeError.requestId,
-          statusCode: stripeError.statusCode,
+          type: error.type,
+          code: error.code,
+          message: error.message,
+          request_id: error.requestId,
+          statusCode: error.statusCode,
           raw_error: JSON.stringify(error, null, 2),
         },
       },
-      { status: stripeError.statusCode || 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
