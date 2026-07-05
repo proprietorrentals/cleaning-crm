@@ -55,10 +55,16 @@ export default function CustomerJobsPage() {
         .from("customers")
         .select("id")
         .eq("user_id", session.user.id)
-        .single();
+        .maybeSingle();
 
       if (customerError) {
         console.error("❌ Failed to fetch customer:", customerError);
+        setLoading(false);
+        return;
+      }
+
+      if (!customer) {
+        console.warn("⚠️ No customer profile found for user", session.user.id);
         setLoading(false);
         return;
       }

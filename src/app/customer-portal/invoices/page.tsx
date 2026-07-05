@@ -77,10 +77,16 @@ export default function CustomerInvoicesPage() {
         .from("customers")
         .select("*")
         .eq("user_id", session.user.id)
-        .single();
+        .maybeSingle();
 
       if (customerError) {
         console.error("❌ Failed to fetch customer:", customerError);
+        setLoading(false);
+        return;
+      }
+
+      if (!customerData) {
+        console.warn("⚠️ No customer profile found for user", session.user.id);
         setLoading(false);
         return;
       }

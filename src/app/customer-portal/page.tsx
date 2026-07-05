@@ -84,11 +84,18 @@ export default function CustomerPortalPage() {
         .from("customers")
         .select("*")
         .eq("user_id", session.user.id)
-        .single();
+        .maybeSingle();
 
       if (customerError) {
         console.error("❌ Failed to fetch customer:", customerError);
         setMessage(`Error loading customer data: ${customerError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!customerData) {
+        console.warn("⚠️ No customer profile found for user", session.user.id);
+        setMessage("Complete your profile first");
         setLoading(false);
         return;
       }
