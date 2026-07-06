@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 
 export default function PaymentCancelledPage() {
   return (
@@ -9,10 +10,7 @@ export default function PaymentCancelledPage() {
       <header className="border-b border-red-200 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-red-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CR</span>
-            </div>
-            <span className="font-semibold text-slate-900">Cleaning CRM</span>
+            <ServiceFlowBrand iconSize={32} textSize="sm" />
           </Link>
         </div>
       </header>

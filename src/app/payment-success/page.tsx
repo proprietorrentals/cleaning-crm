@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [invoiceUpdate, setInvoiceUpdate] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +44,6 @@ function PaymentSuccessContent() {
         }
 
         console.log("✅ Payment confirmed successfully:", data);
-        setInvoiceUpdate(data.invoice);
         setMessage("✓ Payment received successfully!");
         setLoading(false);
       } catch (err: any) {
@@ -85,52 +84,8 @@ function PaymentSuccessContent() {
       )}
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-xs text-red-600 font-medium mb-2">Error Details:</p>
-          <p className="text-xs text-red-700 break-all font-mono">{error}</p>
-        </div>
-      )}
-
-      {sessionId && (
-        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs text-slate-600 font-medium mb-1">
-            Session ID
-          </p>
-          <p className="text-xs text-slate-700 break-all font-mono">
-            {sessionId}
-          </p>
-        </div>
-      )}
-
-      {invoiceUpdate && (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-xs text-blue-600 font-medium mb-3">Invoice Update</p>
-          <div className="space-y-2 text-xs text-blue-700">
-            <div className="flex justify-between">
-              <span className="font-medium">Invoice ID:</span>
-              <span className="font-mono">{invoiceUpdate.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Invoice Number:</span>
-              <span>{invoiceUpdate.invoice_number}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Status:</span>
-              <span className="font-semibold text-green-600">{invoiceUpdate.status}</span>
-            </div>
-            {invoiceUpdate.stripe_payment_id && (
-              <div className="flex justify-between">
-                <span className="font-medium">Payment ID:</span>
-                <span className="font-mono break-all">{invoiceUpdate.stripe_payment_id}</span>
-              </div>
-            )}
-            {invoiceUpdate.payment_date && (
-              <div className="flex justify-between">
-                <span className="font-medium">Payment Date:</span>
-                <span>{new Date(invoiceUpdate.payment_date).toLocaleString()}</span>
-              </div>
-            )}
-          </div>
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          We could not finalize your payment confirmation automatically. Please contact support.
         </div>
       )}
 
@@ -174,10 +129,7 @@ export default function PaymentSuccessPage() {
       <header className="border-b border-green-200 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-green-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CR</span>
-            </div>
-            <span className="font-semibold text-slate-900">Cleaning CRM</span>
+            <ServiceFlowBrand iconSize={32} textSize="sm" />
           </Link>
         </div>
       </header>

@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -136,10 +137,7 @@ export default function CustomerAuthPage() {
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CR</span>
-            </div>
-            <span className="font-semibold text-slate-900">Cleaning CRM</span>
+            <ServiceFlowBrand iconSize={32} textSize="sm" />
           </Link>
         </div>
       </header>

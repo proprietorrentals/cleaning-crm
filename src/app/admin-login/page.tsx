@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -80,7 +81,9 @@ export default function AdminLoginPage() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900">Cleaning CRM</h1>
+            <div className="flex justify-center">
+              <ServiceFlowBrand variant="full" />
+            </div>
             <p className="text-slate-600 mt-2">Admin Portal</p>
           </div>
 

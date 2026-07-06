@@ -8,11 +8,10 @@ export function setupGlobalsPolyfill() {
 
   try {
     const filePath = new URL(import.meta.url).pathname;
-    const cwdPath = typeof process !== "undefined" ? process.cwd() : filePath;
     const dirnameFromMeta = filePath.split("/").slice(0, -1).join("/");
 
     if (!(dirnameKey in globalThis)) {
-      (globalThis as Record<string, unknown>)[dirnameKey] = cwdPath || dirnameFromMeta;
+      (globalThis as Record<string, unknown>)[dirnameKey] = dirnameFromMeta;
     }
 
     if (!(filenameKey in globalThis)) {

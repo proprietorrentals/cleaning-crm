@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 
 export default function LoginPage() {
   return (
@@ -84,14 +85,14 @@ function LoginContent() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/70">
         <div className="mb-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-semibold text-white">
-            C
+          <div className="mx-auto flex justify-center">
+            <ServiceFlowBrand variant="full" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold text-slate-900">
             Welcome back
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Sign in to manage your cleaning operations.
+            Sign in to manage your business operations.
           </p>
         </div>
 

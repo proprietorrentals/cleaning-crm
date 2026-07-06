@@ -13,8 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cleaning CRM Dashboard",
-  description: "A modern operations dashboard for commercial cleaning companies",
+  title: "ServiceFlow CRM Dashboard",
+  description: "One Plaform. Unlimited Growth",
+  icons: {
+    icon: "/serviceflow-mark.svg",
+    shortcut: "/serviceflow-mark.svg",
+    apple: "/serviceflow-mark.svg",
+  },
 };
 
 export default function RootLayout({
