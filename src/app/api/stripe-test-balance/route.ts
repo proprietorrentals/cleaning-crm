@@ -1,3 +1,4 @@
+import "@/lib/globals-polyfill";
 import Stripe from "stripe";
 
 export async function GET() {
