@@ -1,4 +1,4 @@
-# Supabase setup for Cleaning CRM
+# Supabase setup for ServiceFlow CRM
 
 Create the following tables in Supabase SQL editor.
 

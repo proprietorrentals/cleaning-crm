@@ -28,24 +28,23 @@ export function ServiceFlowBrand({
     );
   }
 
-  const widthFactor = textSize === "lg" ? 5.2 : textSize === "sm" ? 4 : 4.5;
-  const compactWidth = Math.max(120, Math.round(iconSize * widthFactor));
-
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex items-center gap-3">
       <Image
-        src="/serviceflow-logo.png"
+        src="/serviceflow-mark.svg"
         alt="ServiceFlow logo"
-        width={768}
-        height={768}
-        className="h-auto"
-        style={{ width: `${compactWidth}px` }}
+        width={iconSize}
+        height={iconSize}
+        className="rounded-xl"
         priority
       />
-      {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
-      {showTagline ? (
-        <p className="text-xs text-slate-500">One Plaform. Unlimited Growth</p>
-      ) : null}
+      <div>
+        <p className="text-lg font-semibold text-slate-900">ServiceFlow CRM</p>
+        {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
+        {showTagline ? (
+          <p className="text-xs text-slate-500">One Plaform. Unlimited Growth</p>
+        ) : null}
+      </div>
     </div>
   );
 }

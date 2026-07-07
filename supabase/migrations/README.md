@@ -1,6 +1,6 @@
 # Supabase Migrations
 
-This folder contains SQL migrations for the Cleaning CRM database. Migrations are numbered sequentially and should be applied in order.
+This folder contains SQL migrations for the ServiceFlow CRM database. Migrations are numbered sequentially and should be applied in order.
 
 ## Migration Files
 
