@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   title: "ServiceFlow CRM Dashboard",
   description: "One Plaform. Unlimited Growth",
   icons: {
-    icon: "/serviceflow-mark.svg",
-    shortcut: "/serviceflow-mark.svg",
-    apple: "/serviceflow-mark.svg",
+    icon: "/serviceflow-logo.png",
+    shortcut: "/serviceflow-logo.png",
+    apple: "/serviceflow-logo.png",
   },
 };
 

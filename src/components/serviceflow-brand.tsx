@@ -8,12 +8,6 @@ type ServiceFlowBrandProps = {
   variant?: "compact" | "full";
 };
 
-const textSizeClassMap = {
-  sm: "text-base",
-  md: "text-lg",
-  lg: "text-2xl",
-} as const;
-
 export function ServiceFlowBrand({
   subtitle,
   showTagline = false,
@@ -24,33 +18,34 @@ export function ServiceFlowBrand({
   if (variant === "full") {
     return (
       <Image
-        src="/serviceflow-logo.svg"
+        src="/serviceflow-logo.png"
         alt="ServiceFlow"
-        width={420}
-        height={128}
+        width={768}
+        height={768}
         className="h-auto w-full max-w-[420px]"
         priority
       />
     );
   }
 
+  const widthFactor = textSize === "lg" ? 5.2 : textSize === "sm" ? 4 : 4.5;
+  const compactWidth = Math.max(120, Math.round(iconSize * widthFactor));
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col items-start gap-2">
       <Image
-        src="/serviceflow-mark.svg"
+        src="/serviceflow-logo.png"
         alt="ServiceFlow logo"
-        width={iconSize}
-        height={iconSize}
-        className="rounded-xl"
+        width={768}
+        height={768}
+        className="h-auto"
+        style={{ width: `${compactWidth}px` }}
         priority
       />
-      <div>
-        <p className={`${textSizeClassMap[textSize]} font-semibold text-slate-900`}>ServiceFlow CRM</p>
-        {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
-        {showTagline ? (
-          <p className="text-xs text-slate-500">One Plaform. Unlimited Growth</p>
-        ) : null}
-      </div>
+      {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
+      {showTagline ? (
+        <p className="text-xs text-slate-500">One Plaform. Unlimited Growth</p>
+      ) : null}
     </div>
   );
 }
