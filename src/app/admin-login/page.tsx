@@ -196,9 +196,36 @@ export default function AdminLoginPage() {
           </div>
 
           {/* Info Box */}
-          <div className="mt-6 rounded-lg bg-blue-50 p-4 text-xs text-slate-700">
-            <p className="font-semibold mb-1">Admin Portal</p>
-            <p>This is the admin login for the CRM owner. For customer access, visit the <a href="/customer-auth" className="text-blue-600 hover:underline">customer portal</a>.</p>
+          <div className="mt-8 space-y-4">
+            {/* Employee Portal Card */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <h3 className="font-semibold text-emerald-900 mb-2">Employee Portal</h3>
+              <p className="text-sm text-emerald-800 mb-3">
+                Employees can log in to view assigned jobs, clock in/out, upload photos, and complete work.
+              </p>
+              <a 
+                href="/employee-login"
+                className="inline-flex items-center gap-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+              >
+                Visit the employee portal
+                <span>→</span>
+              </a>
+            </div>
+
+            {/* Customer Portal Card */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <h3 className="font-semibold text-amber-900 mb-2">Customer Portal</h3>
+              <p className="text-sm text-amber-800 mb-3">
+                Customers can track their jobs, quotes, invoices, and request services.
+              </p>
+              <a 
+                href="/customer-auth"
+                className="inline-flex items-center gap-2 text-sm font-medium text-amber-600 hover:text-amber-700 hover:underline"
+              >
+                Visit the customer portal
+                <span>→</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
