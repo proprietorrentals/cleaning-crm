@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceFlowBrand } from "@/components/serviceflow-brand";
@@ -20,142 +20,102 @@ export default function LoginPage() {
 
 function LoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/";
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
+  const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
-    const redirectIfAuthenticated = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        router.replace(redirectTo);
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user) {
+        // Already logged in, redirect to admin dashboard
+        router.replace("/");
       }
-    };
-
-    redirectIfAuthenticated();
-  }, [redirectTo, router, supabase]);
-
-  const handleSignIn = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
-    setMessage(null);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setMessage(error.message);
       setLoading(false);
-      return;
-    }
+    };
+    checkAuth();
+  }, [router, supabase]);
 
-    router.replace(redirectTo);
-    router.refresh();
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setMessage("Please enter your email address first.");
-      return;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setMessage("A password reset link has been sent to your inbox.");
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-slate-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/70">
-        <div className="mb-8 text-center">
-          <div className="mx-auto flex justify-center">
-            <ServiceFlowBrand variant="full" />
-          </div>
-          <h1 className="mt-4 text-2xl font-semibold text-slate-900">
-            Welcome back
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Sign in to manage your business operations.
-          </p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10">
+      {/* Logo and Header */}
+      <div className="mb-12 text-center">
+        <div className="mx-auto flex justify-center mb-4">
+          <ServiceFlowBrand variant="full" />
         </div>
+        <h1 className="text-3xl font-bold text-slate-900">ServiceFlow</h1>
+        <p className="mt-2 text-lg text-slate-600">Choose your portal to get started</p>
+      </div>
 
-        <form className="space-y-4" onSubmit={handleSignIn}>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-              placeholder="you@company.com"
-              required
-            />
+      {/* Portal Cards Grid */}
+      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-3 w-full max-w-5xl">
+        {/* Admin Portal Card */}
+        <Link
+          href="/admin-login"
+          className="group rounded-3xl border border-slate-200 bg-white p-8 shadow-lg transition hover:shadow-xl hover:border-blue-300"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-xl font-semibold text-blue-600 mb-4 group-hover:bg-blue-200 transition">
+            ⚙
           </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              className="font-medium text-blue-600 transition hover:text-blue-700"
-            >
-              Forgot Password?
-            </button>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
-
-        {message ? (
-          <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            {message}
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Admin Portal</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Manage customers, quotes, jobs, invoices, and team operations.
           </p>
-        ) : null}
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 group-hover:gap-3 transition">
+            Sign In
+            <span>→</span>
+          </div>
+        </Link>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Don’t have an account?{' '}
-          <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-700">
-            Sign up
-          </Link>
-        </p>
+        {/* Employee Portal Card */}
+        <Link
+          href="/employee-login"
+          className="group rounded-3xl border border-slate-200 bg-white p-8 shadow-lg transition hover:shadow-xl hover:border-emerald-300"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-xl font-semibold text-emerald-600 mb-4 group-hover:bg-emerald-200 transition">
+            👤
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Employee Portal</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            View assigned jobs, clock in/out, update status, and share photos.
+          </p>
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-600 group-hover:gap-3 transition">
+            Sign In
+            <span>→</span>
+          </div>
+        </Link>
+
+        {/* Customer Portal Card */}
+        <Link
+          href="/customer-auth"
+          className="group rounded-3xl border border-slate-200 bg-white p-8 shadow-lg transition hover:shadow-xl hover:border-amber-300"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl font-semibold text-amber-600 mb-4 group-hover:bg-amber-200 transition">
+            🏢
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Customer Portal</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Track jobs, quotes, invoices, and request service.
+          </p>
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-amber-600 group-hover:gap-3 transition">
+            Sign In
+            <span>→</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* Super Admin Link (Small and Subtle) */}
+      <div className="mt-12 text-center text-sm text-slate-500">
+        <Link href="/super-admin/login" className="text-blue-600 hover:text-blue-700 font-medium">
+          Super Admin
+        </Link>
       </div>
     </div>
   );
