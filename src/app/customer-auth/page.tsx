@@ -17,6 +17,7 @@ export default function CustomerAuthPage() {
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
+  const [companyCode, setCompanyCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -63,37 +64,46 @@ export default function CustomerAuthPage() {
         setMessage("✓ Login successful! Redirecting...");
         setTimeout(() => router.push("/customer-portal"), 1000);
       } else {
-        // Signup mode
-        if (!companyName || !contactName) {
-          setMessage("❌ Please fill in all required fields.");
+        // Signup mode: customer must have a valid company code (tenant slug).
+        if (!companyCode.trim()) {
+          setMessage("❌ Company code is required.");
           setLoading(false);
           return;
         }
 
-        // Create auth user
+        if (!email || !password || !contactName) {
+          setMessage("❌ Email, password, and contact name are required.");
+          setLoading(false);
+          return;
+        }
+
+        // 1. Look up the tenant by slug.
+        const { data: tenant, error: tenantError } = await supabase
+          .from("tenants")
+          .select("id")
+          .eq("slug", companyCode.toLowerCase().trim())
+          .maybeSingle();
+
+        if (tenantError || !tenant) {
+          setMessage("❌ Invalid company code. Please check and try again.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Create auth user.
         const { data: authData, error: signupError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              company_name: companyName,
+              company_code: companyCode,
               contact_name: contactName,
             },
           },
         });
 
         if (signupError) {
-          console.error("Signup error:", signupError);
-          console.error("Error status:", signupError.status);
-          console.error("Error code:", signupError.code);
-          
-          // Provide detailed error message
-          let errorMsg = signupError.message;
-          if (signupError.message.includes("invalid")) {
-            errorMsg += " - Check Supabase Email Provider configuration in dashboard";
-          }
-          
-          setMessage(`❌ Signup failed: ${errorMsg}`);
+          setMessage(`❌ Signup failed: ${signupError.message}`);
           setLoading(false);
           return;
         }
@@ -104,17 +114,16 @@ export default function CustomerAuthPage() {
           return;
         }
 
-        // Create customer record
+        // 3. Create customer record (tenant_id is auto-filled by trigger).
         const { error: insertError } = await supabase.from("customers").insert({
           user_id: authData.user.id,
-          company_name: companyName,
+          company_name: contactName, // Use contact name as fallback
           contact_name: contactName,
           email,
           phone,
         });
 
         if (insertError) {
-          console.error("Customer creation error:", insertError);
           setMessage(`❌ Failed to create customer profile: ${insertError.message}`);
           setLoading(false);
           return;
@@ -174,16 +183,17 @@ export default function CustomerAuthPage() {
                 <>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Company Name *
+                      Company Code *
                     </label>
                     <input
                       type="text"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
+                      value={companyCode}
+                      onChange={(e) => setCompanyCode(e.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                      placeholder="Your Company Ltd"
+                      placeholder="my-company"
                       required
                     />
+                    <p className="mt-1 text-xs text-slate-500">Ask your administrator for your company code.</p>
                   </div>
 
                   <div>
@@ -260,7 +270,7 @@ export default function CustomerAuthPage() {
                   setMessage(null);
                   setEmail("");
                   setPassword("");
-                  setCompanyName("");
+                  setCompanyCode("");
                   setContactName("");
                   setPhone("");
                 }}

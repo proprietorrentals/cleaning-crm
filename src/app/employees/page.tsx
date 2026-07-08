@@ -57,6 +57,9 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ employeeId: "", email: "", tempPassword: "" });
+  const [inviteSending, setInviteSending] = useState(false);
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -184,6 +187,52 @@ export default function EmployeesPage() {
     setMessage(null);
   };
 
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteSending(true);
+    setMessage(null);
+
+    if (!inviteForm.employeeId || !inviteForm.email || !inviteForm.tempPassword) {
+      setMessage("All invite fields are required.");
+      setInviteSending(false);
+      return;
+    }
+
+    if (inviteForm.tempPassword.length < 8) {
+      setMessage("Temporary password must be at least 8 characters.");
+      setInviteSending(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/employee-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: inviteForm.employeeId,
+          email: inviteForm.email,
+          tempPassword: inviteForm.tempPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        setMessage(`❌ Invite failed: ${error}`);
+        setInviteSending(false);
+        return;
+      }
+
+      setMessage("✓ Employee invited! They can now log in with the provided credentials.");
+      setShowInviteModal(false);
+      setInviteForm({ employeeId: "", email: "", tempPassword: "" });
+      await fetchEmployees();
+    } catch (error) {
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
@@ -225,6 +274,13 @@ export default function EmployeesPage() {
                 <h2 className="text-lg font-semibold text-slate-900">Employee roster</h2>
                 <p className="text-sm text-slate-500">{filteredEmployees.length} matching records</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(true)}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                Invite to Portal
+              </button>
             </div>
 
             {loading ? (
@@ -445,6 +501,79 @@ export default function EmployeesPage() {
             </form>
           </section>
         </div>
+
+        {/* Invite Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Invite Employee to Portal</h2>
+
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Employee</label>
+                  <select
+                    value={inviteForm.employeeId}
+                    onChange={(e) => setInviteForm((p) => ({ ...p, employeeId: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                    required
+                  >
+                    <option value="">Select an employee...</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} ({emp.email}) {emp.auth_user_id ? "[Linked]" : "[Unlinked]"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Email Address</label>
+                  <input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm((p) => ({ ...p, email: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                    placeholder="employee@company.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Temporary Password</label>
+                  <input
+                    type="password"
+                    value={inviteForm.tempPassword}
+                    onChange={(e) => setInviteForm((p) => ({ ...p, tempPassword: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                    placeholder="At least 8 characters"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Share this password securely with the employee.</p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={inviteSending}
+                    className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+                  >
+                    {inviteSending ? "Inviting..." : "Send Invite"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteForm({ employeeId: "", email: "", tempPassword: "" });
+                    }}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

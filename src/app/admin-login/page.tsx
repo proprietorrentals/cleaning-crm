@@ -11,6 +11,7 @@ export default function AdminLoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -34,26 +35,45 @@ export default function AdminLoginPage() {
 
     try {
       if (isSignUp) {
-        // Sign up new admin
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: "admin",
-            },
-          },
+        // Sign up: call the new admin-signup API route.
+        if (!companyName.trim()) {
+          setMessage("❌ Company name is required.");
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch("/api/auth/admin-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, companyName }),
         });
 
-        if (error) {
-          setMessage(`❌ Sign up failed: ${error.message}`);
-        } else {
-          setMessage("✓ Check your email to confirm your account");
-          setEmail("");
-          setPassword("");
+        if (!res.ok) {
+          const { error } = await res.json();
+          setMessage(`❌ Signup failed: ${error}`);
+          setLoading(false);
+          return;
         }
+
+        setMessage("✓ Account created! Signing you in...");
+
+        // Now sign in.
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          setMessage(`❌ Login failed: ${signInError.message}`);
+          setLoading(false);
+          return;
+        }
+
+        setTimeout(() => {
+          router.push("/");
+        }, 1000);
       } else {
-        // Log in existing admin
+        // Log in existing admin.
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -61,12 +81,14 @@ export default function AdminLoginPage() {
 
         if (error) {
           setMessage(`❌ Login failed: ${error.message}`);
-        } else {
-          setMessage("✓ Login successful, redirecting...");
-          setTimeout(() => {
-            router.push("/");
-          }, 1000);
+          setLoading(false);
+          return;
         }
+
+        setMessage("✓ Login successful, redirecting...");
+        setTimeout(() => {
+          router.push("/");
+        }, 1000);
       }
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -89,7 +111,24 @@ export default function AdminLoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
+          {/* Company Name (signup only) */}
+          {isSignUp && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Company Name
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                placeholder="Your Company Inc."
+              />
+            </div>
+          )}
+
+          {/* Email */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Email Address

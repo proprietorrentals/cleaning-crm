@@ -30,17 +30,32 @@ function SettingsContent() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
-      if (data) {
-        setForm({
-          company_name:      data.company_name      ?? "",
-          company_address:   data.company_address   ?? "",
-          company_phone:     data.company_phone     ?? "",
-          company_email:     data.company_email     ?? "",
-          company_logo_url:  data.company_logo_url  ?? "",
-        });
+      try {
+        // Get current user's tenant ID
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session?.user?.id) {
+          setLoading(false);
+          return;
+        }
+
+        // Query settings by tenant_id (uses RLS automatically)
+        const { data } = await supabase
+          .from("settings")
+          .select("*")
+          .maybeSingle();
+
+        if (data) {
+          setForm({
+            company_name: data.company_name ?? "",
+            company_address: data.company_address ?? "",
+            company_phone: data.company_phone ?? "",
+            company_email: data.company_email ?? "",
+            company_logo_url: data.company_logo_url ?? "",
+          });
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     load();
   }, [supabase]);
@@ -50,16 +65,22 @@ function SettingsContent() {
     setSaving(true);
     setMessage(null);
 
-    const { error } = await supabase
-      .from("settings")
-      .upsert({ id: 1, ...form, updated_at: new Date().toISOString() });
+    try {
+      // Upsert settings for current tenant (RLS will enforce tenant_id)
+      const { error } = await supabase
+        .from("settings")
+        .upsert({ ...form, updated_at: new Date().toISOString() }, {
+          onConflict: "tenant_id",
+        });
 
-    if (error) {
-      setMessage({ type: "error", text: error.message });
-    } else {
-      setMessage({ type: "success", text: "Settings saved." });
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+      } else {
+        setMessage({ type: "success", text: "Settings saved." });
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const set = (field: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>

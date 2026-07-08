@@ -9,6 +9,15 @@ interface AdminGuardProps {
   children: React.ReactNode;
 }
 
+/**
+ * Wraps admin-only pages.
+ *
+ * Access logic:
+ *   tenant_admin record exists  → allow (admin for their tenant)
+ *   customer record exists      → redirect to /customer-portal
+ *   employee record exists      → redirect to /employee-portal
+ *   everything else             → redirect to /admin-login
+ */
 export function AdminGuard({ children }: AdminGuardProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -19,29 +28,54 @@ export function AdminGuard({ children }: AdminGuardProps) {
     const checkAuth = async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        
-        if (!data?.session?.user) {
-          // Not authenticated, redirect to admin login
-          router.push("/admin-login");
-        } else {
-          // Check if user is an admin (not linked to a customer)
-          const { data: customer } = await supabase
-            .from("customers")
-            .select("id")
-            .eq("user_id", data.session.user.id)
-            .single();
 
-          if (customer) {
-            // User is a customer, not an admin
-            console.warn("Customer trying to access admin panel");
-            router.push("/customer-portal");
-          } else {
-            // User is an admin, allow access
-            setUser(data.session.user);
-          }
+        if (!data?.session?.user) {
+          router.push("/admin-login");
+          return;
         }
+
+        const uid = data.session.user.id;
+
+        // 1. Check tenant_admins first.
+        const { data: admin } = await supabase
+          .from("tenant_admins")
+          .select("id")
+          .eq("auth_user_id", uid)
+          .maybeSingle();
+
+        if (admin) {
+          setUser(data.session.user);
+          return;
+        }
+
+        // 2. Redirect customers to their portal.
+        const { data: customer } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("user_id", uid)
+          .maybeSingle();
+
+        if (customer) {
+          router.replace("/customer-portal");
+          return;
+        }
+
+        // 3. Redirect employees to their portal.
+        const { data: employee } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("auth_user_id", uid)
+          .maybeSingle();
+
+        if (employee) {
+          router.replace("/employee-portal");
+          return;
+        }
+
+        // 4. Unknown user → back to login.
+        router.push("/admin-login");
       } catch (error) {
-        console.error("Auth check error:", error);
+        console.error("AdminGuard auth error:", error);
         router.push("/admin-login");
       } finally {
         setLoading(false);
@@ -50,30 +84,25 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
     checkAuth();
 
-    // Subscribe to auth changes
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session?.user) {
-        router.push("/admin-login");
-      } else {
-        setUser(session.user);
-      }
+      if (!session?.user) router.push("/admin-login");
     });
 
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
+    return () => listener?.subscription.unsubscribe();
   }, [supabase, router]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading admin panel...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-slate-600">Loading admin panel…</p>
         </div>
       </div>
     );
   }
+
+  if (!user) return null;
 
   return <>{children}</>;
 }
