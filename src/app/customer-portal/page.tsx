@@ -303,6 +303,22 @@ export default function CustomerPortalPage() {
           )}
         </section>
 
+        {/* Request Service */}
+        <section className="mb-8 rounded-3xl border border-blue-100 bg-blue-50 p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-blue-900">Need a Cleaning?</h2>
+              <p className="mt-1 text-sm text-blue-700">Submit a service request and our team will follow up shortly.</p>
+            </div>
+            <Link
+              href="/customer-portal/request-service"
+              className="shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              Request Service
+            </Link>
+          </div>
+        </section>
+
         {/* Invoices */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">

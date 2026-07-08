@@ -30,6 +30,12 @@ type Customer = {
   company_name: string;
 };
 
+type TimeEntry = {
+  id: string;
+  clock_in: string;
+  clock_out: string | null;
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -60,6 +66,9 @@ export default function EmployeePortalPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [timeEntry, setTimeEntry] = useState<TimeEntry | null>(null);
+  const [elapsedStr, setElapsedStr] = useState("");
+  const [clockBusy, setClockBusy] = useState(false);
 
   useEffect(() => {
     const loadPortal = async () => {
@@ -120,11 +129,58 @@ export default function EmployeePortalPage() {
         }
       }
 
+      // Fetch open time entry (no job — dashboard-level clock)
+      const { data: openEntry } = await supabase
+        .from("time_entries")
+        .select("id,clock_in,clock_out")
+        .eq("employee_id", employee.id)
+        .is("clock_out", null)
+        .is("job_id", null)
+        .maybeSingle();
+
+      if (openEntry) setTimeEntry(openEntry);
+
       setLoading(false);
     };
 
     loadPortal();
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (!timeEntry?.clock_in) { setElapsedStr(""); return; }
+    const tick = () => {
+      const ms = Date.now() - new Date(timeEntry.clock_in).getTime();
+      const h  = Math.floor(ms / 3_600_000);
+      const m  = Math.floor((ms % 3_600_000) / 60_000);
+      setElapsedStr(h > 0 ? `${h}h ${m}m` : `${m}m`);
+    };
+    tick();
+    const id = setInterval(tick, 5_000);
+    return () => clearInterval(id);
+  }, [timeEntry]);
+
+  const handleClockIn = async () => {
+    if (!profile) return;
+    setClockBusy(true);
+    const { data, error } = await supabase
+      .from("time_entries")
+      .insert({ employee_id: profile.id, clock_in: new Date().toISOString() })
+      .select()
+      .single();
+    if (!error && data) setTimeEntry(data);
+    setClockBusy(false);
+  };
+
+  const handleClockOut = async () => {
+    if (!timeEntry) return;
+    setClockBusy(true);
+    const { error } = await supabase
+      .from("time_entries")
+      .update({ clock_out: new Date().toISOString() })
+      .eq("id", timeEntry.id);
+    if (!error) { setTimeEntry(null); setElapsedStr(""); }
+    setClockBusy(false);
+  };
 
   const today = isoDateValue();
   const todaysJobs = jobs.filter((job) => job.scheduled_date === today);
@@ -189,6 +245,41 @@ export default function EmployeePortalPage() {
           </article>
         </section>
 
+        {/* Clock in / out widget */}
+        <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Time Tracking</h2>
+              {timeEntry ? (
+                <p className="mt-1 text-sm text-slate-500">
+                  Clocked in at {new Date(timeEntry.clock_in).toLocaleTimeString()} &mdash; <span className="font-semibold text-blue-700">{elapsedStr}</span>
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-slate-500">Not clocked in</p>
+              )}
+            </div>
+            {timeEntry ? (
+              <button
+                type="button"
+                onClick={handleClockOut}
+                disabled={clockBusy}
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {clockBusy ? "Saving…" : "Clock Out"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClockIn}
+                disabled={clockBusy}
+                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {clockBusy ? "Saving…" : "Clock In"}
+              </button>
+            )}
+          </div>
+        </section>
+
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -203,7 +294,15 @@ export default function EmployeePortalPage() {
               ) : (
                 todaysJobs.map((job) => (
                   <div key={job.id} className="rounded-2xl border border-slate-200 p-3">
-                    <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
+                      <Link
+                        href={`/employee-portal/jobs/${job.id}`}
+                        className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                      >
+                        View
+                      </Link>
+                    </div>
                     <p className="mt-1 text-sm text-slate-500">{job.status}</p>
                     {job.notes ? <p className="mt-2 text-sm text-slate-600">{job.notes}</p> : null}
                   </div>
@@ -225,11 +324,17 @@ export default function EmployeePortalPage() {
               ) : (
                 upcomingJobs.slice(0, 5).map((job) => (
                   <div key={job.id} className="rounded-2xl border border-slate-200 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
-                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                        {formatDate(job.scheduled_date)}
-                      </span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
+                        <span className="text-xs text-blue-700">{formatDate(job.scheduled_date)}</span>
+                      </div>
+                      <Link
+                        href={`/employee-portal/jobs/${job.id}`}
+                        className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                      >
+                        View
+                      </Link>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{job.status}</p>
                     <p className="mt-1 text-sm font-medium text-slate-700">{formatCurrency(job.estimated_value)}</p>

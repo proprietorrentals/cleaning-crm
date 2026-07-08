@@ -23,14 +23,15 @@ type DashboardStatsState = {
 };
 
 const navigationItems = [
-  { label: "Dashboard", href: "/", active: true, icon: "▣" },
-  { label: "Customers", href: "/customers", icon: "◫" },
-  { label: "Quotes", href: "/quotes", icon: "◧" },
-  { label: "Jobs", href: "/jobs", icon: "◔" },
-  { label: "Employees", href: "/employees", icon: "◍" },
-  { label: "Invoices", href: "/invoices", icon: "◐" },
-  { label: "Reports", href: "/", icon: "◑" },
-  { label: "Settings", href: "/", icon: "⚙" },
+  { label: "Dashboard",  href: "/",          active: true, icon: "▣" },
+  { label: "Customers",  href: "/customers",               icon: "◫" },
+  { label: "Quotes",     href: "/quotes",                  icon: "◧" },
+  { label: "Jobs",       href: "/jobs",                    icon: "◔" },
+  { label: "Employees",  href: "/employees",               icon: "◍" },
+  { label: "Invoices",   href: "/invoices",                icon: "◐" },
+  { label: "Schedule",   href: "/schedule",                icon: "◕" },
+  { label: "Reports",    href: "/reports",                 icon: "◑" },
+  { label: "Settings",   href: "/settings",                icon: "⚙" },
 ];
 
 function formatCurrency(value: number) {

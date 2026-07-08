@@ -31,24 +31,28 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
+
+  // All public entry-points — no auth required.
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/admin-login" ||
     pathname === "/employee-login" ||
+    pathname === "/customer-auth" ||
+    pathname === "/super-admin/login" ||
     pathname === "/forgot-password" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api");
 
   if (!user && !isPublicRoute) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = pathname.startsWith("/employee-portal") ? "/employee-login" : "/login";
-    redirectUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
+    // Choose the right login page based on the path being accessed.
+    let loginPath = "/admin-login";
+    if (pathname.startsWith("/employee-portal")) loginPath = "/employee-login";
+    if (pathname.startsWith("/customer-portal")) loginPath = "/customer-auth";
+    if (pathname.startsWith("/super-admin"))     loginPath = "/super-admin/login";
 
-  if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = request.nextUrl.searchParams.get("redirectTo") ?? "/";
-    redirectUrl.searchParams.delete("redirectTo");
+    redirectUrl.pathname = loginPath;
+    redirectUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
