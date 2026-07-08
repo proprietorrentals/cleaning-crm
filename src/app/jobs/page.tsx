@@ -33,6 +33,7 @@ type Job = {
   quote_id: string;
   customer_id: string;
   scheduled_date: string;
+  assigned_employee_id: string | null;
   assigned_employee: string | null;
   status: string;
   estimated_value: number;
@@ -40,11 +41,18 @@ type Job = {
   created_at: string;
 };
 
+type Employee = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+};
+
 type JobFormState = {
   quote_id: string;
   customer_id: string;
   scheduled_date: string;
-  assigned_employee: string;
+  assigned_employee_id: string;
   status: string;
   estimated_value: string;
   notes: string;
@@ -54,7 +62,7 @@ const emptyForm: JobFormState = {
   quote_id: "",
   customer_id: "",
   scheduled_date: "",
-  assigned_employee: "",
+  assigned_employee_id: "",
   status: "Scheduled",
   estimated_value: "",
   notes: "",
@@ -73,6 +81,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [form, setForm] = useState<JobFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,10 +92,15 @@ export default function JobsPage() {
     setLoading(true);
     setMessage(null);
 
-    const [jobsResponse, customersResponse, quotesResponse] = await Promise.all([
+    const [jobsResponse, customersResponse, quotesResponse, employeesResponse] = await Promise.all([
       supabase.from("jobs").select("*").order("scheduled_date", { ascending: true }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
       supabase.from("quotes").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("employees")
+        .select("id,first_name,last_name,is_active")
+        .eq("is_active", true)
+        .order("first_name", { ascending: true }),
     ]);
 
     if (jobsResponse.error) {
@@ -113,6 +127,17 @@ export default function JobsPage() {
       console.log(`✓ Fetched ${quotesResponse.data?.length ?? 0} quotes`);
     }
 
+    if (employeesResponse.error) {
+      console.error("❌ Failed to fetch employees:", employeesResponse.error);
+      setMessage((current) =>
+        current
+          ? `${current}; Also failed to fetch employees: ${employeesResponse.error.message}`
+          : `❌ Error fetching employees: ${employeesResponse.error.message}`,
+      );
+    } else {
+      setEmployees(employeesResponse.data ?? []);
+    }
+
     setLoading(false);
   };
 
@@ -131,11 +156,16 @@ export default function JobsPage() {
       return;
     }
 
+    const selectedEmployee = employees.find((employee) => employee.id === form.assigned_employee_id);
+
     const payload = {
       quote_id: form.quote_id || null,
       customer_id: form.customer_id,
       scheduled_date: form.scheduled_date,
-      assigned_employee: form.assigned_employee || null,
+      assigned_employee_id: form.assigned_employee_id || null,
+      assigned_employee: selectedEmployee
+        ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}`
+        : null,
       status: form.status,
       estimated_value: Number(form.estimated_value) || 0,
       notes: form.notes.trim(),
@@ -168,12 +198,19 @@ export default function JobsPage() {
   };
 
   const handleEdit = (job: Job) => {
+    const inferredEmployeeId =
+      job.assigned_employee_id ??
+      employees.find(
+        (employee) => `${employee.first_name} ${employee.last_name}`.toLowerCase() === (job.assigned_employee ?? "").toLowerCase(),
+      )?.id ??
+      "";
+
     setEditingId(job.id);
     setForm({
       quote_id: job.quote_id || "",
       customer_id: job.customer_id,
       scheduled_date: job.scheduled_date,
-      assigned_employee: job.assigned_employee || "",
+      assigned_employee_id: inferredEmployeeId,
       status: job.status,
       estimated_value: String(job.estimated_value),
       notes: job.notes || "",
@@ -211,7 +248,7 @@ export default function JobsPage() {
       quote_id: quote.id,
       customer_id: quote.customer_id,
       scheduled_date: new Date().toISOString().split("T")[0],
-      assigned_employee: "",
+      assigned_employee_id: "",
       status: "Scheduled",
       estimated_value: String(quote.total_estimate),
       notes: quote.notes || "",
@@ -322,12 +359,18 @@ export default function JobsPage() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">Assigned employee (optional)</label>
-                  <input
-                    value={form.assigned_employee}
-                    onChange={(event) => setForm((current) => ({ ...current, assigned_employee: event.target.value }))}
+                  <select
+                    value={form.assigned_employee_id}
+                    onChange={(event) => setForm((current) => ({ ...current, assigned_employee_id: event.target.value }))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                    placeholder="e.g., Mina Patel"
-                  />
+                  >
+                    <option value="">Unassigned</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.first_name} {employee.last_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

@@ -14,6 +14,8 @@ type Employee = {
   department: string;
   hire_date: string;
   status: string;
+  auth_user_id: string | null;
+  is_active: boolean;
   notes: string;
   created_at: string;
 };
@@ -27,6 +29,8 @@ type EmployeeFormState = {
   department: string;
   hire_date: string;
   status: string;
+  auth_user_id: string;
+  is_active: boolean;
   notes: string;
 };
 
@@ -39,6 +43,8 @@ const emptyForm: EmployeeFormState = {
   department: "",
   hire_date: "",
   status: "Active",
+  auth_user_id: "",
+  is_active: true,
   notes: "",
 };
 
@@ -99,7 +105,9 @@ export default function EmployeesPage() {
       role: form.role.trim(),
       department: form.department.trim(),
       hire_date: form.hire_date,
-      status: form.status,
+      status: form.is_active ? form.status : "Inactive",
+      auth_user_id: form.auth_user_id.trim() || null,
+      is_active: form.is_active,
       notes: form.notes.trim(),
     };
 
@@ -143,19 +151,30 @@ export default function EmployeesPage() {
       department: employee.department,
       hire_date: employee.hire_date,
       status: employee.status,
+      auth_user_id: employee.auth_user_id ?? "",
+      is_active: employee.is_active,
       notes: employee.notes,
     });
     setMessage("Editing employee record.");
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("employees").delete().eq("id", id);
+  const handleToggleActive = async (employee: Employee, nextActive: boolean) => {
+    const payload = {
+      is_active: nextActive,
+      status: nextActive
+        ? employee.status === "Inactive"
+          ? "Active"
+          : employee.status
+        : "Inactive",
+    };
+
+    const { error } = await supabase.from("employees").update(payload).eq("id", employee.id);
     if (error) {
       setMessage(error.message);
       return;
     }
 
-    setMessage("Employee removed.");
+    setMessage(nextActive ? "Employee reactivated." : "Employee deactivated.");
     await fetchEmployees();
   };
 
@@ -221,8 +240,16 @@ export default function EmployeesPage() {
                         {employee.first_name} {employee.last_name}
                       </p>
                       <p className="text-sm text-slate-500">{employee.role}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        <span className={employee.is_active ? "text-emerald-700" : "text-rose-700"}>
+                          {employee.is_active ? "Active portal access" : "Deactivated"}
+                        </span>
+                      </p>
                       <p className="mt-1 text-sm text-slate-500">{employee.email}</p>
                       <p className="mt-1 text-sm text-slate-500">{employee.phone}</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Auth user: {employee.auth_user_id ?? "Not linked"}
+                      </p>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -234,10 +261,14 @@ export default function EmployeesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(employee.id)}
-                        className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100"
+                        onClick={() => handleToggleActive(employee, !employee.is_active)}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                          employee.is_active
+                            ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                            : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        }`}
                       >
-                        Delete
+                        {employee.is_active ? "Deactivate" : "Reactivate"}
                       </button>
                     </div>
                   </div>
@@ -340,12 +371,47 @@ export default function EmployeesPage() {
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
                   <select
                     value={form.status}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        status: event.target.value,
+                        is_active: event.target.value === "Inactive" ? false : current.is_active,
+                      }))
+                    }
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
                   >
                     <option value="Active">Active</option>
                     <option value="On Leave">On Leave</option>
                     <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Auth User ID (optional)</label>
+                  <input
+                    value={form.auth_user_id}
+                    onChange={(event) => setForm((current) => ({ ...current, auth_user_id: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                    placeholder="Supabase auth.users UUID"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Portal Access</label>
+                  <select
+                    value={form.is_active ? "enabled" : "disabled"}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        is_active: event.target.value === "enabled",
+                        status: event.target.value === "enabled" && current.status === "Inactive" ? "Active" : current.status,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                  >
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
                   </select>
                 </div>
               </div>

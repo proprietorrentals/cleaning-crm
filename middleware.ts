@@ -33,13 +33,14 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/employee-login" ||
     pathname === "/forgot-password" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api");
 
   if (!user && !isPublicRoute) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
+    redirectUrl.pathname = pathname.startsWith("/employee-portal") ? "/employee-login" : "/login";
     redirectUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(redirectUrl);
   }

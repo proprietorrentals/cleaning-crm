@@ -33,6 +33,7 @@ type Job = {
   quote_id: string;
   customer_id: string;
   scheduled_date: string;
+  assigned_employee_id: string | null;
   assigned_employee: string | null;
   status: string;
   estimated_value: number;
@@ -40,9 +41,16 @@ type Job = {
   created_at: string;
 };
 
+type Employee = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+};
+
 type ApprovalFormState = {
   scheduled_date: string;
-  assigned_employee: string;
+  assigned_employee_id: string;
   notes: string;
 };
 
@@ -113,6 +121,7 @@ export default function QuotesPage() {
   const supabase = useMemo(() => createClient(), []);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [form, setForm] = useState<QuoteFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +132,7 @@ export default function QuotesPage() {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [approvalForm, setApprovalForm] = useState<ApprovalFormState>({
     scheduled_date: "",
-    assigned_employee: "",
+    assigned_employee_id: "",
     notes: "",
   });
   const [approvingQuoteId, setApprovingQuoteId] = useState<string | null>(null);
@@ -162,9 +171,25 @@ export default function QuotesPage() {
     setLoading(false);
   };
 
+  const fetchEmployees = async () => {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id,first_name,last_name,is_active")
+      .eq("is_active", true)
+      .order("first_name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to fetch employees:", error);
+      return;
+    }
+
+    setEmployees(data ?? []);
+  };
+
   useEffect(() => {
     fetchCustomers();
     fetchQuotes();
+    fetchEmployees();
   }, [supabase]);
 
   const handleCustomerSelect = (customerId: string) => {
@@ -293,7 +318,7 @@ export default function QuotesPage() {
     setApprovingQuoteId(quote.id);
     setApprovalForm({
       scheduled_date: new Date().toISOString().split("T")[0],
-      assigned_employee: "",
+      assigned_employee_id: "",
       notes: quote.notes || "",
     });
     setShowApprovalModal(true);
@@ -319,11 +344,16 @@ export default function QuotesPage() {
       return;
     }
 
+    const selectedEmployee = employees.find((employee) => employee.id === approvalForm.assigned_employee_id);
+
     const jobPayload = {
       quote_id: quote.id,
       customer_id: quote.customer_id,
       scheduled_date: approvalForm.scheduled_date,
-      assigned_employee: approvalForm.assigned_employee || null,
+      assigned_employee_id: approvalForm.assigned_employee_id || null,
+      assigned_employee: selectedEmployee
+        ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}`
+        : null,
       status: "Scheduled",
       estimated_value: quote.total_estimate,
       notes: approvalForm.notes,
@@ -631,18 +661,23 @@ export default function QuotesPage() {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Assigned employee (optional)</label>
-                <input
-                  type="text"
-                  value={approvalForm.assigned_employee}
+                <select
+                  value={approvalForm.assigned_employee_id}
                   onChange={(event) =>
                     setApprovalForm((current) => ({
                       ...current,
-                      assigned_employee: event.target.value,
+                      assigned_employee_id: event.target.value,
                     }))
                   }
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-green-500 focus:bg-white"
-                  placeholder="e.g., John Smith"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.first_name} {employee.last_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
