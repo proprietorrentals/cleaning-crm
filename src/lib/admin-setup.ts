@@ -7,12 +7,19 @@ import { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Ensure admin is properly initialized in tenant_admins table
  * Returns the tenant_id if successful
+ *
+ * This function will:
+ * 1. Check if user is already in tenant_admins
+ * 2. If not, create default tenant (if missing)
+ * 3. Add user to tenant_admins for default tenant
  */
 export async function ensureAdminInitialized(
   adminClient: SupabaseClient,
   userId: string,
   userEmail: string | undefined
 ): Promise<string> {
+  console.log("ensureAdminInitialized: Starting for user ID:", userId?.substring(0, 8) + "...");
+
   // Check if already in tenant_admins
   const { data: existingAdmin, error: checkError } = await adminClient
     .from("tenant_admins")
@@ -21,16 +28,21 @@ export async function ensureAdminInitialized(
     .maybeSingle();
 
   if (checkError) {
-    console.error("ensureAdminInitialized: Error checking tenant_admins:", checkError);
-    throw new Error(`Failed to check admin status: ${checkError.message}`);
+    const errorMsg = `Failed to check admin status: ${checkError.message}`;
+    console.error("ensureAdminInitialized:", errorMsg, {
+      code: checkError.code,
+      details: (checkError as any).details,
+    });
+    throw new Error(errorMsg);
   }
 
   if (existingAdmin) {
+    console.log("ensureAdminInitialized: User already initialized for tenant:", existingAdmin.tenant_id?.substring(0, 8) + "...");
     return existingAdmin.tenant_id;
   }
 
   // User not in tenant_admins, try to add them
-  console.log("ensureAdminInitialized: User not found, attempting to add to default tenant");
+  console.log("ensureAdminInitialized: User not found in tenant_admins, attempting to initialize");
 
   const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 
@@ -42,12 +54,13 @@ export async function ensureAdminInitialized(
     .maybeSingle();
 
   if (tenantCheckError) {
-    console.error("ensureAdminInitialized: Error checking default tenant:", tenantCheckError);
-    throw new Error(`Failed to check default tenant: ${tenantCheckError.message}`);
+    const errorMsg = `Failed to check default tenant: ${tenantCheckError.message}`;
+    console.error("ensureAdminInitialized:", errorMsg);
+    throw new Error(errorMsg);
   }
 
   if (!defaultTenant) {
-    console.log("ensureAdminInitialized: Creating default tenant");
+    console.log("ensureAdminInitialized: Default tenant does not exist, creating...");
     const { error: createTenantError } = await adminClient
       .from("tenants")
       .insert({
@@ -60,13 +73,15 @@ export async function ensureAdminInitialized(
       });
 
     if (createTenantError) {
-      console.error("ensureAdminInitialized: Error creating default tenant:", createTenantError);
-      throw new Error(`Failed to create default tenant: ${createTenantError.message}`);
+      const errorMsg = `Failed to create default tenant: ${createTenantError.message}`;
+      console.error("ensureAdminInitialized:", errorMsg);
+      throw new Error(errorMsg);
     }
+    console.log("ensureAdminInitialized: Default tenant created successfully");
   }
 
   // Add user to tenant_admins
-  console.log("ensureAdminInitialized: Adding user to tenant_admins");
+  console.log("ensureAdminInitialized: Adding user to tenant_admins for default tenant");
   const { error: insertError } = await adminClient
     .from("tenant_admins")
     .insert({
@@ -76,27 +91,14 @@ export async function ensureAdminInitialized(
     });
 
   if (insertError) {
-    console.error("ensureAdminInitialized: Error inserting into tenant_admins:", insertError);
-    throw new Error(`Failed to initialize admin: ${insertError.message}`);
+    const errorMsg = `Failed to initialize admin: ${insertError.message}`;
+    console.error("ensureAdminInitialized:", errorMsg, {
+      code: insertError.code,
+      details: (insertError as any).details,
+    });
+    throw new Error(errorMsg);
   }
 
+  console.log("ensureAdminInitialized: Success - user added to tenant_admins");
   return defaultTenantId;
-}
-
-/**
- * Verify user is an admin and get their tenant_id
- * Automatically initializes if needed
- */
-export async function verifyAndGetAdminTenant(
-  adminClient: SupabaseClient,
-  userId: string,
-  userEmail: string | undefined
-): Promise<{ tenantId: string; isNewlyInitialized: boolean }> {
-  try {
-    const tenantId = await ensureAdminInitialized(adminClient, userId, userEmail);
-    return { tenantId, isNewlyInitialized: true };
-  } catch (err) {
-    console.error("verifyAndGetAdminTenant failed:", err);
-    throw err;
-  }
 }

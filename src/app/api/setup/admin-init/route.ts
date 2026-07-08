@@ -23,7 +23,6 @@ import { NextResponse } from "next/server";
 export async function POST() {
   try {
     const serverSupabase = await createServerSupabaseClient();
-    const adminClient = createAdminSupabaseClient();
 
     // Get current user
     const { data: { user }, error: sessionError } = await serverSupabase.auth.getUser();
@@ -34,7 +33,19 @@ export async function POST() {
       }, { status: 401 });
     }
 
-    console.log("admin-init: Setting up admin for user:", user.id, user.email);
+    console.log("admin-init: Setting up admin for user:", user.id?.substring(0, 8) + "...", user.email);
+
+    // ─── Create admin client (may fail if env vars not set)
+    let adminClient;
+    try {
+      adminClient = createAdminSupabaseClient();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("admin-init: Failed to create admin client:", errorMessage);
+      return NextResponse.json({
+        error: `Server configuration error: ${errorMessage}. Check that SUPABASE_SERVICE_ROLE_KEY is set in environment variables.`,
+      }, { status: 500 });
+    }
 
     // Step 1: Ensure default tenant exists
     const { data: defaultTenant, error: tenantCheckError } = await adminClient

@@ -62,11 +62,23 @@ export async function POST(req: NextRequest) {
 
     try {
       adminTenantId = await ensureAdminInitialized(adminClient, user.id, user.email);
-      console.log("employee-invite: Admin verified/initialized for tenant:", adminTenantId);
+      console.log("employee-invite: Admin verified/initialized for tenant:", adminTenantId?.substring(0, 8) + "...");
     } catch (err) {
-      console.error("employee-invite: Failed to ensure admin initialized:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("employee-invite: Failed to ensure admin initialized:", {
+        error: errorMessage,
+        userId: user.id?.substring(0, 8) + "...",
+      });
+
+      // Check if it's an environment variable error
+      if (errorMessage.includes("Missing required environment variables") || errorMessage.includes("Invalid API key")) {
+        return NextResponse.json({
+          error: `Server configuration error: ${errorMessage}. Please contact your administrator.`,
+        }, { status: 500 });
+      }
+
       return NextResponse.json({
-        error: `Failed to verify admin privileges: ${err instanceof Error ? err.message : String(err)}`,
+        error: `Failed to verify admin privileges: ${errorMessage}`,
       }, { status: 403 });
     }
 
