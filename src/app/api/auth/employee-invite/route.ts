@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify the calling user is a tenant admin.
+    // Verify the calling user has credentials.
     const serverSupabase = await createServerSupabaseClient();
     const { data: { user }, error: sessionError } = await serverSupabase.auth.getUser();
 
@@ -22,14 +22,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const { data: adminRecord } = await serverSupabase
+    // Check if caller is in tenant_admins, if not, try to add them to default tenant
+    let { data: adminRecord } = await serverSupabase
       .from("tenant_admins")
       .select("tenant_id")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
     if (!adminRecord) {
-      return NextResponse.json({ error: "Forbidden: must be a tenant admin." }, { status: 403 });
+      // User not in tenant_admins yet. Try to add them to the default tenant.
+      // This allows legacy admins (not in customers table) to be auto-promoted.
+      const { error: insertError } = await serverSupabase
+        .from("tenant_admins")
+        .insert({
+          tenant_id: "00000000-0000-0000-0000-000000000001",
+          auth_user_id: user.id,
+          email: user.email || "",
+        });
+
+      if (insertError && !insertError.message.includes("duplicate")) {
+        console.error("Failed to add user to tenant_admins:", insertError);
+        return NextResponse.json({ 
+          error: "You don't have permission to invite employees. Contact an administrator." 
+        }, { status: 403 });
+      }
+
+      // Fetch the record again (either just created or already existed)
+      const { data: retryRecord } = await serverSupabase
+        .from("tenant_admins")
+        .select("tenant_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (!retryRecord) {
+        return NextResponse.json({ 
+          error: "Failed to establish admin permissions" 
+        }, { status: 500 });
+      }
+
+      adminRecord = retryRecord;
     }
 
     const { employeeId, email, tempPassword } = await req.json() as {
