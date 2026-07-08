@@ -1,6 +1,7 @@
 import "@/lib/globals-polyfill";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { ensureAdminInitialized } from "@/lib/admin-setup";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -14,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
  *
  * Flow:
  * 1. Verify caller is authenticated
- * 2. Ensure caller is in tenant_admins (auto-promote if legacy admin)
+ * 2. Ensure caller is in tenant_admins (auto-initialize if needed)
  * 3. Verify employee belongs to caller's tenant
  * 4. Create Supabase Auth user
  * 5. Link auth_user_id to employee record
@@ -51,67 +52,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized: Please log in." }, { status: 401 });
     }
 
-    console.log("employee-invite: Caller user ID:", user.id);
+    console.log("employee-invite: Caller user ID:", user.id, "Email:", user.email);
 
     // ─── STEP 2: ENSURE CALLER IS IN tenant_admins ────────────────────────────
+    // This will auto-initialize the admin if needed
 
     const adminClient = createAdminSupabaseClient();
-    let { data: adminRecord, error: adminQueryError } = await adminClient
-      .from("tenant_admins")
-      .select("tenant_id")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+    let adminTenantId: string;
 
-    if (adminQueryError) {
-      console.error("employee-invite: Error querying tenant_admins:", adminQueryError);
+    try {
+      adminTenantId = await ensureAdminInitialized(adminClient, user.id, user.email);
+      console.log("employee-invite: Admin verified/initialized for tenant:", adminTenantId);
+    } catch (err) {
+      console.error("employee-invite: Failed to ensure admin initialized:", err);
       return NextResponse.json({
-        error: "Failed to verify admin status",
-      }, { status: 500 });
+        error: `Failed to verify admin privileges: ${err instanceof Error ? err.message : String(err)}`,
+      }, { status: 403 });
     }
-
-    // If caller is not in tenant_admins, try to auto-promote to default tenant
-    if (!adminRecord) {
-      console.log("employee-invite: Caller not in tenant_admins, attempting auto-promotion");
-
-      const { error: insertError } = await adminClient
-        .from("tenant_admins")
-        .insert({
-          tenant_id: "00000000-0000-0000-0000-000000000001",
-          auth_user_id: user.id,
-          email: user.email || "",
-        });
-
-      if (insertError) {
-        // Check if it's a duplicate key error (already exists)
-        if (insertError.code === "23505" || insertError.message?.includes("duplicate")) {
-          console.log("employee-invite: User already in tenant_admins (duplicate), retrying SELECT");
-        } else {
-          console.error("employee-invite: Failed to auto-promote admin:", insertError);
-          return NextResponse.json({
-            error: "Failed to establish admin privileges. Contact your administrator.",
-          }, { status: 403 });
-        }
-      }
-
-      // Retry the SELECT
-      const { data: retryRecord, error: retryError } = await adminClient
-        .from("tenant_admins")
-        .select("tenant_id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-
-      if (retryError || !retryRecord) {
-        console.error("employee-invite: Retry SELECT failed:", retryError);
-        return NextResponse.json({
-          error: "Could not verify admin status. Please contact an administrator.",
-        }, { status: 403 });
-      }
-
-      adminRecord = retryRecord;
-    }
-
-    const adminTenantId = adminRecord.tenant_id;
-    console.log("employee-invite: Caller is admin for tenant:", adminTenantId);
 
     // ─── STEP 3: VERIFY EMPLOYEE EXISTS AND BELONGS TO ADMIN'S TENANT ─────────
 
