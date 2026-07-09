@@ -36,7 +36,7 @@ type TimeEntry = {
   id: string;
   clock_in_time: string | null;
   clock_out_time: string | null;
-  total_time_worked: string | null;
+  total_minutes: number | null;
   status: string | null;
 };
 
@@ -153,7 +153,7 @@ export default function EmployeePortalPage() {
       // Fetch open time entry (no job — dashboard-level clock)
       const { data: openEntry } = await supabase
         .from("time_entries")
-        .select("id,clock_in_time,clock_out_time,total_time_worked,status")
+        .select("id,clock_in_time,clock_out_time,total_minutes,status")
         .eq("employee_id", employee.id)
         .is("clock_out_time", null)
         .is("job_id", null)
@@ -211,11 +211,14 @@ export default function EmployeePortalPage() {
     setMessage(null);
     const startedAt = timeEntry.clock_in_time;
     const clockOutAt = new Date().toISOString();
+    const totalMinutes = startedAt
+      ? Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 60_000))
+      : null;
     const { error } = await supabase
       .from("time_entries")
       .update({
         clock_out_time: clockOutAt,
-        total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
+        total_minutes: totalMinutes,
         status: "clocked_out",
       })
       .eq("id", timeEntry.id);

@@ -36,7 +36,7 @@ type TimeEntry = {
   id: string;
   clock_in_time: string | null;
   clock_out_time: string | null;
-  total_time_worked: string | null;
+  total_minutes: number | null;
   status: string | null;
 };
 type JobPhoto = { id: string; photo_url: string; photo_type: string; notes: string | null };
@@ -168,7 +168,7 @@ export default function JobDetailPage() {
       supabase.from("customers").select("id,company_name,address,phone").eq("id", jobData.customer_id).maybeSingle(),
       supabase
         .from("time_entries")
-        .select("id,clock_in_time,clock_out_time,total_time_worked,status")
+        .select("id,clock_in_time,clock_out_time,total_minutes,status")
         .eq("job_id", jobId)
         .eq("employee_id", emp.id)
         .is("clock_out_time", null)
@@ -239,11 +239,14 @@ export default function JobDetailPage() {
     setMessage(null);
     const startedAt = timeEntry.clock_in_time;
     const clockOutAt = new Date().toISOString();
+    const totalMinutes = startedAt
+      ? Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 60_000))
+      : null;
     const { data, error } = await supabase
       .from("time_entries")
       .update({
         clock_out_time: clockOutAt,
-        total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
+        total_minutes: totalMinutes,
         status: "clocked_out",
       })
       .eq("id", timeEntry.id)
