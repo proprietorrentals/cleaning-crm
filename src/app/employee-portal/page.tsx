@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { getActiveEmployeeByAuthUserId } from "@/lib/supabase/employee-session";
+import { InstallPwaButton } from "@/components/install-pwa-button";
 import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -318,7 +319,7 @@ export default function EmployeePortalPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-3 py-3 pb-8 sm:px-6 sm:py-6 lg:px-8">
         <header className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -331,6 +332,9 @@ export default function EmployeePortalPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <InstallPwaButton
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              />
               <Link
                 href="/jobs"
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -392,7 +396,7 @@ export default function EmployeePortalPage() {
                 type="button"
                 onClick={handleClockOut}
                 disabled={clockBusy}
-                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                className="w-full rounded-xl bg-red-600 px-5 py-3 text-base font-semibold text-white transition hover:bg-red-700 disabled:opacity-50 sm:w-auto sm:py-2.5 sm:text-sm"
               >
                 {clockBusy ? "Saving…" : "Clock Out"}
               </button>
@@ -401,7 +405,7 @@ export default function EmployeePortalPage() {
                 type="button"
                 onClick={handleClockIn}
                 disabled={clockBusy}
-                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-base font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 sm:w-auto sm:py-2.5 sm:text-sm"
               >
                 {clockBusy ? "Saving…" : "Clock In"}
               </button>
@@ -523,7 +527,7 @@ export default function EmployeePortalPage() {
               type="button"
               onClick={submitMileage}
               disabled={mileageBusy}
-              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
+              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400 sm:w-auto sm:py-2.5 sm:text-sm"
             >
               {mileageBusy ? "Submitting..." : "Submit for Approval"}
             </button>

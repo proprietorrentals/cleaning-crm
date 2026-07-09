@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getActiveEmployeeByAuthUserId } from "@/lib/supabase/employee-session";
+import { InstallPwaButton } from "@/components/install-pwa-button";
 import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -474,7 +475,7 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 px-3 py-3 pb-8 sm:px-6 sm:py-6">
 
         {/* Header */}
         <header className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
@@ -485,13 +486,18 @@ export default function JobDetailPage() {
                 ← Back to dashboard
               </Link>
             </div>
-            <button
-              type="button"
-              onClick={async () => { await supabase.auth.signOut(); router.replace("/employee-login"); }}
-              className="self-start rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-            >
-              Sign out
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <InstallPwaButton
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              />
+              <button
+                type="button"
+                onClick={async () => { await supabase.auth.signOut(); router.replace("/employee-login"); }}
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </header>
 
@@ -552,7 +558,7 @@ export default function JobDetailPage() {
                     type="button"
                     onClick={handleClockOut}
                     disabled={busy}
-                    className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition"
+                    className="w-full rounded-xl bg-red-600 px-5 py-3 text-base font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition sm:w-auto sm:py-2.5 sm:text-sm"
                   >
                     Clock Out
                   </button>
@@ -564,7 +570,7 @@ export default function JobDetailPage() {
                     type="button"
                     onClick={handleClockIn}
                     disabled={busy}
-                    className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                    className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition sm:w-auto sm:py-2.5 sm:text-sm"
                   >
                     Clock In
                   </button>
@@ -582,7 +588,7 @@ export default function JobDetailPage() {
                       type="button"
                       onClick={() => handleStatusUpdate("In Progress")}
                       disabled={busy}
-                      className="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition"
+                      className="w-full rounded-xl bg-amber-500 px-5 py-3 text-base font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition sm:w-auto sm:py-2.5 sm:text-sm"
                     >
                       Start Job
                     </button>
@@ -592,7 +598,7 @@ export default function JobDetailPage() {
                       type="button"
                       onClick={() => handleStatusUpdate("Completed")}
                       disabled={busy}
-                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                      className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition sm:w-auto sm:py-2.5 sm:text-sm"
                     >
                       Mark Complete
                     </button>
@@ -611,7 +617,7 @@ export default function JobDetailPage() {
                     <div key={type}>
                       <div className="mb-2 flex items-center justify-between">
                         <p className="text-sm font-medium capitalize text-slate-700">{type} ({list.length})</p>
-                        <label className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${type === "before" ? "bg-slate-600 hover:bg-slate-700" : "bg-blue-600 hover:bg-blue-700"} ${photoUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                        <label className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-white transition ${type === "before" ? "bg-slate-600 hover:bg-slate-700" : "bg-blue-600 hover:bg-blue-700"} ${photoUploading ? "opacity-50 pointer-events-none" : ""}`}>
                           {photoUploading ? "Uploading…" : "+ Photo"}
                           <input
                             type="file"
@@ -707,7 +713,7 @@ export default function JobDetailPage() {
                         <button
                           type="button"
                           onClick={clearSignature}
-                          className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition"
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base text-slate-600 hover:bg-slate-50 transition sm:w-auto sm:py-2 sm:text-sm"
                         >
                           Clear
                         </button>
@@ -715,7 +721,7 @@ export default function JobDetailPage() {
                           type="button"
                           onClick={saveSignature}
                           disabled={busy || sigSaved}
-                          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                          className="w-full rounded-xl bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition sm:w-auto sm:py-2 sm:text-sm"
                         >
                           {busy ? "Saving…" : "Save Signature"}
                         </button>
@@ -760,7 +766,7 @@ export default function JobDetailPage() {
                     type="button"
                     onClick={saveUnavailableVerification}
                     disabled={busy}
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                    className="w-full rounded-xl bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition sm:w-auto sm:py-2 sm:text-sm"
                   >
                     {busy ? "Saving…" : "Save Verification"}
                   </button>
@@ -783,7 +789,7 @@ export default function JobDetailPage() {
                   type="button"
                   onClick={handleSaveNotes}
                   disabled={busy}
-                  className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                  className="w-full rounded-xl bg-blue-600 px-5 py-3 text-base font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition sm:w-auto sm:py-2 sm:text-sm"
                 >
                   {busy ? "Saving…" : "Save Notes"}
                 </button>
