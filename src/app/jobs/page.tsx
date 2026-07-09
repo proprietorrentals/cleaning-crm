@@ -45,6 +45,20 @@ type Job = {
   created_at: string;
 };
 
+type MileageRequest = {
+  id: string;
+  from_job_id: string;
+  to_job_id: string;
+  employee_id: string;
+  date: string;
+  miles: number;
+  notes: string | null;
+  status: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+};
+
 type Employee = {
   id: string;
   first_name: string;
@@ -95,6 +109,7 @@ function formatVerification(job: Job) {
 export default function JobsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [mileageRequests, setMileageRequests] = useState<MileageRequest[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -108,7 +123,7 @@ export default function JobsPage() {
     setLoading(true);
     setMessage(null);
 
-    const [jobsResponse, customersResponse, quotesResponse, employeesResponse] = await Promise.all([
+    const [jobsResponse, customersResponse, quotesResponse, employeesResponse, mileageRequestsResponse] = await Promise.all([
       supabase.from("jobs").select("*").order("scheduled_date", { ascending: true }),
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
       supabase.from("quotes").select("*").order("created_at", { ascending: false }),
@@ -117,6 +132,7 @@ export default function JobsPage() {
         .select("id,first_name,last_name,is_active")
         .eq("is_active", true)
         .order("first_name", { ascending: true }),
+      supabase.from("mileage_requests").select("*").order("created_at", { ascending: false }),
     ]);
 
     if (jobsResponse.error) {
@@ -152,6 +168,17 @@ export default function JobsPage() {
       );
     } else {
       setEmployees(employeesResponse.data ?? []);
+    }
+
+    if (mileageRequestsResponse.error) {
+      console.error("❌ Failed to fetch mileage requests:", mileageRequestsResponse.error);
+      setMessage((current) =>
+        current
+          ? `${current}; Also failed to fetch mileage requests: ${mileageRequestsResponse.error.message}`
+          : `❌ Error fetching mileage requests: ${mileageRequestsResponse.error.message}`,
+      );
+    } else {
+      setMileageRequests(mileageRequestsResponse.data ?? []);
     }
 
     setLoading(false);
@@ -256,6 +283,54 @@ export default function JobsPage() {
 
     setMessage(`✓ Job status changed to ${newStatus}.`);
     await fetchData();
+  };
+
+  const handleMileageReview = async (requestId: string, nextStatus: "approved" | "rejected") => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("mileage_requests")
+      .update({
+        status: nextStatus,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user?.id ?? null,
+      })
+      .eq("id", requestId);
+
+    if (error) {
+      setMessage(`❌ Error updating mileage request: ${error.message}`);
+      return;
+    }
+
+    setMessage(`✓ Mileage request ${nextStatus}.`);
+    await fetchData();
+  };
+
+  const jobById = jobs.reduce<Record<string, Job>>((acc, job) => {
+    acc[job.id] = job;
+    return acc;
+  }, {});
+
+  const employeeById = employees.reduce<Record<string, Employee>>((acc, employee) => {
+    acc[employee.id] = employee;
+    return acc;
+  }, {});
+
+  const customerById = customers.reduce<Record<string, Customer>>((acc, customer) => {
+    acc[customer.id] = customer;
+    return acc;
+  }, {});
+
+  const formatEmployeeName = (employeeId: string) => {
+    const employee = employeeById[employeeId];
+    return employee ? `${employee.first_name} ${employee.last_name}` : employeeId;
+  };
+
+  const formatMileageJob = (jobId: string) => {
+    const job = jobById[jobId];
+    if (!job) return jobId;
+    const customer = customerById[job.customer_id];
+    return `${customer?.company_name ?? "Customer"} (${job.scheduled_date})`;
   };
 
   const createFromQuote = (quote: Quote) => {
@@ -531,6 +606,88 @@ export default function JobsPage() {
                               Delete
                             </button>
                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Mileage Approval</h2>
+              <p className="text-sm text-slate-500">Approve or reject submitted mileage between assigned jobs.</p>
+            </div>
+            <span className="text-sm text-slate-500">{mileageRequests.length} requests</span>
+          </div>
+
+          {mileageRequests.length === 0 ? (
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No mileage requests yet.</div>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Employee</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">From Job</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">To Job</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Date</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Miles</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Notes</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mileageRequests.map((request) => {
+                    const statusColor =
+                      request.status === "approved"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : request.status === "rejected"
+                          ? "bg-rose-50 text-rose-700"
+                          : "bg-amber-50 text-amber-700";
+
+                    return (
+                      <tr key={request.id} className="border-b border-slate-100">
+                        <td className="px-4 py-3 text-slate-700">{formatEmployeeName(request.employee_id)}</td>
+                        <td className="px-4 py-3 text-slate-700">{formatMileageJob(request.from_job_id)}</td>
+                        <td className="px-4 py-3 text-slate-700">{formatMileageJob(request.to_job_id)}</td>
+                        <td className="px-4 py-3 text-slate-700">{request.date}</td>
+                        <td className="px-4 py-3 text-slate-700">{Number(request.miles).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColor}`}>
+                            {request.status}
+                          </span>
+                          {request.reviewed_at ? (
+                            <p className="mt-1 text-xs text-slate-400">Reviewed {new Date(request.reviewed_at).toLocaleString()}</p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{request.notes || "—"}</td>
+                        <td className="px-4 py-3 text-right">
+                          {request.status === "pending" ? (
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleMileageReview(request.id, "approved")}
+                                className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMileageReview(request.id, "rejected")}
+                                className="rounded-lg bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">Reviewed</span>
+                          )}
                         </td>
                       </tr>
                     );

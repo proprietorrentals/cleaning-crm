@@ -29,6 +29,7 @@ type Job = {
 type Customer = {
   id: string;
   company_name: string;
+  address: string | null;
 };
 
 type TimeEntry = {
@@ -65,11 +66,20 @@ export default function EmployeePortalPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [customersById, setCustomersById] = useState<Record<string, string>>({});
+  const [customersById, setCustomersById] = useState<Record<string, Customer>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [timeEntry, setTimeEntry] = useState<TimeEntry | null>(null);
   const [elapsedStr, setElapsedStr] = useState("");
   const [clockBusy, setClockBusy] = useState(false);
+  const [mileageBusy, setMileageBusy] = useState(false);
+  const [mileageFromJobId, setMileageFromJobId] = useState("");
+  const [mileageToJobId, setMileageToJobId] = useState("");
+  const [mileageNotes, setMileageNotes] = useState("");
+  const [mileageEstimatedMiles, setMileageEstimatedMiles] = useState<string | null>(null);
+  const [mileageManualMiles, setMileageManualMiles] = useState("");
+  const [mileageNeedsManual, setMileageNeedsManual] = useState(false);
+  const [mileageError, setMileageError] = useState<string | null>(null);
+  const [mileageSuccess, setMileageSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPortal = async () => {
@@ -117,12 +127,12 @@ export default function EmployeePortalPage() {
       if (customerIds.length > 0) {
         const { data: customers, error: customerError } = await supabase
           .from("customers")
-          .select("id,company_name")
+          .select("id,company_name,address")
           .in("id", customerIds);
 
         if (!customerError) {
-          const map = (customers ?? []).reduce<Record<string, string>>((acc, customer) => {
-            acc[customer.id] = customer.company_name;
+          const map = (customers ?? []).reduce<Record<string, Customer>>((acc, customer) => {
+            acc[customer.id] = customer;
             return acc;
           }, {});
           setCustomersById(map);
@@ -180,6 +190,85 @@ export default function EmployeePortalPage() {
       .eq("id", timeEntry.id);
     if (!error) { setTimeEntry(null); setElapsedStr(""); }
     setClockBusy(false);
+  };
+
+  const calculateMileage = async () => {
+    setMileageBusy(true);
+    setMileageError(null);
+    setMileageSuccess(null);
+
+    const response = await fetch("/api/mileage/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromJobId: mileageFromJobId,
+        toJobId: mileageToJobId,
+      }),
+    });
+
+    const payload = (await response.json()) as { miles?: number; error?: string; fromAddress?: string; toAddress?: string; date?: string };
+
+    if (!response.ok) {
+      setMileageEstimatedMiles(null);
+      setMileageNeedsManual(true);
+      setMileageManualMiles("");
+      setMileageError(payload.error || "Unable to calculate mileage automatically.");
+      setMileageBusy(false);
+      return;
+    }
+
+    setMileageEstimatedMiles(String(payload.miles ?? 0));
+    setMileageNeedsManual(false);
+    setMileageManualMiles("");
+    setMileageSuccess(`Estimated mileage calculated for ${payload.fromAddress} → ${payload.toAddress}.`);
+    setMileageBusy(false);
+  };
+
+  const submitMileage = async () => {
+    if (!profile) return;
+
+    const selectedFromJob = jobs.find((job) => job.id === mileageFromJobId);
+    const selectedToJob = jobs.find((job) => job.id === mileageToJobId);
+
+    if (!selectedFromJob || !selectedToJob) {
+      setMileageError("Select both Job A and Job B.");
+      return;
+    }
+
+    const milesValue = mileageNeedsManual ? Number(mileageManualMiles) : Number(mileageEstimatedMiles);
+    if (!Number.isFinite(milesValue) || milesValue <= 0) {
+      setMileageError(mileageNeedsManual ? "Enter manual miles to submit." : "Calculate mileage first.");
+      return;
+    }
+
+    setMileageBusy(true);
+    setMileageError(null);
+    setMileageSuccess(null);
+
+    const { error } = await supabase.from("mileage_requests").insert({
+      from_job_id: selectedFromJob.id,
+      to_job_id: selectedToJob.id,
+      employee_id: profile.id,
+      date: selectedFromJob.scheduled_date,
+      miles: milesValue,
+      notes: mileageNotes.trim() || null,
+      status: "pending",
+    });
+
+    if (error) {
+      setMileageError(error.message);
+      setMileageBusy(false);
+      return;
+    }
+
+    setMileageSuccess("Mileage submitted for approval.");
+    setMileageNotes("");
+    setMileageEstimatedMiles(null);
+    setMileageManualMiles("");
+    setMileageNeedsManual(false);
+    setMileageFromJobId("");
+    setMileageToJobId("");
+    setMileageBusy(false);
   };
 
   const today = isoDateValue();
@@ -280,6 +369,127 @@ export default function EmployeePortalPage() {
           </div>
         </section>
 
+        <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Mileage Tracking</h2>
+              <p className="mt-1 text-sm text-slate-500">Calculate mileage between two assigned jobs and submit it for approval.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Job A</label>
+              <select
+                value={mileageFromJobId}
+                onChange={(event) => {
+                  setMileageFromJobId(event.target.value);
+                  setMileageEstimatedMiles(null);
+                  setMileageNeedsManual(false);
+                  setMileageError(null);
+                  setMileageSuccess(null);
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+              >
+                <option value="">Select Job A...</option>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {customersById[job.customer_id]?.company_name ?? "Customer"} ({job.scheduled_date})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Job B</label>
+              <select
+                value={mileageToJobId}
+                onChange={(event) => {
+                  setMileageToJobId(event.target.value);
+                  setMileageEstimatedMiles(null);
+                  setMileageNeedsManual(false);
+                  setMileageError(null);
+                  setMileageSuccess(null);
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+              >
+                <option value="">Select Job B...</option>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {customersById[job.customer_id]?.company_name ?? "Customer"} ({job.scheduled_date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={calculateMileage}
+              disabled={mileageBusy || !mileageFromJobId || !mileageToJobId}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+            >
+              {mileageBusy ? "Calculating..." : "Calculate Mileage"}
+            </button>
+          </div>
+
+          {mileageError ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {mileageError}
+            </div>
+          ) : null}
+
+          {mileageSuccess ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {mileageSuccess}
+            </div>
+          ) : null}
+
+          {mileageEstimatedMiles ? (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-600">Estimated miles</p>
+              <p className="text-2xl font-semibold text-slate-900">{Number(mileageEstimatedMiles).toFixed(2)} mi</p>
+            </div>
+          ) : null}
+
+          {mileageNeedsManual ? (
+            <div className="mt-4">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Manual miles</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={mileageManualMiles}
+                onChange={(event) => setMileageManualMiles(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                placeholder="Enter mileage if automatic calculation fails"
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-4">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Notes</label>
+            <textarea
+              value={mileageNotes}
+              onChange={(event) => setMileageNotes(event.target.value)}
+              className="min-h-24 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+              placeholder="Add trip notes or justification for this mileage claim"
+            />
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={submitMileage}
+              disabled={mileageBusy}
+              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
+            >
+              {mileageBusy ? "Submitting..." : "Submit for Approval"}
+            </button>
+          </div>
+        </section>
+
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -295,7 +505,7 @@ export default function EmployeePortalPage() {
                 todaysJobs.map((job) => (
                   <div key={job.id} className="rounded-2xl border border-slate-200 p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
+                      <p className="font-semibold text-slate-900">{customersById[job.customer_id]?.company_name ?? "Customer"}</p>
                       <Link
                         href={`/employee-portal/jobs/${job.id}`}
                         className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition"
@@ -326,7 +536,7 @@ export default function EmployeePortalPage() {
                   <div key={job.id} className="rounded-2xl border border-slate-200 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-900">{customersById[job.customer_id] ?? "Customer"}</p>
+                        <p className="font-semibold text-slate-900">{customersById[job.customer_id]?.company_name ?? "Customer"}</p>
                         <span className="text-xs text-blue-700">{formatDate(job.scheduled_date)}</span>
                       </div>
                       <Link
@@ -369,7 +579,7 @@ export default function EmployeePortalPage() {
                   {jobs.map((job) => (
                     <tr key={job.id} className="border-b border-slate-100">
                       <td className="px-2 py-3 text-slate-700">{formatDate(job.scheduled_date)}</td>
-                      <td className="px-2 py-3 font-medium text-slate-900">{customersById[job.customer_id] ?? "Customer"}</td>
+                      <td className="px-2 py-3 font-medium text-slate-900">{customersById[job.customer_id]?.company_name ?? "Customer"}</td>
                       <td className="px-2 py-3 text-slate-700">{job.status}</td>
                       <td className="px-2 py-3 text-right font-semibold text-slate-900">{formatCurrency(job.estimated_value)}</td>
                     </tr>
