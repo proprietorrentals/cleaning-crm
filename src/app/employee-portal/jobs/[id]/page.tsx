@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getActiveEmployeeByAuthUserId } from "@/lib/supabase/employee-session";
 import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -20,7 +21,14 @@ type Job = {
 };
 
 type Customer = { id: string; company_name: string; address: string | null; phone: string | null };
-type EmployeeProfile = { id: string; first_name: string; last_name: string; role: string };
+type EmployeeProfile = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  department: string | null;
+  is_active: boolean;
+};
 type TimeEntry = { id: string; clock_in: string; clock_out: string | null };
 type JobPhoto = { id: string; photo_url: string; photo_type: string; notes: string | null };
 
@@ -74,18 +82,17 @@ export default function JobDetailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { router.replace("/employee-login"); return; }
 
-    const { data: emp } = await supabase
-      .from("employees")
-      .select("id,first_name,last_name,role,is_active")
-      .eq("auth_user_id", session.user.id)
-      .maybeSingle();
+    const { profile: emp, errorMessage: employeeError } = await getActiveEmployeeByAuthUserId(
+      supabase,
+      session.user.id,
+    );
 
-    if (!emp?.is_active) { router.replace("/employee-login?reason=Access+not+enabled"); return; }
+    if (employeeError || !emp) { router.replace("/employee-login?reason=Access+not+enabled"); return; }
     setProfile(emp);
 
     const { data: jobData, error: jobError } = await supabase
       .from("jobs")
-      .select("id,customer_id,scheduled_date,status,estimated_value,notes,assigned_employee,started_at,completed_at,signature_url")
+      .select("*")
       .eq("id", jobId)
       .eq("assigned_employee_id", emp.id)
       .maybeSingle();

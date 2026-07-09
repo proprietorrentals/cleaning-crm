@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { getActiveEmployeeByAuthUserId } from "@/lib/supabase/employee-session";
 import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -83,13 +84,12 @@ export default function EmployeePortalPage() {
         return;
       }
 
-      const { data: employee, error: employeeError } = await supabase
-        .from("employees")
-        .select("id,first_name,last_name,role,department,is_active")
-        .eq("auth_user_id", session.user.id)
-        .maybeSingle();
+      const { profile: employee, errorMessage: employeeError } = await getActiveEmployeeByAuthUserId(
+        supabase,
+        session.user.id,
+      );
 
-      if (employeeError || !employee?.is_active) {
+      if (employeeError || !employee) {
         await supabase.auth.signOut();
         router.replace("/employee-login?reason=Employee%20access%20is%20not%20enabled%20for%20this%20account.");
         return;
