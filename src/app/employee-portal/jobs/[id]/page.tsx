@@ -268,7 +268,7 @@ export default function JobDetailPage() {
   // ─── status update ──────────────────────────────────────────────────────────
 
   const handleStatusUpdate = async (newStatus: string) => {
-    if (!job) return;
+    if (!job || !profile) return;
     setBusy(true);
     const patch: Record<string, unknown> = { status: newStatus };
     if (newStatus === "In Progress" && !job.started_at) {
@@ -278,13 +278,17 @@ export default function JobDetailPage() {
       patch.completed_at = new Date().toISOString();
     }
 
-    const { data, error } = await supabase.from("jobs").update(patch).eq("id", job.id).select("id,status,started_at,completed_at").maybeSingle();
+    const { error } = await supabase
+      .from("jobs")
+      .update(patch)
+      .eq("id", job.id)
+      .eq("assigned_employee_id", profile.id);
+
     if (error) {
       setMessage({ type: "error", text: error.message });
-    } else if (!data) {
-      setMessage({ type: "error", text: "Job update returned no row." });
     } else {
-      setJob((current) => (current ? { ...current, ...data } : current));
+      setJob((current) => (current ? { ...current, ...patch, status: newStatus } : current));
+      setMessage({ type: "success", text: `Job updated to ${newStatus}.` });
     }
     setBusy(false);
   };
@@ -292,9 +296,13 @@ export default function JobDetailPage() {
   // ─── notes ──────────────────────────────────────────────────────────────────
 
   const handleSaveNotes = async () => {
-    if (!job) return;
+    if (!job || !profile) return;
     setBusy(true);
-    const { error } = await supabase.from("jobs").update({ notes }).eq("id", job.id);
+    const { error } = await supabase
+      .from("jobs")
+      .update({ notes })
+      .eq("id", job.id)
+      .eq("assigned_employee_id", profile.id);
     if (error) setMessage({ type: "error", text: error.message });
     else        setMessage({ type: "success", text: "Notes saved." });
     setBusy(false);
@@ -410,7 +418,11 @@ export default function JobDetailPage() {
       attempted_signature_at: new Date().toISOString(),
     };
 
-    const { error: jobError } = await supabase.from("jobs").update(verificationPatch).eq("id", job.id);
+    const { error: jobError } = await supabase
+      .from("jobs")
+      .update(verificationPatch)
+      .eq("id", job.id)
+      .eq("assigned_employee_id", profile.id);
     if (jobError) {
       setMessage({ type: "error", text: jobError.message });
     } else {
@@ -429,7 +441,7 @@ export default function JobDetailPage() {
   };
 
   const saveUnavailableVerification = async () => {
-    if (!job) return;
+    if (!job || !profile) return;
 
     if (!signatureReason) {
       setMessage({ type: "error", text: "Select a reason when the customer is unavailable." });
@@ -455,7 +467,8 @@ export default function JobDetailPage() {
     const { error } = await supabase
       .from("jobs")
       .update(verificationPatch)
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .eq("assigned_employee_id", profile.id);
 
     if (error) {
       setMessage({ type: "error", text: error.message });
