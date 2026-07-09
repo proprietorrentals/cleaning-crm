@@ -67,7 +67,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function JobDetailPage() {
   const params  = useParams<{ id: string }>();
-  const jobId   = params.id;
+  const jobId   = Array.isArray(params.id) ? params.id[0] : params.id;
   const router  = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
@@ -92,6 +92,13 @@ export default function JobDetailPage() {
   // ─── load data ──────────────────────────────────────────────────────────────
 
   const loadAll = useCallback(async () => {
+    if (!jobId) {
+      console.debug("Employee job detail route missing job id.");
+      setMessage({ type: "error", text: "Job not found or not assigned to you." });
+      setLoading(false);
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { router.replace("/employee-login"); return; }
 
@@ -103,14 +110,25 @@ export default function JobDetailPage() {
     if (employeeError || !emp) { router.replace("/employee-login?reason=Access+not+enabled"); return; }
     setProfile(emp);
 
+    console.debug("Employee job detail lookup", {
+      jobId,
+      employeeId: emp.id,
+    });
+
     const { data: jobData, error: jobError } = await supabase
       .from("jobs")
-      .select("*")
+      .select("id,customer_id,scheduled_date,status,estimated_value,notes,assigned_employee,started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
       .eq("id", jobId)
       .eq("assigned_employee_id", emp.id)
       .maybeSingle();
 
     if (jobError || !jobData) {
+      console.debug("Employee job detail lookup denied", {
+        jobId,
+        employeeId: emp.id,
+        found: Boolean(jobData),
+        error: jobError?.message ?? null,
+      });
       setMessage({ type: "error", text: "Job not found or not assigned to you." });
       setLoading(false);
       return;
