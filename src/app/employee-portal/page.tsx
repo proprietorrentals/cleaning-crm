@@ -34,8 +34,12 @@ type Customer = {
 
 type TimeEntry = {
   id: string;
-  clock_in: string;
+  clock_in: string | null;
   clock_out: string | null;
+  clock_in_time: string | null;
+  clock_out_time: string | null;
+  total_time_worked: string | null;
+  status: string | null;
 };
 
 function formatCurrency(value: number) {
@@ -60,6 +64,14 @@ function isoDateValue(date = new Date()) {
     .split("T")[0];
 }
 
+function formatDuration(from: string | null) {
+  if (!from) return "0m";
+  const ms = Date.now() - new Date(from).getTime();
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export default function EmployeePortalPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -80,6 +92,7 @@ export default function EmployeePortalPage() {
   const [mileageNeedsManual, setMileageNeedsManual] = useState(false);
   const [mileageError, setMileageError] = useState<string | null>(null);
   const [mileageSuccess, setMileageSuccess] = useState<string | null>(null);
+  const activeClockStart = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
 
   useEffect(() => {
     const loadPortal = async () => {
@@ -142,9 +155,9 @@ export default function EmployeePortalPage() {
       // Fetch open time entry (no job — dashboard-level clock)
       const { data: openEntry } = await supabase
         .from("time_entries")
-        .select("id,clock_in,clock_out")
+        .select("id,clock_in,clock_out,clock_in_time,clock_out_time,total_time_worked,status")
         .eq("employee_id", employee.id)
-        .is("clock_out", null)
+        .is("clock_out_time", null)
         .is("job_id", null)
         .maybeSingle();
 
@@ -157,9 +170,10 @@ export default function EmployeePortalPage() {
   }, [router, supabase]);
 
   useEffect(() => {
-    if (!timeEntry?.clock_in) { setElapsedStr(""); return; }
+    const startedAt = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+    if (!startedAt) { setElapsedStr(""); return; }
     const tick = () => {
-      const ms = Date.now() - new Date(timeEntry.clock_in).getTime();
+      const ms = Date.now() - new Date(startedAt).getTime();
       const h  = Math.floor(ms / 3_600_000);
       const m  = Math.floor((ms % 3_600_000) / 60_000);
       setElapsedStr(h > 0 ? `${h}h ${m}m` : `${m}m`);
@@ -172,23 +186,50 @@ export default function EmployeePortalPage() {
   const handleClockIn = async () => {
     if (!profile) return;
     setClockBusy(true);
+    setMessage(null);
+    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("time_entries")
-      .insert({ employee_id: profile.id, clock_in: new Date().toISOString() })
+      .insert({
+        employee_id: profile.id,
+        job_id: null,
+        clock_in: now,
+        clock_in_time: now,
+        status: "clocked_in",
+      })
       .select()
       .single();
-    if (!error && data) setTimeEntry(data);
+    if (!error && data) {
+      setTimeEntry(data);
+      setMessage("Clock in recorded successfully.");
+    } else if (error) {
+      setMessage(`Clock in failed: ${error.message}`);
+    }
     setClockBusy(false);
   };
 
   const handleClockOut = async () => {
     if (!timeEntry) return;
     setClockBusy(true);
+    setMessage(null);
+    const startedAt = timeEntry.clock_in_time ?? timeEntry.clock_in;
+    const clockOutAt = new Date().toISOString();
     const { error } = await supabase
       .from("time_entries")
-      .update({ clock_out: new Date().toISOString() })
+      .update({
+        clock_out: clockOutAt,
+        clock_out_time: clockOutAt,
+        total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
+        status: "clocked_out",
+      })
       .eq("id", timeEntry.id);
-    if (!error) { setTimeEntry(null); setElapsedStr(""); }
+    if (!error) {
+      setTimeEntry(null);
+      setElapsedStr("");
+      setMessage(`Clock out recorded successfully. Total time worked: ${formatDuration(startedAt)}.`);
+    } else {
+      setMessage(`Clock out failed: ${error.message}`);
+    }
     setClockBusy(false);
   };
 
@@ -341,7 +382,7 @@ export default function EmployeePortalPage() {
               <h2 className="text-base font-semibold text-slate-900">Time Tracking</h2>
               {timeEntry ? (
                 <p className="mt-1 text-sm text-slate-500">
-                  Clocked in at {new Date(timeEntry.clock_in).toLocaleTimeString()} &mdash; <span className="font-semibold text-blue-700">{elapsedStr}</span>
+                  Clocked in at {activeClockStart ? new Date(activeClockStart).toLocaleTimeString() : "—"} &mdash; <span className="font-semibold text-blue-700">{elapsedStr}</span>
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-slate-500">Not clocked in</p>

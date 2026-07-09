@@ -33,7 +33,15 @@ type EmployeeProfile = {
   department: string | null;
   is_active: boolean;
 };
-type TimeEntry = { id: string; clock_in: string; clock_out: string | null };
+type TimeEntry = {
+  id: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  clock_in_time: string | null;
+  clock_out_time: string | null;
+  total_time_worked: string | null;
+  status: string | null;
+};
 type JobPhoto = { id: string; photo_url: string; photo_type: string; notes: string | null };
 
 const STATUS_SEQUENCE = ["Scheduled", "In Progress", "Completed"] as const;
@@ -115,7 +123,13 @@ export default function JobDetailPage() {
 
     const [custRes, teRes, photoRes] = await Promise.all([
       supabase.from("customers").select("id,company_name,address,phone").eq("id", jobData.customer_id).maybeSingle(),
-      supabase.from("time_entries").select("id,clock_in,clock_out").eq("job_id", jobId).eq("employee_id", emp.id).is("clock_out", null).maybeSingle(),
+      supabase
+        .from("time_entries")
+        .select("id,clock_in,clock_out,clock_in_time,clock_out_time,total_time_worked,status")
+        .eq("job_id", jobId)
+        .eq("employee_id", emp.id)
+        .is("clock_out_time", null)
+        .maybeSingle(),
       supabase.from("job_photos").select("id,photo_url,photo_type,notes").eq("job_id", jobId).order("created_at"),
     ]);
 
@@ -143,9 +157,10 @@ export default function JobDetailPage() {
 
   // Tick elapsed time while clocked in
   useEffect(() => {
-    if (!timeEntry?.clock_in) return;
-    const id = setInterval(() => setElapsed(elapsed(timeEntry.clock_in)), 5_000);
-    setElapsed(elapsed(timeEntry.clock_in));
+    const startedAt = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+    if (!startedAt) return;
+    const id = setInterval(() => setElapsed(elapsed(startedAt)), 5_000);
+    setElapsed(elapsed(startedAt));
     return () => clearInterval(id);
   }, [timeEntry]);
 
@@ -154,25 +169,52 @@ export default function JobDetailPage() {
   const handleClockIn = async () => {
     if (!profile || !job) return;
     setBusy(true);
+    setMessage(null);
+    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("time_entries")
-      .insert({ employee_id: profile.id, job_id: job.id, clock_in: new Date().toISOString() })
+      .insert({
+        employee_id: profile.id,
+        job_id: job.id,
+        clock_in: now,
+        clock_in_time: now,
+        status: "clocked_in",
+      })
       .select()
       .single();
-    if (!error && data) setTimeEntry(data);
+    if (!error && data) {
+      setTimeEntry(data);
+      setMessage({ type: "success", text: "Clock in recorded successfully." });
+    } else if (error) {
+      setMessage({ type: "error", text: error.message });
+    }
     setBusy(false);
   };
 
   const handleClockOut = async () => {
     if (!timeEntry) return;
     setBusy(true);
+    setMessage(null);
+    const startedAt = timeEntry.clock_in_time ?? timeEntry.clock_in;
+    const clockOutAt = new Date().toISOString();
     const { data, error } = await supabase
       .from("time_entries")
-      .update({ clock_out: new Date().toISOString() })
+      .update({
+        clock_out: clockOutAt,
+        clock_out_time: clockOutAt,
+        total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
+        status: "clocked_out",
+      })
       .eq("id", timeEntry.id)
       .select()
       .single();
-    if (!error && data) { setTimeEntry(null); setElapsed(""); }
+    if (!error && data) {
+      setTimeEntry(null);
+      setElapsed("");
+      setMessage({ type: "success", text: `Clock out recorded successfully. Total time worked: ${startedAt ? elapsed(startedAt) : "0m"}.` });
+    } else if (error) {
+      setMessage({ type: "error", text: error.message });
+    }
     setBusy(false);
   };
 
@@ -386,6 +428,7 @@ export default function JobDetailPage() {
   const currentStatusIndex = job ? STATUS_SEQUENCE.indexOf(job.status as (typeof STATUS_SEQUENCE)[number]) : -1;
   const beforePhotos = photos.filter((p) => p.photo_type === "before");
   const afterPhotos  = photos.filter((p) => p.photo_type === "after");
+  const activeClockStart = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -458,8 +501,10 @@ export default function JobDetailPage() {
               {timeEntry ? (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Clocked in at {new Date(timeEntry.clock_in).toLocaleTimeString()}</p>
-                    <p className="mt-1 text-2xl font-bold text-blue-700">{elapsed_ || elapsed(timeEntry.clock_in)}</p>
+                    <p className="text-sm text-slate-500">
+                      Clocked in at {activeClockStart ? new Date(activeClockStart).toLocaleTimeString() : "—"}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold text-blue-700">{elapsed_ || (activeClockStart ? elapsed(activeClockStart) : "0m")}</p>
                   </div>
                   <button
                     type="button"
