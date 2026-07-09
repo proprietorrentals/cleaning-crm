@@ -14,14 +14,13 @@ type Job = {
   status: string;
   estimated_value: number;
   notes: string | null;
-  assigned_employee: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  signature_url: string | null;
-  signature_status: string | null;
-  signature_reason: string | null;
-  signature_notes: string | null;
-  attempted_signature_at: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  signature_url?: string | null;
+  signature_status?: string | null;
+  signature_reason?: string | null;
+  signature_notes?: string | null;
+  attempted_signature_at?: string | null;
 };
 
 type Customer = { id: string; company_name: string; address: string | null; phone: string | null };
@@ -117,17 +116,28 @@ export default function JobDetailPage() {
 
     const { data: jobData, error: jobError } = await supabase
       .from("jobs")
-      .select("id,customer_id,scheduled_date,status,estimated_value,notes,assigned_employee,started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
+      .select("id,customer_id,scheduled_date,status,estimated_value,notes")
       .eq("id", jobId)
       .eq("assigned_employee_id", emp.id)
       .maybeSingle();
 
-    if (jobError || !jobData) {
+    if (jobError) {
+      console.debug("Employee job detail schema/query error", {
+        jobId,
+        employeeId: emp.id,
+        error: jobError.message,
+      });
+      setMessage({ type: "error", text: `Database schema/query error: ${jobError.message}` });
+      setLoading(false);
+      return;
+    }
+
+    if (!jobData) {
       console.debug("Employee job detail lookup denied", {
         jobId,
         employeeId: emp.id,
-        found: Boolean(jobData),
-        error: jobError?.message ?? null,
+        found: false,
+        error: null,
       });
       setMessage({ type: "error", text: "Job not found or not assigned to you." });
       setLoading(false);
@@ -136,6 +146,23 @@ export default function JobDetailPage() {
 
     setJob(jobData);
     setNotes(jobData.notes ?? "");
+
+    const { data: optionalJobFields, error: optionalJobFieldsError } = await supabase
+      .from("jobs")
+      .select("started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (optionalJobFieldsError) {
+      console.debug("Employee job detail optional fields query error", {
+        jobId,
+        employeeId: emp.id,
+        error: optionalJobFieldsError.message,
+      });
+      setMessage({ type: "error", text: `Database schema/query error: ${optionalJobFieldsError.message}` });
+    } else if (optionalJobFields) {
+      setJob((current) => (current ? { ...current, ...optionalJobFields } : current));
+    }
 
     const [custRes, teRes, photoRes] = await Promise.all([
       supabase.from("customers").select("id,company_name,address,phone").eq("id", jobData.customer_id).maybeSingle(),
@@ -238,8 +265,6 @@ export default function JobDetailPage() {
     if (!job) return;
     setBusy(true);
     const patch: Record<string, unknown> = { status: newStatus };
-    if (newStatus === "In Progress" && !job.started_at)  patch.started_at  = new Date().toISOString();
-    if (newStatus === "Completed"   && !job.completed_at) patch.completed_at = new Date().toISOString();
 
     const { data, error } = await supabase.from("jobs").update(patch).eq("id", job.id).select().single();
     if (error) { setMessage({ type: "error", text: error.message }); }
