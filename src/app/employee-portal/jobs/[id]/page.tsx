@@ -18,6 +18,10 @@ type Job = {
   started_at: string | null;
   completed_at: string | null;
   signature_url: string | null;
+  signature_status: string | null;
+  signature_reason: string | null;
+  signature_notes: string | null;
+  attempted_signature_at: string | null;
 };
 
 type Customer = { id: string; company_name: string; address: string | null; phone: string | null };
@@ -71,6 +75,9 @@ export default function JobDetailPage() {
   const [busy,       setBusy]       = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [sigSaved,   setSigSaved]   = useState(false);
+  const [signatureMode, setSignatureMode] = useState<"present" | "unavailable">("present");
+  const [signatureReason, setSignatureReason] = useState("");
+  const [signatureNotes, setSignatureNotes] = useState("");
   const [message,    setMessage]    = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [elapsed_,   setElapsed]    = useState("");
   const [isDrawing,  setIsDrawing]  = useState(false);
@@ -119,6 +126,20 @@ export default function JobDetailPage() {
   }, [supabase, router, jobId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.signature_status === "unavailable") {
+      setSignatureMode("unavailable");
+      setSignatureReason(job.signature_reason ?? "");
+      setSignatureNotes(job.signature_notes ?? "");
+      return;
+    }
+
+    setSignatureMode("present");
+    setSignatureReason("");
+    setSignatureNotes("");
+  }, [job]);
 
   // Tick elapsed time while clocked in
   useEffect(() => {
@@ -283,14 +304,69 @@ export default function JobDetailPage() {
     const { data: urlData } = supabase.storage.from("job-photos").getPublicUrl(path);
     const signatureUrl = urlData.publicUrl;
 
-    const { error: jobError } = await supabase.from("jobs").update({ signature_url: signatureUrl }).eq("id", job.id);
+    const verificationPatch = {
+      signature_url: signatureUrl,
+      signature_status: "signed",
+      signature_reason: null,
+      signature_notes: null,
+      attempted_signature_at: new Date().toISOString(),
+    };
+
+    const { error: jobError } = await supabase.from("jobs").update(verificationPatch).eq("id", job.id);
     if (jobError) {
       setMessage({ type: "error", text: jobError.message });
     } else {
-      setJob((j) => j ? { ...j, signature_url: signatureUrl } : j);
+      setJob((j) =>
+        j
+          ? {
+              ...j,
+              ...verificationPatch,
+            }
+          : j,
+      );
       setSigSaved(true);
       setMessage({ type: "success", text: "Signature saved." });
     }
+    setBusy(false);
+  };
+
+  const saveUnavailableVerification = async () => {
+    if (!job) return;
+
+    if (!signatureReason) {
+      setMessage({ type: "error", text: "Select a reason when the customer is unavailable." });
+      return;
+    }
+
+    if (signatureReason === "Other" && !signatureNotes.trim()) {
+      setMessage({ type: "error", text: "Notes are required when reason is Other." });
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+
+    const verificationPatch = {
+      signature_url: null,
+      signature_status: "unavailable",
+      signature_reason: signatureReason,
+      signature_notes: signatureReason === "Other" ? signatureNotes.trim() : null,
+      attempted_signature_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("jobs")
+      .update(verificationPatch)
+      .eq("id", job.id);
+
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+    } else {
+      setJob((j) => (j ? { ...j, ...verificationPatch } : j));
+      setSigSaved(false);
+      setMessage({ type: "success", text: "Customer unavailable reason saved." });
+    }
+
     setBusy(false);
   };
 
@@ -479,56 +555,128 @@ export default function JobDetailPage() {
 
             {/* Customer signature */}
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-1 text-base font-semibold text-slate-900">Customer Signature</h2>
-              <p className="mb-4 text-sm text-slate-500">Have the customer sign below to confirm work completion.</p>
+              <h2 className="mb-1 text-base font-semibold text-slate-900">Customer Verification</h2>
+              <p className="mb-4 text-sm text-slate-500">Choose one verification path for this completed service.</p>
 
-              {job.signature_url ? (
+              <div className="mb-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="customer-verification"
+                    value="present"
+                    checked={signatureMode === "present"}
+                    onChange={() => setSignatureMode("present")}
+                  />
+                  Customer is present
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="customer-verification"
+                    value="unavailable"
+                    checked={signatureMode === "unavailable"}
+                    onChange={() => setSignatureMode("unavailable")}
+                  />
+                  Customer unavailable
+                </label>
+              </div>
+
+              {signatureMode === "present" ? (
                 <div>
-                  <p className="mb-2 text-xs font-medium text-emerald-600">✓ Signature captured</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={job.signature_url} alt="Customer signature" className="rounded-xl border border-slate-200 bg-slate-50 max-h-40 w-full object-contain p-2" />
-                  <button
-                    type="button"
-                    onClick={() => setJob((j) => j ? { ...j, signature_url: null } : j)}
-                    className="mt-2 text-xs text-slate-400 hover:text-slate-700 transition"
-                  >
-                    Re-capture
-                  </button>
+                  {job.signature_url ? (
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-emerald-600">✓ Signature captured</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={job.signature_url} alt="Customer signature" className="rounded-xl border border-slate-200 bg-slate-50 max-h-40 w-full object-contain p-2" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setJob((j) => (j ? { ...j, signature_url: null, signature_status: null } : j));
+                          setSigSaved(false);
+                        }}
+                        className="mt-2 text-xs text-slate-400 hover:text-slate-700 transition"
+                      >
+                        Re-capture
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 touch-none">
+                        <canvas
+                          ref={canvasRef}
+                          width={600}
+                          height={200}
+                          className="h-40 w-full cursor-crosshair"
+                          onMouseDown={startDraw}
+                          onMouseMove={draw}
+                          onMouseUp={endDraw}
+                          onMouseLeave={endDraw}
+                          onTouchStart={startDraw}
+                          onTouchMove={draw}
+                          onTouchEnd={endDraw}
+                        />
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={clearSignature}
+                          className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveSignature}
+                          disabled={busy || sigSaved}
+                          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                        >
+                          {busy ? "Saving…" : "Save Signature"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div>
-                  <div className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 touch-none">
-                    <canvas
-                      ref={canvasRef}
-                      width={600}
-                      height={200}
-                      className="h-40 w-full cursor-crosshair"
-                      onMouseDown={startDraw}
-                      onMouseMove={draw}
-                      onMouseUp={endDraw}
-                      onMouseLeave={endDraw}
-                      onTouchStart={startDraw}
-                      onTouchMove={draw}
-                      onTouchEnd={endDraw}
-                    />
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={clearSignature}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition"
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Reason (required)</label>
+                    <select
+                      value={signatureReason}
+                      onChange={(e) => setSignatureReason(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                      required
                     >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveSignature}
-                      disabled={busy || sigSaved}
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
-                    >
-                      {busy ? "Saving…" : "Save Signature"}
-                    </button>
+                      <option value="">Select a reason...</option>
+                      <option value="After-hours cleaning">After-hours cleaning</option>
+                      <option value="Customer unavailable">Customer unavailable</option>
+                      <option value="Contact not on site">Contact not on site</option>
+                      <option value="Refused to sign">Refused to sign</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
+
+                  {signatureReason === "Other" && (
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Notes (required)</label>
+                      <textarea
+                        value={signatureNotes}
+                        onChange={(e) => setSignatureNotes(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none resize-none"
+                        placeholder="Provide details for why signature was unavailable..."
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={saveUnavailableVerification}
+                    disabled={busy}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    {busy ? "Saving…" : "Save Verification"}
+                  </button>
                 </div>
               )}
             </section>

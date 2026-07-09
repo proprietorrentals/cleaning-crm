@@ -7,9 +7,21 @@ import { ServiceFlowBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 
 type InvoiceRow = { amount: number; status: string; created_at: string };
-type JobRow     = { status: string };
+type JobRow     = {
+  id: string;
+  customer_id: string;
+  assigned_employee_id: string | null;
+  status: string;
+  completed_at: string | null;
+  signature_url: string | null;
+  signature_status: string | null;
+  signature_reason: string | null;
+  signature_notes: string | null;
+  attempted_signature_at: string | null;
+};
 type EmpRow     = { id: string; first_name: string; last_name: string };
 type JobEmpRow  = { assigned_employee_id: string | null; status: string };
+type CustomerRow = { id: string; company_name: string };
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
@@ -39,6 +51,7 @@ function ReportsContent() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [employees, setEmployees] = useState<EmpRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [jobsByEmployee, setJobsByEmployee] = useState<JobEmpRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,16 +61,20 @@ function ReportsContent() {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      const [invRes, jobRes, empRes, jobEmpRes] = await Promise.all([
+      const [invRes, jobRes, empRes, customerRes, jobEmpRes] = await Promise.all([
         supabase.from("invoices").select("amount,status,created_at").gte("created_at", sixMonthsAgo.toISOString()),
-        supabase.from("jobs").select("status"),
+        supabase
+          .from("jobs")
+          .select("id,customer_id,assigned_employee_id,status,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at"),
         supabase.from("employees").select("id,first_name,last_name").eq("is_active", true),
+        supabase.from("customers").select("id,company_name"),
         supabase.from("jobs").select("assigned_employee_id,status"),
       ]);
 
       setInvoices(invRes.data ?? []);
       setJobs(jobRes.data ?? []);
       setEmployees(empRes.data ?? []);
+      setCustomers(customerRes.data ?? []);
       setJobsByEmployee(jobEmpRes.data ?? []);
       setLoading(false);
     };
@@ -83,6 +100,26 @@ function ReportsContent() {
       return { ...emp, assigned, completed };
     }).sort((a, b) => b.completed - a.completed),
     [employees, jobsByEmployee],
+  );
+
+  const customerById = useMemo(
+    () => customers.reduce<Record<string, string>>((acc, customer) => {
+      acc[customer.id] = customer.company_name;
+      return acc;
+    }, {}),
+    [customers],
+  );
+
+  const completionReportRows = useMemo(
+    () => jobs
+      .filter((job) => job.status === "Completed")
+      .sort((a, b) => {
+        const left = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+        const right = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+        return right - left;
+      })
+      .slice(0, 20),
+    [jobs],
   );
 
   return (
@@ -209,6 +246,50 @@ function ReportsContent() {
                     </div>
                   )}
                 </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-semibold text-slate-900">Completion Report</h2>
+                {completionReportRows.length === 0 ? (
+                  <p className="text-sm text-slate-500">No completed jobs yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm">
+                      <thead className="border-b border-slate-200 bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Customer</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Completed</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Verification</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Reason</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Notes</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Attempted At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {completionReportRows.map((job) => (
+                          <tr key={job.id} className="border-b border-slate-100">
+                            <td className="px-3 py-2 text-slate-700">{customerById[job.customer_id] ?? "Unknown"}</td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {job.completed_at ? new Date(job.completed_at).toLocaleString() : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {job.signature_status === "signed" || job.signature_url
+                                ? "Signed"
+                                : job.signature_status === "unavailable"
+                                  ? "Unavailable"
+                                  : "Pending"}
+                            </td>
+                            <td className="px-3 py-2 text-slate-700">{job.signature_reason || "—"}</td>
+                            <td className="px-3 py-2 text-slate-700">{job.signature_notes || "—"}</td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {job.attempted_signature_at ? new Date(job.attempted_signature_at).toLocaleString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </section>
             </div>
           )}

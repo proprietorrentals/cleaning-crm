@@ -14,6 +14,11 @@ type Job = {
   status: string;
   estimated_value: number;
   notes: string;
+  signature_url: string | null;
+  signature_status: string | null;
+  signature_reason: string | null;
+  signature_notes: string | null;
+  attempted_signature_at: string | null;
 };
 
 function formatCurrency(value: number) {
@@ -153,6 +158,23 @@ export default function CustomerJobsPage() {
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-medium text-slate-700">Notes:</p>
             <p className="text-sm text-slate-600 mt-1">{job.notes}</p>
+          </div>
+        )}
+
+        {(job.signature_status || job.signature_url) && (
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-700">Customer verification</p>
+            {job.signature_status === "signed" || job.signature_url ? (
+              <p className="mt-1 text-sm text-emerald-700">Signed by customer</p>
+            ) : (
+              <p className="mt-1 text-sm text-slate-600">Unavailable: {job.signature_reason || "Not specified"}</p>
+            )}
+            {job.signature_notes ? (
+              <p className="mt-1 text-xs text-slate-500">Notes: {job.signature_notes}</p>
+            ) : null}
+            {job.attempted_signature_at ? (
+              <p className="mt-1 text-xs text-slate-400">Recorded: {new Date(job.attempted_signature_at).toLocaleString()}</p>
+            ) : null}
           </div>
         )}
       </div>

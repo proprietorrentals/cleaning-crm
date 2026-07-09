@@ -38,6 +38,10 @@ type Job = {
   status: string;
   estimated_value: number;
   notes: string;
+  signature_status: string | null;
+  signature_reason: string | null;
+  signature_notes: string | null;
+  attempted_signature_at: string | null;
   created_at: string;
 };
 
@@ -74,6 +78,18 @@ function formatCurrency(value: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatVerification(job: Job) {
+  if (job.signature_status === "signed") {
+    return "Signed";
+  }
+  if (job.signature_status === "unavailable") {
+    const reason = job.signature_reason || "Unavailable";
+    const notes = job.signature_notes ? ` (${job.signature_notes})` : "";
+    return `${reason}${notes}`;
+  }
+  return "Pending";
 }
 
 export default function JobsPage() {
@@ -453,6 +469,7 @@ export default function JobsPage() {
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Scheduled Date</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Employee</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Customer Verification</th>
                     <th className="px-4 py-3 text-right font-medium text-slate-700">Value</th>
                     <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
                   </tr>
@@ -477,6 +494,14 @@ export default function JobsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-600">{job.assigned_employee || "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <p>{formatVerification(job)}</p>
+                          {job.attempted_signature_at ? (
+                            <p className="text-xs text-slate-400">
+                              {new Date(job.attempted_signature_at).toLocaleString()}
+                            </p>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-900">
                           {formatCurrency(job.estimated_value)}
                         </td>
