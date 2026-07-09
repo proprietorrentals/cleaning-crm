@@ -158,6 +158,8 @@ export default function EmployeePortalPage() {
         .eq("employee_id", employee.id)
         .is("clock_out_time", null)
         .is("job_id", null)
+        .order("clock_in_time", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (openEntry) setTimeEntry(openEntry);
@@ -196,7 +198,7 @@ export default function EmployeePortalPage() {
         status: "clocked_in",
       })
       .select()
-      .single();
+      .maybeSingle();
     if (!error && data) {
       setTimeEntry(data);
       setMessage("Clock in recorded successfully.");

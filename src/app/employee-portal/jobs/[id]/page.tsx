@@ -173,6 +173,8 @@ export default function JobDetailPage() {
         .eq("job_id", jobId)
         .eq("employee_id", emp.id)
         .is("clock_out_time", null)
+        .order("clock_in_time", { ascending: false })
+        .limit(1)
         .maybeSingle(),
       supabase.from("job_photos").select("id,photo_url,photo_type,notes").eq("job_id", jobId).order("created_at"),
     ]);
@@ -224,7 +226,7 @@ export default function JobDetailPage() {
         status: "clocked_in",
       })
       .select()
-      .single();
+      .maybeSingle();
     if (!error && data) {
       setTimeEntry(data);
       setMessage({ type: "success", text: "Clock in recorded successfully." });
@@ -252,7 +254,7 @@ export default function JobDetailPage() {
       })
       .eq("id", timeEntry.id)
       .select()
-      .single();
+      .maybeSingle();
     if (!error && data) {
       setTimeEntry(null);
       setElapsed("");
@@ -270,9 +272,14 @@ export default function JobDetailPage() {
     setBusy(true);
     const patch: Record<string, unknown> = { status: newStatus };
 
-    const { data, error } = await supabase.from("jobs").update(patch).eq("id", job.id).select().single();
-    if (error) { setMessage({ type: "error", text: error.message }); }
-    else        { setJob(data); }
+    const { data, error } = await supabase.from("jobs").update(patch).eq("id", job.id).select("id,status,started_at,completed_at").maybeSingle();
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+    } else if (!data) {
+      setMessage({ type: "error", text: "Job update returned no row." });
+    } else {
+      setJob((current) => (current ? { ...current, ...data } : current));
+    }
     setBusy(false);
   };
 
