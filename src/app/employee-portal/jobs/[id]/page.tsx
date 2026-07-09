@@ -271,6 +271,12 @@ export default function JobDetailPage() {
     if (!job) return;
     setBusy(true);
     const patch: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "In Progress" && !job.started_at) {
+      patch.started_at = new Date().toISOString();
+    }
+    if (newStatus === "Completed" && !job.completed_at) {
+      patch.completed_at = new Date().toISOString();
+    }
 
     const { data, error } = await supabase.from("jobs").update(patch).eq("id", job.id).select("id,status,started_at,completed_at").maybeSingle();
     if (error) {
