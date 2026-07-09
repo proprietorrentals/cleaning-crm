@@ -10,6 +10,7 @@ type Job = {
   id: string;
   customer_id: string;
   scheduled_date: string;
+  scheduled_start_time: string;
   status: string;
   estimated_value: number;
   notes: string | null;
@@ -37,6 +38,18 @@ function formatDate(iso: string) {
   });
 }
 
+function formatTime(value: string | null | undefined) {
+  if (!value) {
+    return "8:00 AM";
+  }
+
+  const normalized = value.length === 5 ? `${value}:00` : value;
+  return new Date(`1970-01-01T${normalized}`).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v ?? 0);
 }
@@ -59,9 +72,10 @@ function ScheduleContent() {
 
       const { data: jobData } = await supabase
         .from("jobs")
-        .select("id,customer_id,scheduled_date,status,estimated_value,notes,assigned_employee")
+        .select("id,customer_id,scheduled_date,scheduled_start_time,status,estimated_value,notes,assigned_employee")
         .gte("scheduled_date", today)
-        .order("scheduled_date", { ascending: true });
+        .order("scheduled_date", { ascending: true })
+        .order("scheduled_start_time", { ascending: true });
 
       const safeJobs = jobData ?? [];
       setJobs(safeJobs);
@@ -87,7 +101,12 @@ function ScheduleContent() {
     for (const job of jobs) {
       (map[job.scheduled_date] ??= []).push(job);
     }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, dayJobs]) => [
+        date,
+        dayJobs.slice().sort((left, right) => left.scheduled_start_time.localeCompare(right.scheduled_start_time)),
+      ] as const);
   }, [jobs]);
 
   const today = isoToday();
@@ -173,6 +192,7 @@ function ScheduleContent() {
                               {job.status}
                             </span>
                           </div>
+                          <p className="mt-1 text-xs text-slate-500">Start: {formatTime(job.scheduled_start_time)}</p>
                           {customer?.address && (
                             <p className="mt-1 text-xs text-slate-500 line-clamp-1">{customer.address}</p>
                           )}

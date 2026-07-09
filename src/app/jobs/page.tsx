@@ -33,6 +33,7 @@ type Job = {
   quote_id: string;
   customer_id: string;
   scheduled_date: string;
+  scheduled_start_time: string;
   assigned_employee_id: string | null;
   assigned_employee: string | null;
   status: string;
@@ -70,6 +71,7 @@ type JobFormState = {
   quote_id: string;
   customer_id: string;
   scheduled_date: string;
+  scheduled_start_time: string;
   assigned_employee_id: string;
   status: string;
   estimated_value: string;
@@ -80,6 +82,7 @@ const emptyForm: JobFormState = {
   quote_id: "",
   customer_id: "",
   scheduled_date: "",
+  scheduled_start_time: "08:00",
   assigned_employee_id: "",
   status: "Scheduled",
   estimated_value: "",
@@ -92,6 +95,18 @@ function formatCurrency(value: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatTimeValue(value: string | null | undefined) {
+  if (!value) {
+    return "8:00 AM";
+  }
+
+  const normalized = value.length === 5 ? `${value}:00` : value;
+  return new Date(`1970-01-01T${normalized}`).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatVerification(job: Job) {
@@ -205,6 +220,7 @@ export default function JobsPage() {
       quote_id: form.quote_id || null,
       customer_id: form.customer_id,
       scheduled_date: form.scheduled_date,
+      scheduled_start_time: form.scheduled_start_time || "08:00",
       assigned_employee_id: form.assigned_employee_id || null,
       assigned_employee: selectedEmployee
         ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}`
@@ -253,6 +269,7 @@ export default function JobsPage() {
       quote_id: job.quote_id || "",
       customer_id: job.customer_id,
       scheduled_date: job.scheduled_date,
+      scheduled_start_time: job.scheduled_start_time ? job.scheduled_start_time.slice(0, 5) : "08:00",
       assigned_employee_id: inferredEmployeeId,
       status: job.status,
       estimated_value: String(job.estimated_value),
@@ -339,6 +356,7 @@ export default function JobsPage() {
       quote_id: quote.id,
       customer_id: quote.customer_id,
       scheduled_date: new Date().toISOString().split("T")[0],
+      scheduled_start_time: "08:00",
       assigned_employee_id: "",
       status: "Scheduled",
       estimated_value: String(quote.total_estimate),
@@ -449,6 +467,19 @@ export default function JobsPage() {
                   />
                 </div>
                 <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Scheduled start time</label>
+                  <input
+                    type="time"
+                    required
+                    value={form.scheduled_start_time}
+                    onChange={(event) => setForm((current) => ({ ...current, scheduled_start_time: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">Assigned employee (optional)</label>
                   <select
                     value={form.assigned_employee_id}
@@ -542,6 +573,7 @@ export default function JobsPage() {
                   <tr>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Customer</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Scheduled Date</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Start Time</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Employee</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Customer Verification</th>
@@ -563,6 +595,7 @@ export default function JobsPage() {
                       <tr key={job.id} className="border-b border-slate-200 hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-slate-900">{customer?.company_name || "Unknown"}</td>
                         <td className="px-4 py-3 text-slate-600">{job.scheduled_date}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatTimeValue(job.scheduled_start_time)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColor}`}>
                             {job.status}

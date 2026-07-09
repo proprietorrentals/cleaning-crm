@@ -12,6 +12,7 @@ type Settings = {
   company_phone: string;
   company_email: string;
   company_logo_url: string;
+  late_clock_in_grace_period_minutes: string;
 };
 
 function SettingsContent() {
@@ -22,6 +23,7 @@ function SettingsContent() {
     company_phone: "",
     company_email: "",
     company_logo_url: "",
+    late_clock_in_grace_period_minutes: "15",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,6 +53,7 @@ function SettingsContent() {
             company_phone: data.company_phone ?? "",
             company_email: data.company_email ?? "",
             company_logo_url: data.company_logo_url ?? "",
+            late_clock_in_grace_period_minutes: String(data.late_clock_in_grace_period_minutes ?? 15),
           });
         }
       } finally {
@@ -67,9 +70,10 @@ function SettingsContent() {
 
     try {
       // Upsert settings for current tenant (RLS will enforce tenant_id)
+      const lateGraceMinutes = Number(form.late_clock_in_grace_period_minutes) || 15;
       const { error } = await supabase
         .from("settings")
-        .upsert({ ...form, updated_at: new Date().toISOString() }, {
+        .upsert({ ...form, late_clock_in_grace_period_minutes: lateGraceMinutes, updated_at: new Date().toISOString() }, {
           onConflict: "tenant_id",
         });
 
@@ -188,6 +192,27 @@ function SettingsContent() {
                       placeholder="https://..."
                     />
                   </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-base font-semibold text-slate-900">Employee Attendance</h2>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Late clock-in grace period (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={form.late_clock_in_grace_period_minutes}
+                    onChange={(e) => setForm((p) => ({ ...p, late_clock_in_grace_period_minutes: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="15"
+                  />
+                  <p className="mt-2 text-sm text-slate-500">
+                    If an employee has not clocked in by the scheduled start time plus this grace period, an admin-only late alert is created.
+                  </p>
                 </div>
               </section>
 

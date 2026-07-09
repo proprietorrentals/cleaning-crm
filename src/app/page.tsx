@@ -15,6 +15,19 @@ type JobRecord = {
   notes: string;
 };
 
+type LateAlertRecord = {
+  id: string;
+  employee_name: string;
+  customer_name: string;
+  scheduled_start_at: string;
+  grace_period_minutes: number;
+  minutes_late: number;
+  status: "pending" | "acknowledged" | "resolved";
+  detected_at: string;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+};
+
 type DashboardStatsState = {
   customersCount: number;
   activeJobsCount: number;
@@ -42,6 +55,16 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function Home() {
   const supabase = useMemo(() => createClient(), []);
   const [stats, setStats] = useState<DashboardStatsState>({
@@ -52,9 +75,36 @@ export default function Home() {
   });
   const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
   const [schedule, setSchedule] = useState<JobRecord[]>([]);
+  const [lateAlerts, setLateAlerts] = useState<LateAlertRecord[]>([]);
+  const [lateGraceMinutes, setLateGraceMinutes] = useState(15);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const syncAndLoadLateAlerts = async () => {
+      try {
+        await supabase.rpc("sync_late_employee_alerts");
+
+        const [settingsResponse, alertsResponse] = await Promise.all([
+          supabase
+            .from("settings")
+            .select("late_clock_in_grace_period_minutes")
+            .maybeSingle(),
+          supabase
+            .from("late_employee_alerts")
+            .select("id,employee_name,customer_name,scheduled_start_at,grace_period_minutes,minutes_late,status,detected_at,acknowledged_at,resolved_at")
+            .neq("status", "resolved")
+            .order("scheduled_start_at", { ascending: true }),
+        ]);
+
+        setLateGraceMinutes(settingsResponse.data?.late_clock_in_grace_period_minutes ?? 15);
+        setLateAlerts((alertsResponse.data ?? []) as LateAlertRecord[]);
+      } catch (error) {
+        console.error("Failed to load late alerts:", error);
+        setLateGraceMinutes(15);
+        setLateAlerts([]);
+      }
+    };
+
     const fetchDashboardData = async () => {
       setLoading(true);
 
@@ -89,10 +139,17 @@ export default function Home() {
       });
       setRecentJobs(recentJobList);
       setSchedule(upcomingJobs);
+      await syncAndLoadLateAlerts();
       setLoading(false);
     };
 
     fetchDashboardData();
+
+    const refreshInterval = setInterval(() => {
+      void syncAndLoadLateAlerts();
+    }, 60_000);
+
+    return () => clearInterval(refreshInterval);
   }, [supabase]);
 
   const cards = useMemo(
@@ -249,6 +306,125 @@ export default function Home() {
                 )}
               </div>
             </div>
+          </section>
+
+          <section className="mt-6 rounded-3xl border border-rose-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-rose-600">Supervisor only</p>
+                <h3 className="text-lg font-semibold text-slate-900">Late employee alerts</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Employees who have not clocked in within {lateGraceMinutes} minutes of their scheduled start time.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">
+                {lateAlerts.length} active {lateAlerts.length === 1 ? "alert" : "alerts"}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading late alerts...</div>
+            ) : lateAlerts.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                No late employee alerts right now.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {lateAlerts.map((alert) => (
+                  <div key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{alert.employee_name}</p>
+                        <p className="mt-1 text-sm text-slate-600">{alert.customer_name}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Scheduled start: {formatDateTime(alert.scheduled_start_at)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Detected {formatDateTime(alert.detected_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-start gap-3 lg:items-end">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                            alert.status === "acknowledged"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-rose-100 text-rose-700"
+                          }`}
+                        >
+                          {alert.status}
+                        </span>
+                        <p className="text-2xl font-semibold text-rose-600">{alert.minutes_late} min late</p>
+                        <div className="flex flex-wrap gap-2">
+                          {alert.status === "pending" ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const { data: userData } = await supabase.auth.getUser();
+                                const acknowledgedAt = new Date().toISOString();
+                                const { error } = await supabase
+                                  .from("late_employee_alerts")
+                                  .update({
+                                    status: "acknowledged",
+                                    acknowledged_at: acknowledgedAt,
+                                    acknowledged_by: userData.user?.id ?? null,
+                                  })
+                                  .eq("id", alert.id);
+
+                                if (error) {
+                                  console.error("Failed to acknowledge alert:", error);
+                                  return;
+                                }
+
+                                setLateAlerts((current) =>
+                                  current.map((item) =>
+                                    item.id === alert.id
+                                      ? {
+                                          ...item,
+                                          status: "acknowledged",
+                                          acknowledged_at: acknowledgedAt,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                              className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-200"
+                            >
+                              Acknowledge
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const { data: userData } = await supabase.auth.getUser();
+                              const resolvedAt = new Date().toISOString();
+                              const { error } = await supabase
+                                .from("late_employee_alerts")
+                                .update({
+                                  status: "resolved",
+                                  resolved_at: resolvedAt,
+                                  resolved_by: userData.user?.id ?? null,
+                                })
+                                .eq("id", alert.id);
+
+                              if (error) {
+                                console.error("Failed to resolve alert:", error);
+                                return;
+                              }
+
+                              setLateAlerts((current) => current.filter((item) => item.id !== alert.id));
+                            }}
+                            className="rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200"
+                          >
+                            Resolve
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
