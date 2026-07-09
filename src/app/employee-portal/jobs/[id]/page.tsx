@@ -35,8 +35,6 @@ type EmployeeProfile = {
 };
 type TimeEntry = {
   id: string;
-  clock_in: string | null;
-  clock_out: string | null;
   clock_in_time: string | null;
   clock_out_time: string | null;
   total_time_worked: string | null;
@@ -125,7 +123,7 @@ export default function JobDetailPage() {
       supabase.from("customers").select("id,company_name,address,phone").eq("id", jobData.customer_id).maybeSingle(),
       supabase
         .from("time_entries")
-        .select("id,clock_in,clock_out,clock_in_time,clock_out_time,total_time_worked,status")
+        .select("id,clock_in_time,clock_out_time,total_time_worked,status")
         .eq("job_id", jobId)
         .eq("employee_id", emp.id)
         .is("clock_out_time", null)
@@ -157,7 +155,7 @@ export default function JobDetailPage() {
 
   // Tick elapsed time while clocked in
   useEffect(() => {
-    const startedAt = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+    const startedAt = timeEntry?.clock_in_time;
     if (!startedAt) return;
     const id = setInterval(() => setElapsed(elapsed(startedAt)), 5_000);
     setElapsed(elapsed(startedAt));
@@ -176,7 +174,6 @@ export default function JobDetailPage() {
       .insert({
         employee_id: profile.id,
         job_id: job.id,
-        clock_in: now,
         clock_in_time: now,
         status: "clocked_in",
       })
@@ -195,12 +192,11 @@ export default function JobDetailPage() {
     if (!timeEntry) return;
     setBusy(true);
     setMessage(null);
-    const startedAt = timeEntry.clock_in_time ?? timeEntry.clock_in;
+    const startedAt = timeEntry.clock_in_time;
     const clockOutAt = new Date().toISOString();
     const { data, error } = await supabase
       .from("time_entries")
       .update({
-        clock_out: clockOutAt,
         clock_out_time: clockOutAt,
         total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
         status: "clocked_out",
@@ -428,7 +424,7 @@ export default function JobDetailPage() {
   const currentStatusIndex = job ? STATUS_SEQUENCE.indexOf(job.status as (typeof STATUS_SEQUENCE)[number]) : -1;
   const beforePhotos = photos.filter((p) => p.photo_type === "before");
   const afterPhotos  = photos.filter((p) => p.photo_type === "after");
-  const activeClockStart = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+  const activeClockStart = timeEntry?.clock_in_time;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

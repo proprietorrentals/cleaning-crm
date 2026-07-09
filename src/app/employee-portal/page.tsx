@@ -34,8 +34,6 @@ type Customer = {
 
 type TimeEntry = {
   id: string;
-  clock_in: string | null;
-  clock_out: string | null;
   clock_in_time: string | null;
   clock_out_time: string | null;
   total_time_worked: string | null;
@@ -92,7 +90,7 @@ export default function EmployeePortalPage() {
   const [mileageNeedsManual, setMileageNeedsManual] = useState(false);
   const [mileageError, setMileageError] = useState<string | null>(null);
   const [mileageSuccess, setMileageSuccess] = useState<string | null>(null);
-  const activeClockStart = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+  const activeClockStart = timeEntry?.clock_in_time;
 
   useEffect(() => {
     const loadPortal = async () => {
@@ -155,7 +153,7 @@ export default function EmployeePortalPage() {
       // Fetch open time entry (no job — dashboard-level clock)
       const { data: openEntry } = await supabase
         .from("time_entries")
-        .select("id,clock_in,clock_out,clock_in_time,clock_out_time,total_time_worked,status")
+        .select("id,clock_in_time,clock_out_time,total_time_worked,status")
         .eq("employee_id", employee.id)
         .is("clock_out_time", null)
         .is("job_id", null)
@@ -170,7 +168,7 @@ export default function EmployeePortalPage() {
   }, [router, supabase]);
 
   useEffect(() => {
-    const startedAt = timeEntry?.clock_in_time ?? timeEntry?.clock_in;
+    const startedAt = timeEntry?.clock_in_time;
     if (!startedAt) { setElapsedStr(""); return; }
     const tick = () => {
       const ms = Date.now() - new Date(startedAt).getTime();
@@ -193,7 +191,6 @@ export default function EmployeePortalPage() {
       .insert({
         employee_id: profile.id,
         job_id: null,
-        clock_in: now,
         clock_in_time: now,
         status: "clocked_in",
       })
@@ -212,12 +209,11 @@ export default function EmployeePortalPage() {
     if (!timeEntry) return;
     setClockBusy(true);
     setMessage(null);
-    const startedAt = timeEntry.clock_in_time ?? timeEntry.clock_in;
+    const startedAt = timeEntry.clock_in_time;
     const clockOutAt = new Date().toISOString();
     const { error } = await supabase
       .from("time_entries")
       .update({
-        clock_out: clockOutAt,
         clock_out_time: clockOutAt,
         total_time_worked: startedAt ? `${Math.max(0, Math.round((new Date(clockOutAt).getTime() - new Date(startedAt).getTime()) / 1000))} seconds` : null,
         status: "clocked_out",
