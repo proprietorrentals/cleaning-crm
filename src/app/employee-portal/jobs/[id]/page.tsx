@@ -320,38 +320,52 @@ export default function JobDetailPage() {
     const path = `${job.id}/${type}-${Date.now()}.${ext}`;
 
     const pathJobId = path.split("/")[0] ?? null;
-    const [currentEmployeeRes, currentTenantRes, currentEmployeeTenantRes, jobContextRes] = await Promise.all([
-      supabase.rpc("current_employee_id"),
-      supabase.rpc("current_tenant_id"),
-      supabase.rpc("current_employee_tenant_id"),
-      supabase.from("jobs").select("assigned_employee_id,tenant_id").eq("id", job.id).maybeSingle(),
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const authUserId = session?.user?.id ?? null;
+
+    const [employeeRes, jobContextRes] = await Promise.all([
+      authUserId
+        ? supabase
+            .from("employees")
+            .select("id,tenant_id")
+            .eq("auth_user_id", authUserId)
+            .eq("is_active", true)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("jobs")
+        .select("id,assigned_employee_id,tenant_id")
+        .eq("id", job.id)
+        .maybeSingle(),
     ]);
 
-    const effectiveEmployeeTenant =
-      (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
-    const resolvedEmployeeId = currentEmployeeRes.data ?? null;
+    const resolvedEmployeeId = employeeRes.data?.id ?? null;
+    const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
     const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
-    const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
+    const assignedMatch =
+      !!resolvedEmployeeId && jobContextRes.data?.assigned_employee_id === resolvedEmployeeId;
     const tenantMatch =
-      !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
-        ? effectiveEmployeeTenant === jobContextRes.data.tenant_id
+      !!resolvedEmployeeTenantId && !!resolvedJobTenantId
+        ? resolvedEmployeeTenantId === resolvedJobTenantId
         : false;
 
     console.info("Employee photo upload context", {
       jobId: job.id,
       path,
       pathPrefixMatchesJobId: pathJobId === job.id,
+      authUserId,
       profileEmployeeId: profile.id,
-      currentEmployeeId: currentEmployeeRes.data ?? null,
-      currentTenantId: currentTenantRes.data ?? null,
-      currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
-      currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
       resolvedEmployeeId,
+      resolvedEmployeeTenantId,
       resolvedJobTenantId,
       assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
       jobTenantId: jobContextRes.data?.tenant_id ?? null,
       assignedMatch,
       tenantMatch,
+      employeeLookupError: employeeRes.error?.message ?? null,
       jobContextError: jobContextRes.error?.message ?? null,
     });
 
@@ -390,7 +404,6 @@ export default function JobDetailPage() {
       photo_url: photoUrl,
       photo_type: type,
       notes: null,
-      file_path: path,
     };
 
     console.info("job_photos insert payload", {
@@ -464,38 +477,52 @@ export default function JobDetailPage() {
 
     const path = `${job.id}/signature-${Date.now()}.png`;
     const pathJobId = path.split("/")[0] ?? null;
-    const [currentEmployeeRes, currentTenantRes, currentEmployeeTenantRes, jobContextRes] = await Promise.all([
-      supabase.rpc("current_employee_id"),
-      supabase.rpc("current_tenant_id"),
-      supabase.rpc("current_employee_tenant_id"),
-      supabase.from("jobs").select("assigned_employee_id,tenant_id").eq("id", job.id).maybeSingle(),
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const authUserId = session?.user?.id ?? null;
+
+    const [employeeRes, jobContextRes] = await Promise.all([
+      authUserId
+        ? supabase
+            .from("employees")
+            .select("id,tenant_id")
+            .eq("auth_user_id", authUserId)
+            .eq("is_active", true)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("jobs")
+        .select("id,assigned_employee_id,tenant_id")
+        .eq("id", job.id)
+        .maybeSingle(),
     ]);
 
-    const effectiveEmployeeTenant =
-      (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
-    const resolvedEmployeeId = currentEmployeeRes.data ?? null;
+    const resolvedEmployeeId = employeeRes.data?.id ?? null;
+    const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
     const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
-    const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
+    const assignedMatch =
+      !!resolvedEmployeeId && jobContextRes.data?.assigned_employee_id === resolvedEmployeeId;
     const tenantMatch =
-      !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
-        ? effectiveEmployeeTenant === jobContextRes.data.tenant_id
+      !!resolvedEmployeeTenantId && !!resolvedJobTenantId
+        ? resolvedEmployeeTenantId === resolvedJobTenantId
         : false;
 
     console.info("Employee signature upload context", {
       jobId: job.id,
       path,
       pathPrefixMatchesJobId: pathJobId === job.id,
+      authUserId,
       profileEmployeeId: profile.id,
-      currentEmployeeId: currentEmployeeRes.data ?? null,
-      currentTenantId: currentTenantRes.data ?? null,
-      currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
-      currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
       resolvedEmployeeId,
+      resolvedEmployeeTenantId,
       resolvedJobTenantId,
       assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
       jobTenantId: jobContextRes.data?.tenant_id ?? null,
       assignedMatch,
       tenantMatch,
+      employeeLookupError: employeeRes.error?.message ?? null,
       jobContextError: jobContextRes.error?.message ?? null,
     });
 
@@ -534,7 +561,6 @@ export default function JobDetailPage() {
       photo_url: signatureUrl,
       photo_type: "signature" as const,
       notes: null,
-      file_path: path,
     };
 
     console.info("job_photos insert payload", {
