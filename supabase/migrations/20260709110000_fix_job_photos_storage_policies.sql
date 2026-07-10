@@ -5,6 +5,27 @@ insert into storage.buckets (id, name, public)
 values ('job-photos', 'job-photos', true)
 on conflict (id) do nothing;
 
+-- Ensure tenant columns exist for policy predicates.
+alter table public.jobs
+  add column if not exists tenant_id uuid references public.tenants(id) on delete cascade;
+
+alter table public.customers
+  add column if not exists tenant_id uuid references public.tenants(id) on delete cascade;
+
+update public.jobs
+set tenant_id = '00000000-0000-0000-0000-000000000001'::uuid
+where tenant_id is null;
+
+update public.customers
+set tenant_id = '00000000-0000-0000-0000-000000000001'::uuid
+where tenant_id is null;
+
+create index if not exists jobs_tenant_id_idx
+  on public.jobs(tenant_id);
+
+create index if not exists customers_tenant_id_idx
+  on public.customers(tenant_id);
+
 create or replace function public.storage_job_id_from_object_name(object_name text)
 returns uuid
 language sql
