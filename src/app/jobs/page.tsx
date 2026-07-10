@@ -224,11 +224,25 @@ export default function JobsPage() {
       }
 
       setLoadingPhotos(true);
+      const { data: tenantId, error: tenantIdError } = await supabase.rpc("current_tenant_id");
+      console.debug("Admin job photos diagnostics", {
+        jobId: editingId,
+        tenantId: tenantId ?? null,
+        tenantIdError: tenantIdError?.message ?? null,
+        query: 'from("job_photos").select("id,job_id,employee_id,photo_url,photo_type,notes,created_at").eq("job_id", jobId).order("created_at", { ascending: true })',
+      });
+
       const { data, error } = await supabase
         .from("job_photos")
-        .select("id,job_id,employee_id,photo_url,photo_type,notes,created_at")
+        .select("*")
         .eq("job_id", editingId)
         .order("created_at", { ascending: true });
+
+      console.debug("Admin job photos query result", {
+        jobId: editingId,
+        count: data?.length ?? 0,
+        error: error?.message ?? null,
+      });
 
       if (error) {
         console.error("❌ Failed to fetch job photos:", error);
