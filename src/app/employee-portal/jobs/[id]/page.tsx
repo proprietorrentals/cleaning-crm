@@ -366,26 +366,33 @@ export default function JobDetailPage() {
     };
 
     const uploadDiagnostic = {
-      authenticatedAuthUserId: authUserId,
-      resolvedEmployeeId,
-      resolvedEmployeeTenantId,
-      selectedJobId,
-      jobAssignedEmployeeId,
-      jobTenantId,
-      assignmentIdsMatch: assignedMatch,
-      tenantIdsMatch: tenantMatch,
-      jobPhotosInsertPayload: insertPayload,
-      supabaseErrorCode: null as string | null,
-      supabaseErrorMessage: null as string | null,
+      auth_user_id: authUserId,
+      resolved_employees_id: resolvedEmployeeId,
+      resolved_employees_tenant_id: resolvedEmployeeTenantId,
+      selected_job_id: selectedJobId,
+      jobs_assigned_employee_id: jobAssignedEmployeeId,
+      jobs_tenant_id: jobTenantId,
+      assignment_matches: assignedMatch,
+      tenant_matches: tenantMatch,
+      job_photos_insert_payload: insertPayload,
+      supabase_error_code: null as string | null,
+      supabase_error_message: null as string | null,
+      supabase_error_details: null as string | null,
+      supabase_error_hint: null as string | null,
+      failure_stage: null as "precheck" | "storage_upload" | "job_photos_insert" | null,
     };
 
     console.info("Employee photo upload diagnostics", uploadDiagnostic);
 
     if (pathJobId !== job.id || !assignedMatch || !tenantMatch || !resolvedEmployeeId || !resolvedJobTenantId) {
-      console.error("Employee photo upload blocked diagnostics", uploadDiagnostic);
+      const blockedDiagnostic = {
+        ...uploadDiagnostic,
+        failure_stage: "precheck" as const,
+      };
+      console.error("Employee photo upload blocked diagnostics", blockedDiagnostic);
       setMessage({
         type: "error",
-        text: "Upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
+        text: JSON.stringify(blockedDiagnostic, null, 2),
       });
       setPhotoUploading(false);
       e.target.value = "";
@@ -394,12 +401,22 @@ export default function JobDetailPage() {
 
     const { error: uploadError } = await supabase.storage.from("job-photos").upload(path, file);
     if (uploadError) {
-      console.error("Employee photo upload failed diagnostics", {
+      const storageError = uploadError as {
+        code?: string | null;
+        message?: string | null;
+        details?: string | null;
+        hint?: string | null;
+      };
+      const failedDiagnostic = {
         ...uploadDiagnostic,
-        supabaseErrorCode: (uploadError as { code?: string | null }).code ?? null,
-        supabaseErrorMessage: uploadError.message,
-      });
-      setMessage({ type: "error", text: `Upload failed: ${uploadError.message}` });
+        supabase_error_code: storageError.code ?? null,
+        supabase_error_message: storageError.message ?? uploadError.message,
+        supabase_error_details: storageError.details ?? null,
+        supabase_error_hint: storageError.hint ?? null,
+        failure_stage: "storage_upload" as const,
+      };
+      console.error("Employee photo upload failed diagnostics", failedDiagnostic);
+      setMessage({ type: "error", text: JSON.stringify(failedDiagnostic, null, 2) });
       setPhotoUploading(false);
       return;
     }
@@ -409,12 +426,16 @@ export default function JobDetailPage() {
     const { error: insertError } = await supabase.from("job_photos").insert(insertPayload);
 
     if (insertError) {
-      console.error("job_photos photo insert failed diagnostics", {
+      const failedDiagnostic = {
         ...uploadDiagnostic,
-        supabaseErrorCode: insertError.code ?? null,
-        supabaseErrorMessage: insertError.message,
-      });
-      setMessage({ type: "error", text: insertError.message });
+        supabase_error_code: insertError.code ?? null,
+        supabase_error_message: insertError.message,
+        supabase_error_details: insertError.details ?? null,
+        supabase_error_hint: insertError.hint ?? null,
+        failure_stage: "job_photos_insert" as const,
+      };
+      console.error("job_photos photo insert failed diagnostics", failedDiagnostic);
+      setMessage({ type: "error", text: JSON.stringify(failedDiagnostic, null, 2) });
     } else {
       const photoUrl = insertPayload.photo_url;
       setPhotos((p) => [...p, { id: Date.now().toString(), photo_url: photoUrl, photo_type: type, notes: null }]);
@@ -524,26 +545,33 @@ export default function JobDetailPage() {
     };
 
     const signatureUploadDiagnostic = {
-      authenticatedAuthUserId: authUserId,
-      resolvedEmployeeId,
-      resolvedEmployeeTenantId,
-      selectedJobId,
-      jobAssignedEmployeeId,
-      jobTenantId,
-      assignmentIdsMatch: assignedMatch,
-      tenantIdsMatch: tenantMatch,
-      jobPhotosInsertPayload: signatureInsertPayload,
-      supabaseErrorCode: null as string | null,
-      supabaseErrorMessage: null as string | null,
+      auth_user_id: authUserId,
+      resolved_employees_id: resolvedEmployeeId,
+      resolved_employees_tenant_id: resolvedEmployeeTenantId,
+      selected_job_id: selectedJobId,
+      jobs_assigned_employee_id: jobAssignedEmployeeId,
+      jobs_tenant_id: jobTenantId,
+      assignment_matches: assignedMatch,
+      tenant_matches: tenantMatch,
+      job_photos_insert_payload: signatureInsertPayload,
+      supabase_error_code: null as string | null,
+      supabase_error_message: null as string | null,
+      supabase_error_details: null as string | null,
+      supabase_error_hint: null as string | null,
+      failure_stage: null as "precheck" | "storage_upload" | "job_photos_insert" | null,
     };
 
     console.info("Employee signature upload diagnostics", signatureUploadDiagnostic);
 
     if (pathJobId !== job.id || !assignedMatch || !tenantMatch || !resolvedEmployeeId || !resolvedJobTenantId) {
-      console.error("Employee signature upload blocked diagnostics", signatureUploadDiagnostic);
+      const blockedDiagnostic = {
+        ...signatureUploadDiagnostic,
+        failure_stage: "precheck" as const,
+      };
+      console.error("Employee signature upload blocked diagnostics", blockedDiagnostic);
       setMessage({
         type: "error",
-        text: "Signature upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
+        text: JSON.stringify(blockedDiagnostic, null, 2),
       });
       setBusy(false);
       return;
@@ -552,12 +580,22 @@ export default function JobDetailPage() {
     const { error: uploadError } = await supabase.storage.from("job-photos").upload(path, blob, { contentType: "image/png" });
 
     if (uploadError) {
-      console.error("Employee signature upload failed diagnostics", {
+      const storageError = uploadError as {
+        code?: string | null;
+        message?: string | null;
+        details?: string | null;
+        hint?: string | null;
+      };
+      const failedDiagnostic = {
         ...signatureUploadDiagnostic,
-        supabaseErrorCode: (uploadError as { code?: string | null }).code ?? null,
-        supabaseErrorMessage: uploadError.message,
-      });
-      setMessage({ type: "error", text: `Signature upload failed: ${uploadError.message}` });
+        supabase_error_code: storageError.code ?? null,
+        supabase_error_message: storageError.message ?? uploadError.message,
+        supabase_error_details: storageError.details ?? null,
+        supabase_error_hint: storageError.hint ?? null,
+        failure_stage: "storage_upload" as const,
+      };
+      console.error("Employee signature upload failed diagnostics", failedDiagnostic);
+      setMessage({ type: "error", text: JSON.stringify(failedDiagnostic, null, 2) });
       setBusy(false);
       return;
     }
@@ -567,12 +605,16 @@ export default function JobDetailPage() {
     const { error: signatureInsertError } = await supabase.from("job_photos").insert(signatureInsertPayload);
 
     if (signatureInsertError) {
-      console.error("job_photos signature insert failed diagnostics", {
+      const failedDiagnostic = {
         ...signatureUploadDiagnostic,
-        supabaseErrorCode: signatureInsertError.code ?? null,
-        supabaseErrorMessage: signatureInsertError.message,
-      });
-      setMessage({ type: "error", text: `Signature record save failed: ${signatureInsertError.message}` });
+        supabase_error_code: signatureInsertError.code ?? null,
+        supabase_error_message: signatureInsertError.message,
+        supabase_error_details: signatureInsertError.details ?? null,
+        supabase_error_hint: signatureInsertError.hint ?? null,
+        failure_stage: "job_photos_insert" as const,
+      };
+      console.error("job_photos signature insert failed diagnostics", failedDiagnostic);
+      setMessage({ type: "error", text: JSON.stringify(failedDiagnostic, null, 2) });
       setBusy(false);
       return;
     }
