@@ -19,6 +19,8 @@ type Job = {
   signature_reason: string | null;
   signature_notes: string | null;
   attempted_signature_at: string | null;
+  report_url?: string | null;
+  report_generated_at?: string | null;
 };
 
 function formatCurrency(value: number) {
@@ -177,6 +179,28 @@ export default function CustomerJobsPage() {
             ) : null}
           </div>
         )}
+
+        {job.status === "Completed" && job.report_url ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href={job.report_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+            >
+              View Report
+            </a>
+            <a
+              href={job.report_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={`job-report-${job.id}.pdf`}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Download Report
+            </a>
+          </div>
+        ) : null}
       </div>
     );
   };

@@ -43,6 +43,10 @@ type Job = {
   signature_reason: string | null;
   signature_notes: string | null;
   attempted_signature_at: string | null;
+  report_url?: string | null;
+  report_generated_at?: string | null;
+  report_generated_by?: string | null;
+  report_ai_summary?: string | null;
   created_at: string;
 };
 
@@ -57,6 +61,7 @@ type MileageRequest = {
   status: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
+  rejection_reason?: string | null;
   created_at: string;
 };
 
@@ -144,6 +149,7 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generatingReportJobId, setGeneratingReportJobId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<JobPhoto | null>(null);
 
@@ -360,12 +366,34 @@ export default function JobsPage() {
   const handleMileageReview = async (requestId: string, nextStatus: "approved" | "rejected") => {
     const { data: { user } } = await supabase.auth.getUser();
 
+    if (!user?.id) {
+      setMessage("❌ Error updating mileage request: authenticated reviewer not found.");
+      return;
+    }
+
+    let rejectionReason: string | null = null;
+    if (nextStatus === "rejected") {
+      const enteredReason = window.prompt("Enter a rejection reason:", "");
+      if (enteredReason === null) {
+        return;
+      }
+
+      const trimmedReason = enteredReason.trim();
+      if (!trimmedReason) {
+        setMessage("❌ Rejection reason is required.");
+        return;
+      }
+
+      rejectionReason = trimmedReason;
+    }
+
     const { error } = await supabase
       .from("mileage_requests")
       .update({
         status: nextStatus,
         reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.id ?? null,
+        reviewed_by: user.id,
+        rejection_reason: nextStatus === "rejected" ? rejectionReason : null,
       })
       .eq("id", requestId);
 
@@ -376,6 +404,63 @@ export default function JobsPage() {
 
     setMessage(`✓ Mileage request ${nextStatus}.`);
     await fetchData();
+  };
+
+  const handleGenerateJobReport = async (jobId: string) => {
+    setGeneratingReportJobId(jobId);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/job-reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      const payload = (await response.json()) as { error?: string; reportUrl?: string };
+
+      if (!response.ok) {
+        setMessage(`❌ Error generating job report: ${payload.error || "Unknown error"}`);
+        return;
+      }
+
+      setMessage("✓ Job report generated successfully.");
+      await fetchData();
+    } catch (error) {
+      setMessage(`❌ Error generating job report: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setGeneratingReportJobId(null);
+    }
+  };
+
+  const handleDownloadReport = (url: string, jobId: string) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.download = `job-report-${jobId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleEmailReport = (job: Job) => {
+    if (!job.report_url) {
+      setMessage("❌ Generate a report first.");
+      return;
+    }
+
+    const customer = customers.find((entry) => entry.id === job.customer_id);
+    const to = customer?.email || "";
+    const subject = encodeURIComponent(`Job Completion Report - ${customer?.company_name || "Customer"}`);
+    const body = encodeURIComponent(
+      `Hello${customer?.contact_name ? ` ${customer.contact_name}` : ""},\n\n` +
+        `Your job completion report is ready.\n\n` +
+        `View report: ${job.report_url}\n\n` +
+        `Thank you,\nServiceFlow CRM`,
+    );
+
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   };
 
   const jobById = jobs.reduce<Record<string, Job>>((acc, job) => {
@@ -768,6 +853,41 @@ export default function JobsPage() {
                               >
                                 ✓ Mark Complete
                               </button>
+                            )}
+                            {job.status === "Completed" && (
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateJobReport(job.id)}
+                                disabled={generatingReportJobId === job.id}
+                                className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {generatingReportJobId === job.id ? "Generating..." : "Generate Job Report"}
+                              </button>
+                            )}
+                            {job.report_url && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(job.report_url as string, "_blank", "noopener,noreferrer")}
+                                  className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
+                                >
+                                  View Report
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadReport(job.report_url as string, job.id)}
+                                  className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                                >
+                                  Download
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEmailReport(job)}
+                                  className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                                >
+                                  Email Report
+                                </button>
+                              </>
                             )}
                             <button
                               type="button"
