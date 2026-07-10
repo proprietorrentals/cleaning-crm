@@ -410,6 +410,20 @@ export default function JobDetailPage() {
     const { data: urlData } = supabase.storage.from("job-photos").getPublicUrl(path);
     const signatureUrl = urlData.publicUrl;
 
+    const { error: signatureInsertError } = await supabase.from("job_photos").insert({
+      job_id: job.id,
+      employee_id: profile.id,
+      photo_url: signatureUrl,
+      photo_type: "signature",
+      notes: null,
+    });
+
+    if (signatureInsertError) {
+      setMessage({ type: "error", text: `Signature record save failed: ${signatureInsertError.message}` });
+      setBusy(false);
+      return;
+    }
+
     const verificationPatch = {
       signature_url: signatureUrl,
       signature_status: "signed",
@@ -434,8 +448,17 @@ export default function JobDetailPage() {
             }
           : j,
       );
+      setPhotos((current) => [
+        ...current,
+        {
+          id: `signature-${Date.now()}`,
+          photo_url: signatureUrl,
+          photo_type: "signature",
+          notes: null,
+        },
+      ]);
       setSigSaved(true);
-      setMessage({ type: "success", text: "Signature saved." });
+      setMessage({ type: "success", text: "Signature saved and attached to this job." });
     }
     setBusy(false);
   };

@@ -20,6 +20,7 @@ type EmployeeProfile = {
 type Job = {
   id: string;
   customer_id: string;
+  tenant_id: string | null;
   scheduled_date: string;
   status: string;
   estimated_value: number;
@@ -121,7 +122,7 @@ export default function EmployeePortalPage() {
 
       const { data: assignedJobs, error: jobsError } = await supabase
         .from("jobs")
-        .select("id,customer_id,scheduled_date,status,estimated_value,notes,assigned_employee")
+        .select("id,customer_id,tenant_id,scheduled_date,status,estimated_value,notes,assigned_employee")
         .eq("assigned_employee_id", employee.id)
         .order("scheduled_date", { ascending: true });
 
@@ -278,6 +279,16 @@ export default function EmployeePortalPage() {
       return;
     }
 
+    if (!selectedFromJob.tenant_id || !selectedToJob.tenant_id) {
+      setMileageError("Mileage submission failed: one or both jobs are missing tenant assignment.");
+      return;
+    }
+
+    if (selectedFromJob.tenant_id !== selectedToJob.tenant_id) {
+      setMileageError("Mileage submission failed: jobs belong to different tenants.");
+      return;
+    }
+
     const milesValue = mileageNeedsManual ? Number(mileageManualMiles) : Number(mileageEstimatedMiles);
     if (!Number.isFinite(milesValue) || milesValue <= 0) {
       setMileageError(mileageNeedsManual ? "Enter manual miles to submit." : "Calculate mileage first.");
@@ -289,6 +300,7 @@ export default function EmployeePortalPage() {
     setMileageSuccess(null);
 
     const { error } = await supabase.from("mileage_requests").insert({
+      tenant_id: selectedFromJob.tenant_id,
       from_job_id: selectedFromJob.id,
       to_job_id: selectedToJob.id,
       employee_id: profile.id,
