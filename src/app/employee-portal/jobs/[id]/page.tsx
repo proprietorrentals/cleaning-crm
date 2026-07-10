@@ -319,8 +319,58 @@ export default function JobDetailPage() {
     const ext  = file.name.split(".").pop() ?? "jpg";
     const path = `${job.id}/${type}-${Date.now()}.${ext}`;
 
+    const pathJobId = path.split("/")[0] ?? null;
+    const [currentEmployeeRes, currentTenantRes, currentEmployeeTenantRes, jobContextRes] = await Promise.all([
+      supabase.rpc("current_employee_id"),
+      supabase.rpc("current_tenant_id"),
+      supabase.rpc("current_employee_tenant_id"),
+      supabase.from("jobs").select("assigned_employee_id,tenant_id").eq("id", job.id).maybeSingle(),
+    ]);
+
+    const effectiveEmployeeTenant =
+      (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
+    const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
+    const tenantMatch =
+      !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
+        ? effectiveEmployeeTenant === jobContextRes.data.tenant_id
+        : false;
+
+    console.info("Employee photo upload context", {
+      jobId: job.id,
+      path,
+      pathPrefixMatchesJobId: pathJobId === job.id,
+      profileEmployeeId: profile.id,
+      currentEmployeeId: currentEmployeeRes.data ?? null,
+      currentTenantId: currentTenantRes.data ?? null,
+      currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
+      currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
+      assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
+      jobTenantId: jobContextRes.data?.tenant_id ?? null,
+      assignedMatch,
+      tenantMatch,
+      jobContextError: jobContextRes.error?.message ?? null,
+    });
+
+    if (pathJobId !== job.id || !assignedMatch || !tenantMatch) {
+      setMessage({
+        type: "error",
+        text: "Upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
+      });
+      setPhotoUploading(false);
+      e.target.value = "";
+      return;
+    }
+
     const { error: uploadError } = await supabase.storage.from("job-photos").upload(path, file);
     if (uploadError) {
+      console.error("Employee photo upload failed", {
+        jobId: job.id,
+        path,
+        pathPrefixMatchesJobId: pathJobId === job.id,
+        assignedMatch,
+        tenantMatch,
+        uploadError: uploadError.message,
+      });
       setMessage({ type: "error", text: `Upload failed: ${uploadError.message}` });
       setPhotoUploading(false);
       return;
@@ -399,9 +449,58 @@ export default function JobDetailPage() {
     if (!blob) { setBusy(false); return; }
 
     const path = `${job.id}/signature-${Date.now()}.png`;
+    const pathJobId = path.split("/")[0] ?? null;
+    const [currentEmployeeRes, currentTenantRes, currentEmployeeTenantRes, jobContextRes] = await Promise.all([
+      supabase.rpc("current_employee_id"),
+      supabase.rpc("current_tenant_id"),
+      supabase.rpc("current_employee_tenant_id"),
+      supabase.from("jobs").select("assigned_employee_id,tenant_id").eq("id", job.id).maybeSingle(),
+    ]);
+
+    const effectiveEmployeeTenant =
+      (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
+    const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
+    const tenantMatch =
+      !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
+        ? effectiveEmployeeTenant === jobContextRes.data.tenant_id
+        : false;
+
+    console.info("Employee signature upload context", {
+      jobId: job.id,
+      path,
+      pathPrefixMatchesJobId: pathJobId === job.id,
+      profileEmployeeId: profile.id,
+      currentEmployeeId: currentEmployeeRes.data ?? null,
+      currentTenantId: currentTenantRes.data ?? null,
+      currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
+      currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
+      assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
+      jobTenantId: jobContextRes.data?.tenant_id ?? null,
+      assignedMatch,
+      tenantMatch,
+      jobContextError: jobContextRes.error?.message ?? null,
+    });
+
+    if (pathJobId !== job.id || !assignedMatch || !tenantMatch) {
+      setMessage({
+        type: "error",
+        text: "Signature upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
+      });
+      setBusy(false);
+      return;
+    }
+
     const { error: uploadError } = await supabase.storage.from("job-photos").upload(path, blob, { contentType: "image/png" });
 
     if (uploadError) {
+      console.error("Employee signature upload failed", {
+        jobId: job.id,
+        path,
+        pathPrefixMatchesJobId: pathJobId === job.id,
+        assignedMatch,
+        tenantMatch,
+        uploadError: uploadError.message,
+      });
       setMessage({ type: "error", text: `Signature upload failed: ${uploadError.message}` });
       setBusy(false);
       return;
