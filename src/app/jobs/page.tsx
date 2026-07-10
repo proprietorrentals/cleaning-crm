@@ -67,6 +67,16 @@ type Employee = {
   is_active: boolean;
 };
 
+type JobPhoto = {
+  id: string;
+  job_id: string;
+  employee_id: string;
+  photo_url: string;
+  photo_type: "before" | "after" | "signature";
+  notes: string | null;
+  created_at: string;
+};
+
 type JobFormState = {
   quote_id: string;
   customer_id: string;
@@ -128,11 +138,14 @@ export default function JobsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [jobPhotos, setJobPhotos] = useState<JobPhoto[]>([]);
   const [form, setForm] = useState<JobFormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<JobPhoto | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -202,6 +215,34 @@ export default function JobsPage() {
   useEffect(() => {
     fetchData();
   }, [supabase]);
+
+  useEffect(() => {
+    const loadJobPhotos = async () => {
+      if (!editingId) {
+        setJobPhotos([]);
+        return;
+      }
+
+      setLoadingPhotos(true);
+      const { data, error } = await supabase
+        .from("job_photos")
+        .select("id,job_id,employee_id,photo_url,photo_type,notes,created_at")
+        .eq("job_id", editingId)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("❌ Failed to fetch job photos:", error);
+        setMessage(`❌ Error fetching job photos: ${error.message}`);
+        setJobPhotos([]);
+      } else {
+        setJobPhotos((data ?? []) as JobPhoto[]);
+      }
+
+      setLoadingPhotos(false);
+    };
+
+    void loadJobPhotos();
+  }, [editingId, supabase]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -333,6 +374,16 @@ export default function JobsPage() {
     return acc;
   }, {});
 
+  const selectedJob = editingId ? jobs.find((job) => job.id === editingId) ?? null : null;
+
+  const groupedJobPhotos = jobPhotos.reduce<Record<"before" | "after" | "signature", JobPhoto[]>>(
+    (acc, photo) => {
+      acc[photo.photo_type].push(photo);
+      return acc;
+    },
+    { before: [], after: [], signature: [] },
+  );
+
   const customerById = customers.reduce<Record<string, Customer>>((acc, customer) => {
     acc[customer.id] = customer;
     return acc;
@@ -370,6 +421,8 @@ export default function JobsPage() {
     setForm(emptyForm);
     setEditingId(null);
     setMessage(null);
+    setJobPhotos([]);
+    setPreviewPhoto(null);
   };
 
   return (
@@ -549,6 +602,84 @@ export default function JobsPage() {
                 </button>
               </div>
             </form>
+
+            <div className="mt-8 border-t border-slate-200 pt-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Job photos</h3>
+                  <p className="text-sm text-slate-500">
+                    {selectedJob ? `Photos for ${selectedJob.scheduled_date}` : "Select a job to view uploaded photos."}
+                  </p>
+                </div>
+                {editingId ? (
+                  <span className="text-sm text-slate-500">{jobPhotos.length} uploaded</span>
+                ) : null}
+              </div>
+
+              {!editingId ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                  Choose a job row and click Edit to inspect before photos, after photos, and the customer signature.
+                </div>
+              ) : loadingPhotos ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading photos...</div>
+              ) : jobPhotos.length === 0 ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                  No photos have been uploaded for this job yet.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-6">
+                  {([
+                    ["before", "Before Photos"],
+                    ["after", "After Photos"],
+                    ["signature", "Customer Signature"],
+                  ] as const).map(([type, label]) => {
+                    const photosForType = groupedJobPhotos[type];
+
+                    return (
+                      <div key={type} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{label}</h4>
+                          <span className="text-xs text-slate-500">{photosForType.length}</span>
+                        </div>
+
+                        {photosForType.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                            No {label.toLowerCase()} available.
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {photosForType.map((photo) => {
+                              const employee = employeeById[photo.employee_id];
+                              const uploadTime = new Date(photo.created_at).toLocaleString();
+
+                              return (
+                                <button
+                                  key={photo.id}
+                                  type="button"
+                                  onClick={() => setPreviewPhoto(photo)}
+                                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                                >
+                                  <img
+                                    src={photo.photo_url}
+                                    alt={`${label} preview`}
+                                    className="h-48 w-full object-cover transition group-hover:scale-[1.02]"
+                                  />
+                                  <div className="space-y-1 p-3">
+                                    <p className="text-sm font-medium text-slate-900">{employee ? `${employee.first_name} ${employee.last_name}` : "Unknown employee"}</p>
+                                    <p className="text-xs text-slate-500">Uploaded {uploadTime}</p>
+                                    {photo.notes ? <p className="text-xs text-slate-500">{photo.notes}</p> : null}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </section>
         </div>
 
@@ -730,6 +861,29 @@ export default function JobsPage() {
             </div>
           )}
         </section>
+
+        {previewPhoto ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Photo preview</p>
+                  <p className="text-xs text-slate-500">{previewPhoto.photo_type} • {new Date(previewPhoto.created_at).toLocaleString()}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPhoto(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="bg-slate-950 p-3">
+                <img src={previewPhoto.photo_url} alt="Full size job photo" className="max-h-[78vh] w-full object-contain" />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
