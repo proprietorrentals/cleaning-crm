@@ -329,6 +329,8 @@ export default function JobDetailPage() {
 
     const effectiveEmployeeTenant =
       (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
+    const resolvedEmployeeId = currentEmployeeRes.data ?? null;
+    const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
     const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
     const tenantMatch =
       !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
@@ -344,6 +346,8 @@ export default function JobDetailPage() {
       currentTenantId: currentTenantRes.data ?? null,
       currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
       currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
+      resolvedEmployeeId,
+      resolvedJobTenantId,
       assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
       jobTenantId: jobContextRes.data?.tenant_id ?? null,
       assignedMatch,
@@ -351,7 +355,7 @@ export default function JobDetailPage() {
       jobContextError: jobContextRes.error?.message ?? null,
     });
 
-    if (pathJobId !== job.id || !assignedMatch || !tenantMatch) {
+    if (pathJobId !== job.id || !assignedMatch || !tenantMatch || !resolvedEmployeeId || !resolvedJobTenantId) {
       setMessage({
         type: "error",
         text: "Upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
@@ -379,12 +383,22 @@ export default function JobDetailPage() {
     const { data: urlData } = supabase.storage.from("job-photos").getPublicUrl(path);
     const photoUrl = urlData.publicUrl;
 
-    const { error: insertError } = await supabase.from("job_photos").insert({
-      job_id:      job.id,
-      employee_id: profile.id,
-      photo_url:   photoUrl,
-      photo_type:  type,
+    const insertPayload = {
+      job_id: job.id,
+      employee_id: resolvedEmployeeId,
+      tenant_id: resolvedJobTenantId,
+      photo_url: photoUrl,
+      photo_type: type,
+      notes: null,
+      file_path: path,
+    };
+
+    console.info("job_photos insert payload", {
+      operation: "photo_upload",
+      payload: insertPayload,
     });
+
+    const { error: insertError } = await supabase.from("job_photos").insert(insertPayload);
 
     if (insertError) {
       setMessage({ type: "error", text: insertError.message });
@@ -459,6 +473,8 @@ export default function JobDetailPage() {
 
     const effectiveEmployeeTenant =
       (currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data) ?? currentTenantRes.data ?? null;
+    const resolvedEmployeeId = currentEmployeeRes.data ?? null;
+    const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
     const assignedMatch = jobContextRes.data?.assigned_employee_id === profile.id;
     const tenantMatch =
       !!effectiveEmployeeTenant && !!jobContextRes.data?.tenant_id
@@ -474,6 +490,8 @@ export default function JobDetailPage() {
       currentTenantId: currentTenantRes.data ?? null,
       currentEmployeeTenantId: currentEmployeeTenantRes.error ? null : currentEmployeeTenantRes.data ?? null,
       currentEmployeeTenantError: currentEmployeeTenantRes.error?.message ?? null,
+      resolvedEmployeeId,
+      resolvedJobTenantId,
       assignedEmployeeId: jobContextRes.data?.assigned_employee_id ?? null,
       jobTenantId: jobContextRes.data?.tenant_id ?? null,
       assignedMatch,
@@ -481,7 +499,7 @@ export default function JobDetailPage() {
       jobContextError: jobContextRes.error?.message ?? null,
     });
 
-    if (pathJobId !== job.id || !assignedMatch || !tenantMatch) {
+    if (pathJobId !== job.id || !assignedMatch || !tenantMatch || !resolvedEmployeeId || !resolvedJobTenantId) {
       setMessage({
         type: "error",
         text: "Signature upload blocked: employee/job assignment or tenant context is invalid. Check admin assignment and tenant mapping.",
@@ -509,13 +527,22 @@ export default function JobDetailPage() {
     const { data: urlData } = supabase.storage.from("job-photos").getPublicUrl(path);
     const signatureUrl = urlData.publicUrl;
 
-    const { error: signatureInsertError } = await supabase.from("job_photos").insert({
+    const signatureInsertPayload = {
       job_id: job.id,
-      employee_id: profile.id,
+      employee_id: resolvedEmployeeId,
+      tenant_id: resolvedJobTenantId,
       photo_url: signatureUrl,
-      photo_type: "signature",
+      photo_type: "signature" as const,
       notes: null,
+      file_path: path,
+    };
+
+    console.info("job_photos insert payload", {
+      operation: "signature_upload",
+      payload: signatureInsertPayload,
     });
+
+    const { error: signatureInsertError } = await supabase.from("job_photos").insert(signatureInsertPayload);
 
     if (signatureInsertError) {
       setMessage({ type: "error", text: `Signature record save failed: ${signatureInsertError.message}` });
