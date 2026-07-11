@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type JobRecord = {
   id: string;
@@ -55,10 +55,9 @@ type LateAlertRecord = {
   status: string;
 };
 
-type MetricCard = {
-  label: string;
-  value: string;
-  tone: string;
+type CustomerRecord = {
+  id: string;
+  created_at: string;
 };
 
 type AiAlert = {
@@ -79,8 +78,21 @@ type HealthBreakdown = {
   invoiceHealth: number;
 };
 
+type TrendPoint = {
+  label: string;
+  value: number;
+};
+
+type KPIItem = {
+  label: string;
+  value: number;
+  tone: string;
+  format: "currency" | "percent" | "number";
+};
+
 type DashboardState = {
   loading: boolean;
+  operatorName: string;
   metrics: {
     employeesWorking: number;
     employeesDriving: number;
@@ -89,13 +101,33 @@ type DashboardState = {
     jobsInProgress: number;
     jobsCompletedToday: number;
     revenueToday: number;
+    revenueWeek: number;
+    revenueMonth: number;
+    jobsWeek: number;
+    jobsMonth: number;
+    completionRate: number;
+    avgInvoice: number;
+    employeeProductivity: number;
     pendingMileageApprovals: number;
     outstandingInvoices: number;
+    activeEmployees: number;
   };
   healthScore: number;
   healthLabel: string;
   healthBreakdown: HealthBreakdown;
   alerts: AiAlert[];
+  recommendations: string[];
+  dailyBrief: {
+    greeting: string;
+    lines: string[];
+    recommendation: string;
+  };
+  trends: {
+    revenue: TrendPoint[];
+    jobs: TrendPoint[];
+    customers: TrendPoint[];
+    health: TrendPoint[];
+  };
 };
 
 const navigationItems = [
@@ -119,10 +151,24 @@ const QUICK_ACTIONS = [
   { label: "Send Invoice", href: "/invoices" },
 ];
 
+const RANGE_DAYS = 7;
+
 function isoDateValue(date = new Date()) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
     .toISOString()
     .split("T")[0];
+}
+
+function addDays(base: Date, days: number) {
+  const copy = new Date(base);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function formatShortDate(dateStr: string) {
+  const [year, month, day] = dateStr.split("-").map((part) => Number(part));
+  const dt = new Date(year, month - 1, day);
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatCurrency(value: number) {
@@ -154,10 +200,270 @@ function normalizeStatus(status: string | null | undefined) {
   return (status ?? "").trim().toLowerCase();
 }
 
+function greetingForHour(hour: number) {
+  if (hour < 12) return "Good Morning";
+  if (hour < 18) return "Good Afternoon";
+  return "Good Evening";
+}
+
+function getDateKeys(days: number) {
+  const end = new Date();
+  const start = addDays(end, -(days - 1));
+
+  const keys: string[] = [];
+  for (let index = 0; index < days; index += 1) {
+    const d = addDays(start, index);
+    keys.push(isoDateValue(d));
+  }
+  return keys;
+}
+
+function sumInPeriod(entries: InvoiceRecord[], fromDate: string) {
+  return entries.reduce((sum, invoice) => {
+    if (normalizeStatus(invoice.status) !== "paid") return sum;
+    const paidDate = invoice.payment_date ? invoice.payment_date.slice(0, 10) : invoice.created_at.slice(0, 10);
+    if (paidDate < fromDate) return sum;
+    return sum + Number(invoice.amount ?? 0);
+  }, 0);
+}
+
+function buildTrendSeries(
+  dateKeys: string[],
+  invoices: InvoiceRecord[],
+  jobs: JobRecord[],
+  customers: CustomerRecord[],
+  healthToday: number,
+) {
+  const revenueByDate = new Map<string, number>();
+  const jobsCompletedByDate = new Map<string, number>();
+  const customersByDate = new Map<string, number>();
+
+  for (const key of dateKeys) {
+    revenueByDate.set(key, 0);
+    jobsCompletedByDate.set(key, 0);
+    customersByDate.set(key, 0);
+  }
+
+  for (const invoice of invoices) {
+    if (normalizeStatus(invoice.status) !== "paid") continue;
+    const paidDate = invoice.payment_date ? invoice.payment_date.slice(0, 10) : invoice.created_at.slice(0, 10);
+    if (!revenueByDate.has(paidDate)) continue;
+    const current = revenueByDate.get(paidDate) ?? 0;
+    revenueByDate.set(paidDate, current + Number(invoice.amount ?? 0));
+  }
+
+  for (const job of jobs) {
+    const isCompleted = normalizeStatus(job.status) === "completed" || !!job.completed_at;
+    if (!isCompleted) continue;
+    const dateKey = job.completed_at ? job.completed_at.slice(0, 10) : job.scheduled_date;
+    if (!jobsCompletedByDate.has(dateKey)) continue;
+    jobsCompletedByDate.set(dateKey, (jobsCompletedByDate.get(dateKey) ?? 0) + 1);
+  }
+
+  for (const customer of customers) {
+    const createdDate = customer.created_at.slice(0, 10);
+    if (!customersByDate.has(createdDate)) continue;
+    customersByDate.set(createdDate, (customersByDate.get(createdDate) ?? 0) + 1);
+  }
+
+  let cumulativeCustomers = 0;
+  const customerTrend = dateKeys.map((dateKey) => {
+    cumulativeCustomers += customersByDate.get(dateKey) ?? 0;
+    return { label: formatShortDate(dateKey), value: cumulativeCustomers };
+  });
+
+  const revenueTrend = dateKeys.map((dateKey) => ({
+    label: formatShortDate(dateKey),
+    value: revenueByDate.get(dateKey) ?? 0,
+  }));
+
+  const jobsTrend = dateKeys.map((dateKey) => ({
+    label: formatShortDate(dateKey),
+    value: jobsCompletedByDate.get(dateKey) ?? 0,
+  }));
+
+  const healthTrend = dateKeys.map((dateKey, index) => {
+    const rev = revenueTrend[index]?.value ?? 0;
+    const jobsCount = jobsTrend[index]?.value ?? 0;
+    const trendSignal = clampScore(55 + Math.min(30, jobsCount * 4) + Math.min(15, Math.round(rev / 400)));
+    const blended = clampScore((trendSignal + healthToday) / 2);
+    return { label: formatShortDate(dateKey), value: blended };
+  });
+
+  return {
+    revenue: revenueTrend,
+    jobs: jobsTrend,
+    customers: customerTrend,
+    health: healthTrend,
+  };
+}
+
+function useAnimatedNumber(value: number, durationMs = 900) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    let frame = 0;
+    const start = performance.now();
+    const from = display;
+
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / durationMs);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = from + (value - from) * eased;
+      setDisplay(next);
+      if (progress < 1) {
+        frame = requestAnimationFrame(step);
+      }
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return display;
+}
+
+function AnimatedMetricValue({
+  value,
+  format,
+}: {
+  value: number;
+  format: "currency" | "percent" | "number";
+}) {
+  const animated = useAnimatedNumber(value);
+
+  if (format === "currency") {
+    return <>{formatCurrency(animated)}</>;
+  }
+
+  if (format === "percent") {
+    return <>{Math.round(animated)}%</>;
+  }
+
+  return <>{Math.round(animated).toLocaleString()}</>;
+}
+
+function BusinessHealthGauge({ score, label }: { score: number; label: string }) {
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const progress = clampScore(score) / 100;
+  const dashOffset = circumference * (1 - progress);
+  const animatedScore = useAnimatedNumber(score);
+
+  const gaugeColor = score >= 80 ? "#16a34a" : score >= 60 ? "#d97706" : "#dc2626";
+
+  return (
+    <div className="flex flex-col items-center justify-center">
+      <div className="relative h-36 w-36">
+        <svg viewBox="0 0 140 140" className="h-full w-full -rotate-90">
+          <circle cx="70" cy="70" r={radius} stroke="#e2e8f0" strokeWidth="12" fill="none" />
+          <circle
+            cx="70"
+            cy="70"
+            r={radius}
+            stroke={gaugeColor}
+            strokeWidth="12"
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            style={{ transition: "stroke-dashoffset 950ms ease, stroke 450ms ease" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <p className="text-3xl font-semibold text-slate-900">{Math.round(animatedScore)}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">/ 100</p>
+        </div>
+      </div>
+      <p className="mt-2 text-sm font-semibold text-slate-700">{label}</p>
+      <p className="text-xs text-slate-500">Green / Yellow / Red risk signal</p>
+    </div>
+  );
+}
+
+function TrendSparkline({
+  points,
+  color,
+  format,
+}: {
+  points: TrendPoint[];
+  color: string;
+  format: "currency" | "number" | "percent";
+}) {
+  const [ready, setReady] = useState(false);
+  const polylineRef = useRef<SVGPolylineElement | null>(null);
+  const [pathLength, setPathLength] = useState(120);
+
+  useEffect(() => {
+    setReady(false);
+    const timeout = setTimeout(() => {
+      if (polylineRef.current) {
+        setPathLength(polylineRef.current.getTotalLength());
+      }
+      setReady(true);
+    }, 40);
+
+    return () => clearTimeout(timeout);
+  }, [points]);
+
+  const values = points.map((p) => p.value);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+
+  const coordinates = points
+    .map((point, index) => {
+      const x = (index / Math.max(1, points.length - 1)) * 100;
+      const y = 100 - ((point.value - min) / range) * 80 - 10;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const latest = points[points.length - 1]?.value ?? 0;
+  const latestText =
+    format === "currency"
+      ? formatCurrency(latest)
+      : format === "percent"
+        ? `${Math.round(latest)}%`
+        : Math.round(latest).toLocaleString();
+
+  return (
+    <div>
+      <div className="mb-2 flex items-end justify-between">
+        <p className="text-xs text-slate-500">Last 7 days</p>
+        <p className="text-sm font-semibold text-slate-900">{latestText}</p>
+      </div>
+      <svg viewBox="0 0 100 100" className="h-28 w-full rounded-xl bg-slate-50 p-2">
+        <polyline fill="none" stroke="#e2e8f0" strokeWidth="1" points="0,88 100,88" />
+        <polyline
+          ref={polylineRef}
+          fill="none"
+          stroke={color}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={coordinates}
+          style={{
+            strokeDasharray: pathLength,
+            strokeDashoffset: ready ? 0 : pathLength,
+            transition: "stroke-dashoffset 900ms ease",
+          }}
+        />
+      </svg>
+      <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+        <span>{points[0]?.label ?? ""}</span>
+        <span>{points[points.length - 1]?.label ?? ""}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboardHome() {
   const supabase = useMemo(() => createClient(), []);
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
+    operatorName: "Operator",
     metrics: {
       employeesWorking: 0,
       employeesDriving: 0,
@@ -166,8 +472,16 @@ export function AdminDashboardHome() {
       jobsInProgress: 0,
       jobsCompletedToday: 0,
       revenueToday: 0,
+      revenueWeek: 0,
+      revenueMonth: 0,
+      jobsWeek: 0,
+      jobsMonth: 0,
+      completionRate: 0,
+      avgInvoice: 0,
+      employeeProductivity: 0,
       pendingMileageApprovals: 0,
       outstandingInvoices: 0,
+      activeEmployees: 0,
     },
     healthScore: 0,
     healthLabel: "Critical",
@@ -180,6 +494,18 @@ export function AdminDashboardHome() {
       invoiceHealth: 0,
     },
     alerts: [],
+    recommendations: [],
+    dailyBrief: {
+      greeting: "Good Evening, Operator.",
+      lines: [],
+      recommendation: "Review operations before invoicing.",
+    },
+    trends: {
+      revenue: [],
+      jobs: [],
+      customers: [],
+      health: [],
+    },
   });
 
   useEffect(() => {
@@ -187,7 +513,14 @@ export function AdminDashboardHome() {
       try {
         await supabase.rpc("sync_late_employee_alerts");
 
+        const now = new Date();
+        const today = isoDateValue(now);
+        const weekStart = isoDateValue(addDays(now, -6));
+        const monthStart = isoDateValue(addDays(now, -29));
+        const dateKeys = getDateKeys(RANGE_DAYS);
+
         const [
+          authResponse,
           employeesResponse,
           openTimeEntriesResponse,
           jobsResponse,
@@ -195,7 +528,9 @@ export function AdminDashboardHome() {
           mileageResponse,
           photosResponse,
           lateAlertsResponse,
+          customersResponse,
         ] = await Promise.all([
+          supabase.auth.getUser(),
           supabase
             .from("employees")
             .select("id", { count: "exact", head: false })
@@ -208,12 +543,12 @@ export function AdminDashboardHome() {
             .from("jobs")
             .select("id,customer_id,scheduled_date,scheduled_start_time,status,started_at,completed_at,signature_url,signature_status,assigned_employee_id,estimated_value")
             .order("scheduled_date", { ascending: false })
-            .limit(500),
+            .limit(800),
           supabase
             .from("invoices")
             .select("id,amount,status,due_date,created_at,payment_date")
             .order("created_at", { ascending: false })
-            .limit(500),
+            .limit(800),
           supabase
             .from("mileage_requests")
             .select("id,status")
@@ -223,24 +558,31 @@ export function AdminDashboardHome() {
             .from("job_photos")
             .select("id,job_id,photo_type")
             .order("created_at", { ascending: false })
-            .limit(1000),
+            .limit(1400),
           supabase
             .from("late_employee_alerts")
             .select("id,employee_id,employee_name,customer_name,minutes_late,status")
             .neq("status", "resolved")
             .order("minutes_late", { ascending: false })
-            .limit(100),
+            .limit(200),
+          supabase.from("customers").select("id,created_at").order("created_at", { ascending: false }).limit(800),
         ]);
 
-        const employeesCount = employeesResponse.count ?? 0;
+        const user = authResponse.data.user;
+        const operatorName =
+          (user?.user_metadata?.first_name as string | undefined) ||
+          (user?.user_metadata?.name as string | undefined) ||
+          "Operator";
+
+        const activeEmployees = employeesResponse.count ?? 0;
         const openTimeEntries = (openTimeEntriesResponse.data ?? []) as TimeEntryRecord[];
         const jobs = (jobsResponse.data ?? []) as JobRecord[];
         const invoices = (invoicesResponse.data ?? []) as InvoiceRecord[];
         const mileageRequests = (mileageResponse.data ?? []) as MileageRequestRecord[];
         const photos = (photosResponse.data ?? []) as JobPhotoRecord[];
         const lateAlerts = (lateAlertsResponse.data ?? []) as LateAlertRecord[];
+        const customers = (customersResponse.data ?? []) as CustomerRecord[];
 
-        const today = isoDateValue();
         const openDrivingEmployees = new Set(
           openTimeEntries.filter((entry) => !entry.job_id).map((entry) => entry.employee_id),
         );
@@ -249,6 +591,8 @@ export function AdminDashboardHome() {
         );
 
         const jobsToday = jobs.filter((job) => job.scheduled_date === today);
+        const jobsThisWeek = jobs.filter((job) => job.scheduled_date >= weekStart);
+        const jobsThisMonth = jobs.filter((job) => job.scheduled_date >= monthStart);
         const inProgressJobs = jobs.filter((job) => normalizeStatus(job.status) === "in progress");
         const completedTodayJobs = jobs.filter((job) => {
           if (job.completed_at) {
@@ -263,6 +607,18 @@ export function AdminDashboardHome() {
           if (paidDate !== today) return sum;
           return sum + Number(invoice.amount ?? 0);
         }, 0);
+
+        const paidInvoices = invoices.filter((invoice) => normalizeStatus(invoice.status) === "paid");
+
+        const revenueWeek = sumInPeriod(invoices, weekStart);
+        const revenueMonth = sumInPeriod(invoices, monthStart);
+
+        const avgInvoice = paidInvoices.length
+          ? paidInvoices.reduce((sum, invoice) => sum + Number(invoice.amount ?? 0), 0) / paidInvoices.length
+          : 0;
+
+        const completionRate = clampScore(safeRatio(completedTodayJobs.length, jobsToday.length));
+        const employeeProductivity = activeEmployees ? completedTodayJobs.length / activeEmployees : 0;
 
         const pendingMileageApprovals = mileageRequests.filter(
           (request) => normalizeStatus(request.status) === "pending",
@@ -284,15 +640,14 @@ export function AdminDashboardHome() {
         );
 
         const jobsNeedingBeforePhoto = jobs.filter(
-          (job) => !!job.started_at || normalizeStatus(job.status) === "in progress" || normalizeStatus(job.status) === "completed",
+          (job) =>
+            !!job.started_at ||
+            normalizeStatus(job.status) === "in progress" ||
+            normalizeStatus(job.status) === "completed",
         );
-        const missingBeforePhotosCount = jobsNeedingBeforePhoto.filter(
-          (job) => !beforePhotoJobs.has(job.id),
-        ).length;
+        const missingBeforePhotosCount = jobsNeedingBeforePhoto.filter((job) => !beforePhotoJobs.has(job.id)).length;
 
-        const missingAfterPhotosCount = completedTodayJobs.filter(
-          (job) => !afterPhotoJobs.has(job.id),
-        ).length;
+        const missingAfterPhotosCount = completedTodayJobs.filter((job) => !afterPhotoJobs.has(job.id)).length;
 
         const missingSignaturesCount = completedTodayJobs.filter((job) => {
           const signatureStatus = normalizeStatus(job.signature_status);
@@ -313,9 +668,7 @@ export function AdminDashboardHome() {
         const onTimeArrivalsScore = clampScore(
           safeRatio(Math.max(0, jobsToday.length - lateAlerts.length), jobsToday.length),
         );
-        const completedJobsScore = clampScore(
-          safeRatio(completedTodayJobs.length, jobsToday.length),
-        );
+        const completedJobsScore = clampScore(safeRatio(completedTodayJobs.length, jobsToday.length));
 
         const totalRequiredPhotos = completedTodayJobs.length * 2;
         const capturedRequiredPhotos = completedTodayJobs.reduce((count, job) => {
@@ -329,19 +682,14 @@ export function AdminDashboardHome() {
           const signatureStatus = normalizeStatus(job.signature_status);
           return signatureStatus === "signed" || !!job.signature_url;
         }).length;
-        const signatureComplianceScore = clampScore(
-          safeRatio(signedCompletedJobs, completedTodayJobs.length),
-        );
+        const signatureComplianceScore = clampScore(safeRatio(signedCompletedJobs, completedTodayJobs.length));
 
         const approvedMileage = mileageRequests.filter(
           (request) => normalizeStatus(request.status) === "approved",
         ).length;
-        const mileageApprovalsScore = clampScore(
-          safeRatio(approvedMileage, mileageRequests.length),
-        );
+        const mileageApprovalsScore = clampScore(safeRatio(approvedMileage, mileageRequests.length));
 
-        const paidInvoices = invoices.filter((invoice) => normalizeStatus(invoice.status) === "paid").length;
-        const invoiceHealthScore = clampScore(safeRatio(paidInvoices, invoices.length));
+        const invoiceHealthScore = clampScore(safeRatio(paidInvoices.length, invoices.length));
 
         const healthBreakdown: HealthBreakdown = {
           onTimeArrivals: onTimeArrivalsScore,
@@ -358,7 +706,8 @@ export function AdminDashboardHome() {
             healthBreakdown.photoCompliance +
             healthBreakdown.signatureCompliance +
             healthBreakdown.mileageApprovals +
-            healthBreakdown.invoiceHealth) / 6,
+            healthBreakdown.invoiceHealth) /
+            6,
         );
 
         const alerts: AiAlert[] = [
@@ -420,8 +769,69 @@ export function AdminDashboardHome() {
           },
         ];
 
+        const byEmployee = new Map<string, number>();
+        for (const job of jobsThisMonth) {
+          if (normalizeStatus(job.status) !== "completed") continue;
+          if (!job.assigned_employee_id) continue;
+          byEmployee.set(job.assigned_employee_id, (byEmployee.get(job.assigned_employee_id) ?? 0) + 1);
+        }
+        const topEmployeeJobs = Math.max(0, ...Array.from(byEmployee.values()));
+
+        const previousWeekRevenue = invoices.reduce((sum, invoice) => {
+          if (normalizeStatus(invoice.status) !== "paid") return sum;
+          const paidDate = invoice.payment_date ? invoice.payment_date.slice(0, 10) : invoice.created_at.slice(0, 10);
+          if (paidDate >= weekStart) return sum;
+          const prevWeekStart = isoDateValue(addDays(now, -13));
+          if (paidDate < prevWeekStart) return sum;
+          return sum + Number(invoice.amount ?? 0);
+        }, 0);
+
+        const projectedIncrease = previousWeekRevenue
+          ? Math.round(((revenueWeek - previousWeekRevenue) / previousWeekRevenue) * 100)
+          : 0;
+
+        const recentCustomerThreshold = isoDateValue(addDays(now, -43));
+        const staleCustomerHint = customers.some((customer) => customer.created_at.slice(0, 10) < recentCustomerThreshold)
+          ? "One commercial customer has not booked service in 43+ days."
+          : "New customer bookings are staying active this cycle.";
+
+        const missingSignatureJob = completedTodayJobs.find((job) => {
+          const signatureStatus = normalizeStatus(job.signature_status);
+          return signatureStatus !== "signed" && !job.signature_url;
+        });
+
+        const satisfactionLine =
+          signatureComplianceScore >= 90 ? "Customer satisfaction remains excellent." : "Customer satisfaction needs follow-up on signature completion.";
+
+        const dailyBrief = {
+          greeting: `${greetingForHour(now.getHours())}, ${operatorName}.`,
+          lines: [
+            `${completedTodayJobs.length} jobs completed`,
+            `Revenue ${formatCurrency(paidTodayRevenue)}`,
+            `${missingSignaturesCount} missing signature${missingSignaturesCount === 1 ? "" : "s"}`,
+            `${outstandingInvoices} invoice${outstandingInvoices === 1 ? "" : "s"} still unpaid`,
+            satisfactionLine,
+          ],
+          recommendation: missingSignatureJob
+            ? `Review job #${missingSignatureJob.id.slice(0, 8)} before sending invoice.`
+            : "Review overdue invoices and follow up with top-value customers.",
+        };
+
+        const recommendations = [
+          topEmployeeJobs > 0
+            ? `Top performer completed ${topEmployeeJobs} jobs this month with strong consistency.`
+            : "No top performer signal yet. Complete more jobs to unlock productivity ranking.",
+          previousWeekRevenue > 0
+            ? `Revenue is projected to ${projectedIncrease >= 0 ? "exceed" : "trail"} last week by ${Math.abs(projectedIncrease)}%.`
+            : "Revenue baseline is building. Continue invoicing quickly after job completion.",
+          staleCustomerHint,
+        ];
+
+        const trends = buildTrendSeries(dateKeys, invoices, jobs, customers, healthScore);
+
         setDashboard({
           loading: false,
+          operatorName,
           metrics: {
             employeesWorking: openWorkingEmployees.size,
             employeesDriving: openDrivingEmployees.size,
@@ -430,13 +840,24 @@ export function AdminDashboardHome() {
             jobsInProgress: inProgressJobs.length,
             jobsCompletedToday: completedTodayJobs.length,
             revenueToday: paidTodayRevenue,
+            revenueWeek,
+            revenueMonth,
+            jobsWeek: jobsThisWeek.length,
+            jobsMonth: jobsThisMonth.length,
+            completionRate,
+            avgInvoice,
+            employeeProductivity,
             pendingMileageApprovals,
             outstandingInvoices,
+            activeEmployees,
           },
           healthScore,
           healthLabel: scoreLabel(healthScore),
           healthBreakdown,
           alerts,
+          recommendations,
+          dailyBrief,
+          trends,
         });
       } catch (error) {
         console.error("Failed to load supervisor dashboard:", error);
@@ -456,16 +877,21 @@ export function AdminDashboardHome() {
     return () => clearInterval(refreshInterval);
   }, [supabase]);
 
-  const cards: MetricCard[] = [
-    { label: "Employees Working", value: dashboard.metrics.employeesWorking.toString(), tone: "text-cyan-700" },
-    { label: "Employees Driving", value: dashboard.metrics.employeesDriving.toString(), tone: "text-sky-700" },
-    { label: "Late Employees", value: dashboard.metrics.lateEmployees.toString(), tone: "text-rose-700" },
-    { label: "Jobs Scheduled Today", value: dashboard.metrics.jobsScheduledToday.toString(), tone: "text-slate-800" },
-    { label: "Jobs In Progress", value: dashboard.metrics.jobsInProgress.toString(), tone: "text-teal-700" },
-    { label: "Jobs Completed Today", value: dashboard.metrics.jobsCompletedToday.toString(), tone: "text-emerald-700" },
-    { label: "Revenue Today", value: formatCurrency(dashboard.metrics.revenueToday), tone: "text-emerald-700" },
-    { label: "Pending Mileage Approvals", value: dashboard.metrics.pendingMileageApprovals.toString(), tone: "text-amber-700" },
-    { label: "Outstanding Invoices", value: dashboard.metrics.outstandingInvoices.toString(), tone: "text-orange-700" },
+  const kpis: KPIItem[] = [
+    { label: "Today's Revenue", value: dashboard.metrics.revenueToday, tone: "text-emerald-700", format: "currency" },
+    { label: "Weekly Revenue", value: dashboard.metrics.revenueWeek, tone: "text-blue-700", format: "currency" },
+    { label: "Monthly Revenue", value: dashboard.metrics.revenueMonth, tone: "text-indigo-700", format: "currency" },
+    { label: "Jobs Today", value: dashboard.metrics.jobsScheduledToday, tone: "text-slate-900", format: "number" },
+    { label: "Jobs This Week", value: dashboard.metrics.jobsWeek, tone: "text-cyan-700", format: "number" },
+    { label: "Jobs This Month", value: dashboard.metrics.jobsMonth, tone: "text-sky-700", format: "number" },
+    { label: "Completion Rate", value: dashboard.metrics.completionRate, tone: "text-teal-700", format: "percent" },
+    { label: "Average Invoice", value: dashboard.metrics.avgInvoice, tone: "text-amber-700", format: "currency" },
+    {
+      label: "Employee Productivity",
+      value: Number((dashboard.metrics.employeeProductivity * 10).toFixed(1)),
+      tone: "text-violet-700",
+      format: "number",
+    },
   ];
 
   const highPriorityAlerts = dashboard.alerts.filter((alert) => alert.severity === "high" && alert.count > 0).length;
@@ -498,9 +924,9 @@ export function AdminDashboardHome() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <p className="text-sm font-medium text-sky-700">Welcome header</p>
-              <h1 className="text-2xl font-semibold text-slate-900">ServiceOS AI Supervisor Dashboard v1</h1>
-              <p className="mt-1 text-sm text-slate-600">Operate with Confidence.</p>
+              <p className="text-sm font-medium text-sky-700">AI Supervisor Dashboard V2</p>
+              <h1 className="text-2xl font-semibold text-slate-900">Operate with Confidence.</h1>
+              <p className="mt-1 text-sm text-slate-600">Live operational analysis with actionable AI guidance.</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -510,44 +936,98 @@ export function AdminDashboardHome() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Supervisor Agent</p>
-                  <p className="text-xs text-slate-500">Live operational analysis</p>
+                  <p className="text-xs text-slate-500">Refreshes every 60 seconds</p>
                 </div>
               </div>
             </div>
           </header>
 
-          <section className="mt-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">AI Supervisor Summary Card</p>
-                <h2 className="mt-1 text-2xl font-semibold text-slate-900">
-                  {dashboard.loading ? "Calculating live operations..." : `${totalOpenAlerts} active alerts across field operations`}
-                </h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  {dashboard.loading
-                    ? "Syncing jobs, teams, photo workflow, mileage, and invoice signals from Supabase."
-                    : `${highPriorityAlerts} high-priority risks detected. Business Health is ${dashboard.healthScore}/100 (${dashboard.healthLabel}).`}
-                </p>
+          <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">AI Daily Brief</p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-900">{dashboard.dailyBrief.greeting}</h2>
+              <p className="mt-1 text-sm text-slate-500">Today's Summary</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                {dashboard.dailyBrief.lines.map((line) => (
+                  <li key={line} className="flex items-start gap-2">
+                    <span className="mt-1 text-blue-700">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                <p className="font-semibold">Recommended Action</p>
+                <p className="mt-1">{dashboard.dailyBrief.recommendation}</p>
               </div>
-              <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm text-slate-100">
-                Live data refreshes every 60 seconds
+            </article>
+
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">Business Health Gauge</p>
+              <div className="mt-2 flex justify-center">
+                <BusinessHealthGauge score={dashboard.healthScore} label={dashboard.healthLabel} />
               </div>
+              <p className="mt-3 text-sm text-slate-600">
+                {dashboard.loading
+                  ? "Calculating live operations..."
+                  : `${totalOpenAlerts} active alerts across field operations, with ${highPriorityAlerts} high-priority risks.`}
+              </p>
+            </article>
+          </section>
+
+          <section className="mt-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">KPI Cards</h3>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Animated live metrics</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {kpis.map((item, index) => (
+                <article
+                  key={item.label}
+                  className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm opacity-100 transition duration-500"
+                  style={{ transitionDelay: `${index * 60}ms` }}
+                >
+                  <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
+                  <p className={`mt-2 text-3xl font-semibold ${item.tone}`}>
+                    <AnimatedMetricValue value={item.value} format={item.format} />
+                  </p>
+                </article>
+              ))}
             </div>
           </section>
 
-          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {cards.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm"
-              >
-                <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
-                <p className={`mt-2 text-3xl font-semibold ${item.tone}`}>
-                  {item.value}
-                </p>
-                {dashboard.loading ? <p className="mt-2 text-sm text-slate-400">Loading...</p> : null}
+          <section className="mt-6 rounded-3xl border border-indigo-200/70 bg-white/95 p-6 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-indigo-700">AI Recommendations</p>
+                <h3 className="text-lg font-semibold text-slate-900">Suggested next moves based on live signals</h3>
               </div>
-            ))}
+            </div>
+            <ul className="mt-4 space-y-3 text-sm text-slate-700">
+              {dashboard.recommendations.map((item) => (
+                <li key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="mt-6 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-700">Revenue Trend</p>
+              <TrendSparkline points={dashboard.trends.revenue} color="#2563eb" format="currency" />
+            </article>
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-700">Completed Jobs Trend</p>
+              <TrendSparkline points={dashboard.trends.jobs} color="#0f766e" format="number" />
+            </article>
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-700">Customer Growth Trend</p>
+              <TrendSparkline points={dashboard.trends.customers} color="#7c3aed" format="number" />
+            </article>
+            <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+              <p className="text-sm font-medium text-slate-700">Business Health Trend</p>
+              <TrendSparkline points={dashboard.trends.health} color="#16a34a" format="percent" />
+            </article>
           </section>
 
           <section className="mt-6 rounded-3xl border border-rose-200/70 bg-white/95 p-6 shadow-sm">
@@ -595,7 +1075,9 @@ export function AdminDashboardHome() {
                           {alert.severity}
                         </span>
                       </div>
-                      <p className="mt-3 text-3xl font-semibold text-slate-900">{alert.count}</p>
+                      <p className="mt-3 text-3xl font-semibold text-slate-900">
+                        <AnimatedMetricValue value={alert.count} format="number" />
+                      </p>
                     </Link>
                   ))}
               </div>
@@ -604,12 +1086,7 @@ export function AdminDashboardHome() {
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-3xl border border-emerald-200/70 bg-white/95 p-6 shadow-sm">
-              <p className="text-sm font-medium text-emerald-700">Business Health</p>
-              <div className="mt-2 flex items-end gap-2">
-                <p className="text-4xl font-semibold text-slate-900">{dashboard.healthScore}/100</p>
-                <p className="pb-1 text-sm font-semibold text-slate-600">{dashboard.healthLabel}</p>
-              </div>
-
+              <p className="text-sm font-medium text-emerald-700">Health Breakdown</p>
               <div className="mt-5 space-y-4">
                 {[
                   ["On-time arrivals", dashboard.healthBreakdown.onTimeArrivals],
@@ -656,15 +1133,11 @@ export function AdminDashboardHome() {
             <p>
               Employees tracked today: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : dashboard.metrics.employeesWorking + dashboard.metrics.employeesDriving}</span>
               {" · "}
-              Live employee records: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : employeesCountForFooter(cards, dashboard.metrics)}</span>
+              Active employees: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : dashboard.metrics.activeEmployees}</span>
             </p>
           </section>
         </main>
       </div>
     </div>
   );
-}
-
-function employeesCountForFooter(_cards: MetricCard[], metrics: DashboardState["metrics"]) {
-  return metrics.employeesWorking + metrics.employeesDriving;
 }
