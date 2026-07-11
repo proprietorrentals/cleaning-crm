@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getActiveEmployeeByAuthUserId } from "@/lib/supabase/employee-session";
 import { InstallPwaButton } from "@/components/install-pwa-button";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -727,7 +727,7 @@ export default function JobDetailPage() {
         <header className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <ServiceFlowBrand subtitle="Employee Portal" />
+              <ServiceOSBrand subtitle="Employee Portal" />
               <Link href="/employee-portal" className="mt-4 flex items-center gap-1 text-sm text-blue-600 hover:underline">
                 ← Back to dashboard
               </Link>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ServiceOSBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 
 export default function LoginPage() {
   return (

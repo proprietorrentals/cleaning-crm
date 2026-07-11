@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/admin-guard";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
 
 type InvoiceRow = { amount: number; status: string; created_at: string };
@@ -126,7 +126,7 @@ function ReportsContent() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="w-full border-b border-slate-200 bg-white/90 px-5 py-6 lg:w-64 lg:border-b-0 lg:border-r">
-          <ServiceFlowBrand subtitle="Operations Hub" />
+          <ServiceOSBrand subtitle="Operations Hub" />
           <nav className="mt-8 space-y-1">
             {[
               { label: "Dashboard",  href: "/" },

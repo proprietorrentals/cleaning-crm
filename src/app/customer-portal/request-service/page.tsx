@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -108,7 +108,7 @@ export default function RequestServicePage() {
         <header className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <ServiceFlowBrand subtitle="Customer Portal" />
+              <ServiceOSBrand subtitle="Customer Portal" />
               <Link href="/customer-portal" className="mt-4 flex items-center gap-1 text-sm text-blue-600 hover:underline">
                 ← Back to dashboard
               </Link>

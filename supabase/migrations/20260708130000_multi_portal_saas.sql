@@ -77,7 +77,7 @@ create index if not exists service_requests_customer_id_idx on public.service_re
 
 create table if not exists public.settings (
   id                integer     primary key default 1 check (id = 1),
-  company_name      text        default 'ServiceFlow CRM',
+  company_name      text        default 'ServiceOS',
   company_address   text,
   company_phone     text,
   company_email     text,

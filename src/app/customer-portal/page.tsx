@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -175,7 +175,7 @@ export default function CustomerPortalPage() {
       <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <ServiceFlowBrand iconSize={32} textSize="sm" />
+            <ServiceOSBrand iconSize={32} textSize="sm" />
             <div>
               <p className="text-xs font-medium text-blue-600">CUSTOMER PORTAL</p>
               <p className="text-sm font-semibold text-slate-900">{customer?.company_name}</p>

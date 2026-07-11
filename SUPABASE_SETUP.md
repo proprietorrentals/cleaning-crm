@@ -1,4 +1,4 @@
-# Supabase setup for ServiceFlow CRM
+# Supabase setup for ServiceOS
 
 Create the following tables in Supabase SQL editor.
 

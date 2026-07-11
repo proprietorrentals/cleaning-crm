@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceos-brand";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -475,7 +475,7 @@ export default function Home() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#e8f5ff_0%,#f8fbff_55%,#f5f8ff_100%)] text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="w-full border-b border-slate-200/80 bg-white/80 px-5 py-6 backdrop-blur lg:w-64 lg:border-b-0 lg:border-r lg:px-6">
-          <ServiceFlowBrand subtitle="ServiceOS" />
+          <ServiceOSBrand subtitle="ServiceOS" />
 
           <nav className="mt-8 space-y-1">
             {navigationItems.map((item) => (
