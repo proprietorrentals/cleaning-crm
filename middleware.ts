@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
   // All public entry-points — no auth required.
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/explore" ||
     pathname === "/admin-login" ||
     pathname === "/employee-login" ||
     pathname === "/customer-auth" ||
