@@ -7,32 +7,95 @@ import { useEffect, useMemo, useState } from "react";
 
 type JobRecord = {
   id: string;
-  client_name: string;
-  contact_name: string;
-  assigned_employee: string;
-  cleaning_date: string;
+  customer_id: string;
+  scheduled_date: string;
+  scheduled_start_time: string | null;
   status: string;
-  notes: string;
+  started_at: string | null;
+  completed_at: string | null;
+  signature_url: string | null;
+  signature_status: string | null;
+  assigned_employee_id: string | null;
+  estimated_value: number | null;
+};
+
+type TimeEntryRecord = {
+  id: string;
+  employee_id: string;
+  job_id: string | null;
+  clock_out_time: string | null;
+};
+
+type InvoiceRecord = {
+  id: string;
+  amount: number | null;
+  status: string | null;
+  due_date: string;
+  created_at: string;
+  payment_date: string | null;
+};
+
+type MileageRequestRecord = {
+  id: string;
+  status: string;
+};
+
+type JobPhotoRecord = {
+  id: string;
+  job_id: string;
+  photo_type: string;
 };
 
 type LateAlertRecord = {
   id: string;
+  employee_id: string;
   employee_name: string;
   customer_name: string;
-  scheduled_start_at: string;
-  grace_period_minutes: number;
   minutes_late: number;
-  status: "pending" | "acknowledged" | "resolved";
-  detected_at: string;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
+  status: string;
 };
 
-type DashboardStatsState = {
-  customersCount: number;
-  activeJobsCount: number;
-  monthlyRevenue: number;
-  pendingQuotesCount: number;
+type MetricCard = {
+  label: string;
+  value: string;
+  tone: string;
+};
+
+type AiAlert = {
+  id: string;
+  title: string;
+  description: string;
+  count: number;
+  severity: "high" | "medium" | "low";
+  href: string;
+};
+
+type HealthBreakdown = {
+  onTimeArrivals: number;
+  completedJobs: number;
+  photoCompliance: number;
+  signatureCompliance: number;
+  mileageApprovals: number;
+  invoiceHealth: number;
+};
+
+type DashboardState = {
+  loading: boolean;
+  metrics: {
+    employeesWorking: number;
+    employeesDriving: number;
+    lateEmployees: number;
+    jobsScheduledToday: number;
+    jobsInProgress: number;
+    jobsCompletedToday: number;
+    revenueToday: number;
+    pendingMileageApprovals: number;
+    outstandingInvoices: number;
+  };
+  healthScore: number;
+  healthLabel: string;
+  healthBreakdown: HealthBreakdown;
+  alerts: AiAlert[];
 };
 
 const navigationItems = [
@@ -47,146 +110,372 @@ const navigationItems = [
   { label: "Settings",   href: "/settings",                icon: "⚙" },
 ];
 
+const QUICK_ACTIONS = [
+  { label: "New Quote", href: "/quotes" },
+  { label: "Schedule Job", href: "/schedule" },
+  { label: "Assign Employee", href: "/employees" },
+  { label: "Review Mileage", href: "/reports" },
+  { label: "Generate Report", href: "/reports" },
+  { label: "Send Invoice", href: "/invoices" },
+];
+
+function isoDateValue(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .split("T")[0];
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function clampScore(value: number) {
+  if (Number.isNaN(value)) return 0;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function safeRatio(numerator: number, denominator: number) {
+  if (denominator <= 0) return 100;
+  return (numerator / denominator) * 100;
+}
+
+function scoreLabel(score: number) {
+  if (score >= 90) return "Excellent";
+  if (score >= 75) return "Strong";
+  if (score >= 60) return "Needs Attention";
+  return "Critical";
+}
+
+function normalizeStatus(status: string | null | undefined) {
+  return (status ?? "").trim().toLowerCase();
 }
 
 export default function Home() {
   const supabase = useMemo(() => createClient(), []);
-  const [stats, setStats] = useState<DashboardStatsState>({
-    customersCount: 0,
-    activeJobsCount: 0,
-    monthlyRevenue: 0,
-    pendingQuotesCount: 0,
+  const [dashboard, setDashboard] = useState<DashboardState>({
+    loading: true,
+    metrics: {
+      employeesWorking: 0,
+      employeesDriving: 0,
+      lateEmployees: 0,
+      jobsScheduledToday: 0,
+      jobsInProgress: 0,
+      jobsCompletedToday: 0,
+      revenueToday: 0,
+      pendingMileageApprovals: 0,
+      outstandingInvoices: 0,
+    },
+    healthScore: 0,
+    healthLabel: "Critical",
+    healthBreakdown: {
+      onTimeArrivals: 0,
+      completedJobs: 0,
+      photoCompliance: 0,
+      signatureCompliance: 0,
+      mileageApprovals: 0,
+      invoiceHealth: 0,
+    },
+    alerts: [],
   });
-  const [recentJobs, setRecentJobs] = useState<JobRecord[]>([]);
-  const [schedule, setSchedule] = useState<JobRecord[]>([]);
-  const [lateAlerts, setLateAlerts] = useState<LateAlertRecord[]>([]);
-  const [lateGraceMinutes, setLateGraceMinutes] = useState(15);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const syncAndLoadLateAlerts = async () => {
+    const loadDashboard = async () => {
       try {
         await supabase.rpc("sync_late_employee_alerts");
 
-        const [settingsResponse, alertsResponse] = await Promise.all([
+        const [
+          employeesResponse,
+          openTimeEntriesResponse,
+          jobsResponse,
+          invoicesResponse,
+          mileageResponse,
+          photosResponse,
+          lateAlertsResponse,
+        ] = await Promise.all([
           supabase
-            .from("settings")
-            .select("late_clock_in_grace_period_minutes")
-            .maybeSingle(),
+            .from("employees")
+            .select("id", { count: "exact", head: false })
+            .eq("is_active", true),
+          supabase
+            .from("time_entries")
+            .select("id,employee_id,job_id,clock_out_time")
+            .is("clock_out_time", null),
+          supabase
+            .from("jobs")
+            .select("id,customer_id,scheduled_date,scheduled_start_time,status,started_at,completed_at,signature_url,signature_status,assigned_employee_id,estimated_value")
+            .order("scheduled_date", { ascending: false })
+            .limit(500),
+          supabase
+            .from("invoices")
+            .select("id,amount,status,due_date,created_at,payment_date")
+            .order("created_at", { ascending: false })
+            .limit(500),
+          supabase
+            .from("mileage_requests")
+            .select("id,status")
+            .order("created_at", { ascending: false })
+            .limit(500),
+          supabase
+            .from("job_photos")
+            .select("id,job_id,photo_type")
+            .order("created_at", { ascending: false })
+            .limit(1000),
           supabase
             .from("late_employee_alerts")
-            .select("id,employee_name,customer_name,scheduled_start_at,grace_period_minutes,minutes_late,status,detected_at,acknowledged_at,resolved_at")
+            .select("id,employee_id,employee_name,customer_name,minutes_late,status")
             .neq("status", "resolved")
-            .order("scheduled_start_at", { ascending: true }),
+            .order("minutes_late", { ascending: false })
+            .limit(100),
         ]);
 
-        setLateGraceMinutes(settingsResponse.data?.late_clock_in_grace_period_minutes ?? 15);
-        setLateAlerts((alertsResponse.data ?? []) as LateAlertRecord[]);
+        const employeesCount = employeesResponse.count ?? 0;
+        const openTimeEntries = (openTimeEntriesResponse.data ?? []) as TimeEntryRecord[];
+        const jobs = (jobsResponse.data ?? []) as JobRecord[];
+        const invoices = (invoicesResponse.data ?? []) as InvoiceRecord[];
+        const mileageRequests = (mileageResponse.data ?? []) as MileageRequestRecord[];
+        const photos = (photosResponse.data ?? []) as JobPhotoRecord[];
+        const lateAlerts = (lateAlertsResponse.data ?? []) as LateAlertRecord[];
+
+        const today = isoDateValue();
+        const openDrivingEmployees = new Set(
+          openTimeEntries.filter((entry) => !entry.job_id).map((entry) => entry.employee_id),
+        );
+        const openWorkingEmployees = new Set(
+          openTimeEntries.filter((entry) => !!entry.job_id).map((entry) => entry.employee_id),
+        );
+
+        const jobsToday = jobs.filter((job) => job.scheduled_date === today);
+        const inProgressJobs = jobs.filter((job) => normalizeStatus(job.status) === "in progress");
+        const completedTodayJobs = jobs.filter((job) => {
+          if (job.completed_at) {
+            return job.completed_at.startsWith(today);
+          }
+          return normalizeStatus(job.status) === "completed" && job.scheduled_date === today;
+        });
+
+        const paidTodayRevenue = invoices.reduce((sum, invoice) => {
+          if (normalizeStatus(invoice.status) !== "paid") return sum;
+          const paidDate = invoice.payment_date ? invoice.payment_date.slice(0, 10) : invoice.created_at.slice(0, 10);
+          if (paidDate !== today) return sum;
+          return sum + Number(invoice.amount ?? 0);
+        }, 0);
+
+        const pendingMileageApprovals = mileageRequests.filter(
+          (request) => normalizeStatus(request.status) === "pending",
+        ).length;
+
+        const outstandingInvoices = invoices.filter(
+          (invoice) => normalizeStatus(invoice.status) !== "paid",
+        ).length;
+
+        const beforePhotoJobs = new Set(
+          photos
+            .filter((photo) => normalizeStatus(photo.photo_type) === "before")
+            .map((photo) => photo.job_id),
+        );
+        const afterPhotoJobs = new Set(
+          photos
+            .filter((photo) => normalizeStatus(photo.photo_type) === "after")
+            .map((photo) => photo.job_id),
+        );
+
+        const jobsNeedingBeforePhoto = jobs.filter(
+          (job) => !!job.started_at || normalizeStatus(job.status) === "in progress" || normalizeStatus(job.status) === "completed",
+        );
+        const missingBeforePhotosCount = jobsNeedingBeforePhoto.filter(
+          (job) => !beforePhotoJobs.has(job.id),
+        ).length;
+
+        const missingAfterPhotosCount = completedTodayJobs.filter(
+          (job) => !afterPhotoJobs.has(job.id),
+        ).length;
+
+        const missingSignaturesCount = completedTodayJobs.filter((job) => {
+          const signatureStatus = normalizeStatus(job.signature_status);
+          return signatureStatus !== "signed" && !job.signature_url;
+        }).length;
+
+        const customerUnavailableCount = jobsToday.filter(
+          (job) => normalizeStatus(job.signature_status) === "unavailable",
+        ).length;
+
+        const overdueInvoicesCount = invoices.filter((invoice) => {
+          const status = normalizeStatus(invoice.status);
+          return status !== "paid" && invoice.due_date < today;
+        }).length;
+
+        const lateEmployees = new Set(lateAlerts.map((alert) => alert.employee_id));
+
+        const onTimeArrivalsScore = clampScore(
+          safeRatio(Math.max(0, jobsToday.length - lateAlerts.length), jobsToday.length),
+        );
+        const completedJobsScore = clampScore(
+          safeRatio(completedTodayJobs.length, jobsToday.length),
+        );
+
+        const totalRequiredPhotos = completedTodayJobs.length * 2;
+        const capturedRequiredPhotos = completedTodayJobs.reduce((count, job) => {
+          const hasBefore = beforePhotoJobs.has(job.id) ? 1 : 0;
+          const hasAfter = afterPhotoJobs.has(job.id) ? 1 : 0;
+          return count + hasBefore + hasAfter;
+        }, 0);
+        const photoComplianceScore = clampScore(safeRatio(capturedRequiredPhotos, totalRequiredPhotos));
+
+        const signedCompletedJobs = completedTodayJobs.filter((job) => {
+          const signatureStatus = normalizeStatus(job.signature_status);
+          return signatureStatus === "signed" || !!job.signature_url;
+        }).length;
+        const signatureComplianceScore = clampScore(
+          safeRatio(signedCompletedJobs, completedTodayJobs.length),
+        );
+
+        const approvedMileage = mileageRequests.filter(
+          (request) => normalizeStatus(request.status) === "approved",
+        ).length;
+        const mileageApprovalsScore = clampScore(
+          safeRatio(approvedMileage, mileageRequests.length),
+        );
+
+        const paidInvoices = invoices.filter((invoice) => normalizeStatus(invoice.status) === "paid").length;
+        const invoiceHealthScore = clampScore(safeRatio(paidInvoices, invoices.length));
+
+        const healthBreakdown: HealthBreakdown = {
+          onTimeArrivals: onTimeArrivalsScore,
+          completedJobs: completedJobsScore,
+          photoCompliance: photoComplianceScore,
+          signatureCompliance: signatureComplianceScore,
+          mileageApprovals: mileageApprovalsScore,
+          invoiceHealth: invoiceHealthScore,
+        };
+
+        const healthScore = clampScore(
+          (healthBreakdown.onTimeArrivals +
+            healthBreakdown.completedJobs +
+            healthBreakdown.photoCompliance +
+            healthBreakdown.signatureCompliance +
+            healthBreakdown.mileageApprovals +
+            healthBreakdown.invoiceHealth) / 6,
+        );
+
+        const alerts: AiAlert[] = [
+          {
+            id: "late-employees",
+            title: "Late employees",
+            description: "Assigned employees have not clocked in within the grace window.",
+            count: lateAlerts.length,
+            severity: "high",
+            href: "/schedule",
+          },
+          {
+            id: "missing-before",
+            title: "Missing before photos",
+            description: "Jobs in motion are missing required pre-service photos.",
+            count: missingBeforePhotosCount,
+            severity: "medium",
+            href: "/jobs",
+          },
+          {
+            id: "missing-after",
+            title: "Missing after photos",
+            description: "Completed jobs today are missing after photos.",
+            count: missingAfterPhotosCount,
+            severity: "medium",
+            href: "/jobs",
+          },
+          {
+            id: "missing-signatures",
+            title: "Missing signatures",
+            description: "Completed jobs today still need customer signature verification.",
+            count: missingSignaturesCount,
+            severity: "high",
+            href: "/jobs",
+          },
+          {
+            id: "customer-unavailable",
+            title: "Customer unavailable",
+            description: "Jobs marked unavailable may require follow-up communication.",
+            count: customerUnavailableCount,
+            severity: "low",
+            href: "/jobs",
+          },
+          {
+            id: "mileage-awaiting",
+            title: "Mileage awaiting approval",
+            description: "Mileage requests are pending supervisor review.",
+            count: pendingMileageApprovals,
+            severity: "medium",
+            href: "/reports",
+          },
+          {
+            id: "overdue-invoices",
+            title: "Overdue invoices",
+            description: "Open invoices are past due and need collection actions.",
+            count: overdueInvoicesCount,
+            severity: "high",
+            href: "/invoices",
+          },
+        ];
+
+        setDashboard({
+          loading: false,
+          metrics: {
+            employeesWorking: openWorkingEmployees.size,
+            employeesDriving: openDrivingEmployees.size,
+            lateEmployees: lateEmployees.size,
+            jobsScheduledToday: jobsToday.length,
+            jobsInProgress: inProgressJobs.length,
+            jobsCompletedToday: completedTodayJobs.length,
+            revenueToday: paidTodayRevenue,
+            pendingMileageApprovals,
+            outstandingInvoices,
+          },
+          healthScore,
+          healthLabel: scoreLabel(healthScore),
+          healthBreakdown,
+          alerts,
+        });
       } catch (error) {
-        console.error("Failed to load late alerts:", error);
-        setLateGraceMinutes(15);
-        setLateAlerts([]);
+        console.error("Failed to load supervisor dashboard:", error);
+        setDashboard((previous) => ({
+          ...previous,
+          loading: false,
+        }));
       }
     };
 
-    const fetchDashboardData = async () => {
-      setLoading(true);
-
-      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-
-      const [customersResponse, quotesResponse, jobsResponse, invoicesResponse] = await Promise.all([
-        supabase.from("customers").select("id", { count: "exact", head: true }),
-        supabase.from("quotes").select("id", { count: "exact", head: true }),
-        supabase.from("jobs").select("*").order("cleaning_date", { ascending: true }),
-        supabase.from("invoices").select("amount").gte("created_at", startOfMonth),
-      ]);
-
-      const jobs = jobsResponse.data ?? [];
-      const upcomingJobs = jobs
-        .filter((job) => job.status !== "Completed")
-        .sort((a, b) => (a.cleaning_date > b.cleaning_date ? 1 : -1))
-        .slice(0, 3);
-      const recentJobList = jobs
-        .slice()
-        .sort((a, b) => (a.cleaning_date > b.cleaning_date ? -1 : 1))
-        .slice(0, 3);
-      const monthlyRevenue = (invoicesResponse.data ?? []).reduce(
-        (sum, invoice) => sum + Number(invoice.amount ?? 0),
-        0,
-      );
-
-      setStats({
-        customersCount: customersResponse.count ?? 0,
-        activeJobsCount: jobs.filter((job) => job.status !== "Completed").length,
-        monthlyRevenue,
-        pendingQuotesCount: quotesResponse.count ?? 0,
-      });
-      setRecentJobs(recentJobList);
-      setSchedule(upcomingJobs);
-      await syncAndLoadLateAlerts();
-      setLoading(false);
-    };
-
-    fetchDashboardData();
+    loadDashboard();
 
     const refreshInterval = setInterval(() => {
-      void syncAndLoadLateAlerts();
+      void loadDashboard();
     }, 60_000);
 
     return () => clearInterval(refreshInterval);
   }, [supabase]);
 
-  const cards = useMemo(
-    () => [
-      {
-        title: "Total Customers",
-        value: stats.customersCount.toString(),
-        change: "+ live records",
-        accent: "bg-blue-600",
-      },
-      {
-        title: "Active Jobs",
-        value: stats.activeJobsCount.toString(),
-        change: "scheduled or in progress",
-        accent: "bg-cyan-500",
-      },
-      {
-        title: "Monthly Revenue",
-        value: formatCurrency(stats.monthlyRevenue),
-        change: "current month",
-        accent: "bg-sky-500",
-      },
-      {
-        title: "Pending Quotes",
-        value: stats.pendingQuotesCount.toString(),
-        change: "saved in Supabase",
-        accent: "bg-indigo-500",
-      },
-    ],
-    [stats],
-  );
+  const cards: MetricCard[] = [
+    { label: "Employees Working", value: dashboard.metrics.employeesWorking.toString(), tone: "text-cyan-700" },
+    { label: "Employees Driving", value: dashboard.metrics.employeesDriving.toString(), tone: "text-sky-700" },
+    { label: "Late Employees", value: dashboard.metrics.lateEmployees.toString(), tone: "text-rose-700" },
+    { label: "Jobs Scheduled Today", value: dashboard.metrics.jobsScheduledToday.toString(), tone: "text-slate-800" },
+    { label: "Jobs In Progress", value: dashboard.metrics.jobsInProgress.toString(), tone: "text-teal-700" },
+    { label: "Jobs Completed Today", value: dashboard.metrics.jobsCompletedToday.toString(), tone: "text-emerald-700" },
+    { label: "Revenue Today", value: formatCurrency(dashboard.metrics.revenueToday), tone: "text-emerald-700" },
+    { label: "Pending Mileage Approvals", value: dashboard.metrics.pendingMileageApprovals.toString(), tone: "text-amber-700" },
+    { label: "Outstanding Invoices", value: dashboard.metrics.outstandingInvoices.toString(), tone: "text-orange-700" },
+  ];
+
+  const highPriorityAlerts = dashboard.alerts.filter((alert) => alert.severity === "high" && alert.count > 0).length;
+  const totalOpenAlerts = dashboard.alerts.reduce((sum, alert) => sum + alert.count, 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#e8f5ff_0%,#f8fbff_55%,#f5f8ff_100%)] text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="w-full border-b border-slate-200 bg-white/90 px-5 py-6 backdrop-blur lg:w-64 lg:border-b-0 lg:border-r lg:px-6">
-          <ServiceFlowBrand subtitle="Operations Hub" />
+        <aside className="w-full border-b border-slate-200/80 bg-white/80 px-5 py-6 backdrop-blur lg:w-64 lg:border-b-0 lg:border-r lg:px-6">
+          <ServiceFlowBrand subtitle="ServiceOS" />
 
           <nav className="mt-8 space-y-1">
             {navigationItems.map((item) => (
@@ -195,7 +484,7 @@ export default function Home() {
                 href={item.href}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                   item.active
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? "bg-slate-900 text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
@@ -207,293 +496,175 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <p className="text-sm font-medium text-blue-600">Welcome back</p>
-              <h1 className="text-2xl font-semibold text-slate-900">
-                Commercial cleaning overview
-              </h1>
+              <p className="text-sm font-medium text-sky-700">Welcome header</p>
+              <h1 className="text-2xl font-semibold text-slate-900">ServiceOS AI Supervisor Dashboard v1</h1>
+              <p className="mt-1 text-sm text-slate-600">Operate with Confidence.</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
-                href="/customer-auth"
-                className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 transition hover:bg-emerald-100"
-              >
-                → Customer Portal
-              </Link>
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-                <span>⌕</span>
-                <input
-                  className="w-full bg-transparent outline-none sm:w-48"
-                  placeholder="Search"
-                  aria-label="Search"
-                />
-              </label>
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600"
-                aria-label="Notifications"
-              >
-                🔔
-              </button>
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700">
-                  AJ
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 font-semibold text-sky-700">
+                  AI
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Alicia James</p>
-                  <p className="text-xs text-slate-500">Operations Lead</p>
+                  <p className="text-sm font-semibold text-slate-900">Supervisor Agent</p>
+                  <p className="text-xs text-slate-500">Live operational analysis</p>
                 </div>
               </div>
             </div>
           </header>
 
-          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="mt-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500">AI Supervisor Summary Card</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-900">
+                  {dashboard.loading ? "Calculating live operations..." : `${totalOpenAlerts} active alerts across field operations`}
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  {dashboard.loading
+                    ? "Syncing jobs, teams, photo workflow, mileage, and invoice signals from Supabase."
+                    : `${highPriorityAlerts} high-priority risks detected. Business Health is ${dashboard.healthScore}/100 (${dashboard.healthLabel}).`}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm text-slate-100">
+                Live data refreshes every 60 seconds
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {cards.map((item) => (
               <div
-                key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                key={item.label}
+                className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm"
               >
-                <div className={`mb-4 h-2.5 w-16 rounded-full ${item.accent}`} />
-                <p className="text-sm text-slate-500">{item.title}</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">
+                <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
+                <p className={`mt-2 text-3xl font-semibold ${item.tone}`}>
                   {item.value}
                 </p>
-                <p className="mt-2 text-sm text-slate-500">{item.change}</p>
+                {dashboard.loading ? <p className="mt-2 text-sm text-slate-400">Loading...</p> : null}
               </div>
             ))}
           </section>
 
-          <section className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-            <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-blue-600 to-sky-500 p-6 text-white shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-100">Today’s focus</p>
-                  <h2 className="mt-1 text-2xl font-semibold">
-                    {stats.activeJobsCount} jobs are currently in motion
-                  </h2>
-                </div>
-                <div className="rounded-2xl bg-white/15 px-3 py-2 text-sm">
-                  Live CRM data
-                </div>
-              </div>
-              <p className="mt-4 max-w-xl text-sm text-blue-50">
-                Review active jobs, crew assignments, and upcoming services directly from Supabase.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">Upcoming schedule</h3>
-                <span className="text-sm text-slate-500">Next visits</span>
-              </div>
-              <div className="mt-4 space-y-3">
-                {loading ? (
-                  <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">Loading schedule...</div>
-                ) : schedule.length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">No upcoming jobs yet.</div>
-                ) : (
-                  schedule.map((item) => (
-                    <div key={item.id} className="rounded-2xl bg-slate-50 p-3">
-                      <p className="font-medium text-slate-900">{item.client_name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{item.cleaning_date}</p>
-                      <p className="mt-1 text-sm font-medium text-blue-600">
-                        {item.assigned_employee || "Unassigned"}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-6 rounded-3xl border border-rose-200 bg-white p-6 shadow-sm">
+          <section className="mt-6 rounded-3xl border border-rose-200/70 bg-white/95 p-6 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-rose-600">Supervisor only</p>
-                <h3 className="text-lg font-semibold text-slate-900">Late employee alerts</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Employees who have not clocked in within {lateGraceMinutes} minutes of their scheduled start time.
-                </p>
+                <p className="text-sm font-medium text-rose-600">AI Alerts</p>
+                <h3 className="text-lg font-semibold text-slate-900">Rule-based operational alerts</h3>
+                <p className="mt-1 text-sm text-slate-500">Generated from live jobs, photos, signatures, mileage, and invoices.</p>
               </div>
               <div className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">
-                {lateAlerts.length} active {lateAlerts.length === 1 ? "alert" : "alerts"}
+                {dashboard.alerts.filter((alert) => alert.count > 0).length} active categories
               </div>
             </div>
 
-            {loading ? (
-              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading late alerts...</div>
-            ) : lateAlerts.length === 0 ? (
+            {dashboard.loading ? (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading AI alerts...</div>
+            ) : dashboard.alerts.every((alert) => alert.count === 0) ? (
               <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                No late employee alerts right now.
+                No active alerts right now. Operations are currently stable.
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                {lateAlerts.map((alert) => (
-                  <div key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{alert.employee_name}</p>
-                        <p className="mt-1 text-sm text-slate-600">{alert.customer_name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Scheduled start: {formatDateTime(alert.scheduled_start_at)}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          Detected {formatDateTime(alert.detected_at)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col items-start gap-3 lg:items-end">
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {dashboard.alerts
+                  .filter((alert) => alert.count > 0)
+                  .map((alert) => (
+                    <Link
+                      key={alert.id}
+                      href={alert.href}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{alert.title}</p>
+                          <p className="mt-1 text-sm text-slate-600">{alert.description}</p>
+                        </div>
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                            alert.status === "acknowledged"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-rose-100 text-rose-700"
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${
+                            alert.severity === "high"
+                              ? "bg-rose-100 text-rose-700"
+                              : alert.severity === "medium"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-sky-100 text-sky-700"
                           }`}
                         >
-                          {alert.status}
+                          {alert.severity}
                         </span>
-                        <p className="text-2xl font-semibold text-rose-600">{alert.minutes_late} min late</p>
-                        <div className="flex flex-wrap gap-2">
-                          {alert.status === "pending" ? (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const { data: userData } = await supabase.auth.getUser();
-                                const acknowledgedAt = new Date().toISOString();
-                                const { error } = await supabase
-                                  .from("late_employee_alerts")
-                                  .update({
-                                    status: "acknowledged",
-                                    acknowledged_at: acknowledgedAt,
-                                    acknowledged_by: userData.user?.id ?? null,
-                                  })
-                                  .eq("id", alert.id);
-
-                                if (error) {
-                                  console.error("Failed to acknowledge alert:", error);
-                                  return;
-                                }
-
-                                setLateAlerts((current) =>
-                                  current.map((item) =>
-                                    item.id === alert.id
-                                      ? {
-                                          ...item,
-                                          status: "acknowledged",
-                                          acknowledged_at: acknowledgedAt,
-                                        }
-                                      : item,
-                                  ),
-                                );
-                              }}
-                              className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-200"
-                            >
-                              Acknowledge
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const { data: userData } = await supabase.auth.getUser();
-                              const resolvedAt = new Date().toISOString();
-                              const { error } = await supabase
-                                .from("late_employee_alerts")
-                                .update({
-                                  status: "resolved",
-                                  resolved_at: resolvedAt,
-                                  resolved_by: userData.user?.id ?? null,
-                                })
-                                .eq("id", alert.id);
-
-                              if (error) {
-                                console.error("Failed to resolve alert:", error);
-                                return;
-                              }
-
-                              setLateAlerts((current) => current.filter((item) => item.id !== alert.id));
-                            }}
-                            className="rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200"
-                          >
-                            Resolve
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                      <p className="mt-3 text-3xl font-semibold text-slate-900">{alert.count}</p>
+                    </Link>
+                  ))}
               </div>
             )}
           </section>
 
-          <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">Recent jobs</h3>
-                <Link href="/jobs" className="text-sm font-medium text-blue-600">
-                  View all
-                </Link>
+          <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
+            <div className="rounded-3xl border border-emerald-200/70 bg-white/95 p-6 shadow-sm">
+              <p className="text-sm font-medium text-emerald-700">Business Health</p>
+              <div className="mt-2 flex items-end gap-2">
+                <p className="text-4xl font-semibold text-slate-900">{dashboard.healthScore}/100</p>
+                <p className="pb-1 text-sm font-semibold text-slate-600">{dashboard.healthLabel}</p>
               </div>
-              <div className="mt-4 space-y-3">
-                {loading ? (
-                  <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">Loading jobs...</div>
-                ) : recentJobs.length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">No recent jobs yet.</div>
-                ) : (
-                  recentJobs.map((job) => (
-                    <div
-                      key={job.id}
-                      className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-900">{job.client_name}</p>
-                        <p className="text-sm text-slate-500">{job.status}</p>
-                      </div>
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-                        {job.cleaning_date}
-                      </span>
+
+              <div className="mt-5 space-y-4">
+                {[
+                  ["On-time arrivals", dashboard.healthBreakdown.onTimeArrivals],
+                  ["Completed jobs", dashboard.healthBreakdown.completedJobs],
+                  ["Photo compliance", dashboard.healthBreakdown.photoCompliance],
+                  ["Signature compliance", dashboard.healthBreakdown.signatureCompliance],
+                  ["Mileage approvals", dashboard.healthBreakdown.mileageApprovals],
+                  ["Invoice health", dashboard.healthBreakdown.invoiceHealth],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <div className="mb-1 flex items-center justify-between text-sm">
+                      <span className="text-slate-600">{label}</span>
+                      <span className="font-semibold text-slate-900">{value}%</span>
                     </div>
-                  ))
-                )}
+                    <div className="h-2 rounded-full bg-slate-100">
+                      <div
+                        className="h-2 rounded-full bg-emerald-500 transition-all"
+                        style={{ width: `${value}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">Performance snapshot</h3>
-              <div className="mt-5 space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">On-time completion</span>
-                    <span className="font-semibold text-slate-900">94%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 w-[94%] rounded-full bg-blue-600" />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Customer satisfaction</span>
-                    <span className="font-semibold text-slate-900">4.9/5</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 w-[98%] rounded-full bg-cyan-500" />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Quote conversion</span>
-                    <span className="font-semibold text-slate-900">67%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 w-[67%] rounded-full bg-indigo-500" />
-                  </div>
-                </div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
+              <p className="mt-1 text-sm text-slate-500">Jump to the next best operational task.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {QUICK_ACTIONS.map((action) => (
+                  <Link
+                    key={action.label}
+                    href={action.href}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                  >
+                    {action.label}
+                  </Link>
+                ))}
               </div>
             </div>
+          </section>
+
+          <section className="mt-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 text-sm text-slate-600 shadow-sm">
+            <p>
+              Employees tracked today: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : dashboard.metrics.employeesWorking + dashboard.metrics.employeesDriving}</span>
+              {" · "}
+              Live employee records: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : employeesCountForFooter(cards, dashboard.metrics)}</span>
+            </p>
           </section>
         </main>
       </div>
     </div>
   );
+}
+
+function employeesCountForFooter(_cards: MetricCard[], metrics: DashboardState["metrics"]) {
+  return metrics.employeesWorking + metrics.employeesDriving;
 }
