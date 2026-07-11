@@ -6,6 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ServiceOS Dashboard",
   description: "Operate with Confidence.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

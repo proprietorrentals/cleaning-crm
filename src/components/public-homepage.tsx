@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { PublicSiteNav } from "@/components/public-site-nav";
+import { PublicSiteFooter } from "@/components/public-site-footer";
 
 const featureCards = [
   {
@@ -64,22 +65,7 @@ const flowSteps = ["Lead", "Quote", "Schedule", "Complete Job", "Report", "Invoi
 export function PublicHomepage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#dbeafe_0%,#f8fbff_35%,#f5f8fc_100%)] text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-blue-100/70 bg-white/85 backdrop-blur">
-        <nav aria-label="Primary" className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <ServiceOSBrand showTagline />
-          </Link>
-          <ul className="hidden items-center gap-6 text-sm font-medium text-slate-700 lg:flex">
-            <li><a href="#home" className="hover:text-blue-700">Home</a></li>
-            <li><a href="#features" className="hover:text-blue-700">Features</a></li>
-            <li><a href="#ai-supervisor" className="hover:text-blue-700">AI Supervisor</a></li>
-            <li><a href="#pricing" className="hover:text-blue-700">Pricing</a></li>
-            <li><Link href="/explore" className="hover:text-blue-700">Explore Demo</Link></li>
-            <li><a href="#contact" className="hover:text-blue-700">Contact</a></li>
-            <li><Link href="/login" className="hover:text-blue-700">Login</Link></li>
-          </ul>
-        </nav>
-      </header>
+      <PublicSiteNav active="home" />
 
       <main id="home" className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8 lg:pt-16">
         <section className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr]">
@@ -165,7 +151,7 @@ export function PublicHomepage() {
           </p>
         </section>
 
-        <section className="mt-20">
+        <section className="mt-20" aria-label="Workflow">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">How It Works</p>
           <h2 className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">Lead to revenue in one connected flow</h2>
           <div className="mt-6 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-700">
@@ -175,6 +161,25 @@ export function PublicHomepage() {
                 {index < flowSteps.length - 1 ? <span aria-hidden="true" className="text-blue-700">→</span> : null}
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="mt-20 rounded-3xl border border-slate-200 bg-white p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Portals</p>
+          <h2 className="mt-2 text-3xl font-semibold text-slate-950">Connected experiences for every role</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <h3 className="text-lg font-semibold text-slate-900">Admin Portal</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Run operations, approvals, billing, and AI oversight from a central dashboard.</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <h3 className="text-lg font-semibold text-slate-900">Employee Portal</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Track assigned jobs, capture before/after photos, signatures, and mileage activity in the field.</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <h3 className="text-lg font-semibold text-slate-900">Customer Portal</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Review quotes, monitor job progress, view invoices, and complete Stripe payments securely.</p>
+            </article>
           </div>
         </section>
 
@@ -192,7 +197,7 @@ export function PublicHomepage() {
           </div>
         </section>
 
-        <section id="pricing" className="mt-20 rounded-3xl border border-blue-200 bg-blue-700 p-8 text-blue-50">
+        <section className="mt-20 rounded-3xl border border-blue-200 bg-blue-700 p-8 text-blue-50">
           <h2 className="text-3xl font-semibold">Operate with Confidence.</h2>
           <p className="mt-3 max-w-2xl text-blue-100">
             Start with a free trial, explore the live demo, and see how ServiceOS can simplify your full operation.
@@ -205,6 +210,12 @@ export function PublicHomepage() {
               Start Free Trial
             </Link>
             <Link
+              href="/pricing"
+              className="inline-flex items-center justify-center rounded-xl border border-blue-100 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              View Pricing
+            </Link>
+            <Link
               href="/explore"
               className="inline-flex items-center justify-center rounded-xl border border-blue-100 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
@@ -213,17 +224,7 @@ export function PublicHomepage() {
           </div>
         </section>
       </main>
-
-      <footer id="contact" className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <p>ServiceOS marketing homepage</p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/explore" className="hover:text-blue-700">Explore Demo</Link>
-            <Link href="/login" className="hover:text-blue-700">Login</Link>
-            <Link href="/admin-login" className="hover:text-blue-700">Contact</Link>
-          </div>
-        </div>
-      </footer>
+      <PublicSiteFooter />
     </div>
   );
 }
