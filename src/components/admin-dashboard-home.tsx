@@ -69,6 +69,26 @@ type AiAlert = {
   href: string;
 };
 
+type RecommendationCard = {
+  title: string;
+  detail: string;
+  href: string;
+  priority: "high" | "medium" | "low";
+};
+
+type ForecastCard = {
+  label: string;
+  value: string;
+  detail: string;
+  tone: string;
+};
+
+type HealthSlice = {
+  label: string;
+  score: number;
+  tone: string;
+};
+
 type HealthBreakdown = {
   onTimeArrivals: number;
   completedJobs: number;
@@ -116,12 +136,14 @@ type DashboardState = {
   healthLabel: string;
   healthBreakdown: HealthBreakdown;
   alerts: AiAlert[];
-  recommendations: string[];
+  recommendations: RecommendationCard[];
   dailyBrief: {
     greeting: string;
     lines: string[];
     recommendation: string;
   };
+  forecasts: ForecastCard[];
+  healthSlices: HealthSlice[];
   trends: {
     revenue: TrendPoint[];
     jobs: TrendPoint[];
@@ -195,6 +217,123 @@ function scoreLabel(score: number) {
   if (score >= 75) return "Strong";
   if (score >= 60) return "Needs Attention";
   return "Critical";
+}
+
+function priorityWeight(priority: RecommendationCard["priority"]) {
+  if (priority === "high") return 3;
+  if (priority === "medium") return 2;
+  return 1;
+}
+
+function dashboardMetricsProductivityLabel(completedJobs: number, activeEmployees: number) {
+  if (activeEmployees <= 0) return "0.0";
+  return (completedJobs / activeEmployees).toFixed(1);
+}
+
+function missingSignatureCountCards(count: number, job: JobRecord | undefined): RecommendationCard[] {
+  if (count <= 0) return [];
+  return [
+    {
+      title: "Resolve missing signatures",
+      detail: job
+        ? `${count} job${count === 1 ? "" : "s"} still need a signature before invoicing.`
+        : `${count} completed job${count === 1 ? "" : "s"} still need signature capture before invoicing.`,
+      href: "/jobs",
+      priority: "high",
+    },
+  ];
+}
+
+function missingPhotoCountCards(beforeCount: number, afterCount: number): RecommendationCard[] {
+  const cards: RecommendationCard[] = [];
+  const totalMissing = beforeCount + afterCount;
+  if (beforeCount > 0) {
+    cards.push({
+      title: "Capture missing before photos",
+      detail: `${beforeCount} job${beforeCount === 1 ? "" : "s"} are missing required pre-service photos.`,
+      href: "/jobs",
+      priority: "medium",
+    });
+  }
+  if (afterCount > 0) {
+    cards.push({
+      title: "Capture missing after photos",
+      detail: `${afterCount} completed job${afterCount === 1 ? "" : "s"} still need post-service photos.`,
+      href: "/jobs",
+      priority: "medium",
+    });
+  }
+  if (totalMissing === 0) return [];
+  return cards;
+}
+
+function overdueInvoiceCountCards(count: number): RecommendationCard[] {
+  if (count <= 0) return [];
+  return [
+    {
+      title: "Collect overdue invoices",
+      detail: `${count} open invoice${count === 1 ? " is" : "s are"} past due and ready for follow-up.`,
+      href: "/invoices",
+      priority: "high",
+    },
+  ];
+}
+
+function lateEmployeeCountCards(count: number): RecommendationCard[] {
+  if (count <= 0) return [];
+  return [
+    {
+      title: "Review late employee schedule",
+      detail: `${count} employee${count === 1 ? "" : "s"} are flagged in the current late alert queue.`,
+      href: "/schedule",
+      priority: "medium",
+    },
+  ];
+}
+
+function mileageApprovalCountCards(count: number): RecommendationCard[] {
+  if (count <= 0) return [];
+  return [
+    {
+      title: "Approve mileage requests",
+      detail: `${count} mileage request${count === 1 ? "" : "s"} are waiting for supervisor review.`,
+      href: "/reports",
+      priority: "medium",
+    },
+  ];
+}
+
+function customerFollowUpCountCards(count: number, hint: string): RecommendationCard[] {
+  if (count <= 0 && !hint) return [];
+  return [
+    {
+      title: "Follow up on customer activity",
+      detail: count > 0 ? `${count} customer${count === 1 ? "" : "s"} may need follow-up communication.` : hint,
+      href: "/customers",
+      priority: "low",
+    },
+  ];
+}
+
+function topPerformerCards(topEmployeeJobs: number, previousWeekRevenue: number, projectedIncrease: number): RecommendationCard[] {
+  const cards: RecommendationCard[] = [];
+  if (topEmployeeJobs > 0) {
+    cards.push({
+      title: "Celebrate top-performing employee",
+      detail: `One employee completed ${topEmployeeJobs} job${topEmployeeJobs === 1 ? "" : "s"} this month with strong consistency.`,
+      href: "/employees",
+      priority: "low",
+    });
+  }
+  if (previousWeekRevenue > 0) {
+    cards.push({
+      title: "Review revenue trend",
+      detail: `Revenue is projected to ${projectedIncrease >= 0 ? "exceed" : "trail"} last week by ${Math.abs(projectedIncrease)}%.`,
+      href: "/reports",
+      priority: projectedIncrease >= 0 ? "low" : "medium",
+    });
+  }
+  return cards;
 }
 
 function normalizeStatus(status: string | null | undefined) {
@@ -496,6 +635,8 @@ export function AdminDashboardHome() {
     },
     alerts: [],
     recommendations: [],
+    forecasts: [],
+    healthSlices: [],
     dailyBrief: {
       greeting: "Good Evening, Operator.",
       lines: [],
@@ -804,13 +945,26 @@ export function AdminDashboardHome() {
         const satisfactionLine =
           signatureComplianceScore >= 90 ? "Customer satisfaction remains excellent." : "Customer satisfaction needs follow-up on signature completion.";
 
+        const revenueHealth = clampScore(safeRatio(revenueWeek, revenueMonth || revenueWeek || 1));
+        const customerSatisfactionHealth = clampScore((onTimeArrivalsScore + signatureComplianceScore) / 2);
+        const healthSlices: HealthSlice[] = [
+          { label: "Revenue", score: revenueHealth, tone: "bg-blue-600" },
+          { label: "Job Completion", score: completedJobsScore, tone: "bg-emerald-600" },
+          { label: "Customer Satisfaction", score: customerSatisfactionHealth, tone: "bg-cyan-600" },
+          { label: "Photo Compliance", score: photoComplianceScore, tone: "bg-violet-600" },
+          { label: "Signature Compliance", score: signatureComplianceScore, tone: "bg-amber-600" },
+          { label: "Invoice Collection", score: invoiceHealthScore, tone: "bg-rose-600" },
+        ];
+
         const dailyBrief = {
           greeting: `${greetingForHour(now.getHours())}, ${operatorName}.`,
           lines: [
             `${completedTodayJobs.length} jobs completed`,
             `Revenue ${formatCurrency(paidTodayRevenue)}`,
             `${missingSignaturesCount} missing signature${missingSignaturesCount === 1 ? "" : "s"}`,
+            `${missingBeforePhotosCount + missingAfterPhotosCount} missing photo${missingBeforePhotosCount + missingAfterPhotosCount === 1 ? "" : "s"}`,
             `${outstandingInvoices} invoice${outstandingInvoices === 1 ? "" : "s"} still unpaid`,
+            `Employee productivity averages ${dashboardMetricsProductivityLabel(completedTodayJobs.length, activeEmployees)} jobs per employee.`,
             satisfactionLine,
           ],
           recommendation: missingSignatureJob
@@ -818,14 +972,35 @@ export function AdminDashboardHome() {
             : "Review overdue invoices and follow up with top-value customers.",
         };
 
-        const recommendations = [
-          topEmployeeJobs > 0
-            ? `Top performer completed ${topEmployeeJobs} jobs this month with strong consistency.`
-            : "No top performer signal yet. Complete more jobs to unlock productivity ranking.",
-          previousWeekRevenue > 0
-            ? `Revenue is projected to ${projectedIncrease >= 0 ? "exceed" : "trail"} last week by ${Math.abs(projectedIncrease)}%.`
-            : "Revenue baseline is building. Continue invoicing quickly after job completion.",
-          staleCustomerHint,
+        const recommendations: RecommendationCard[] = [
+          ...(missingSignatureCountCards(missingSignaturesCount, missingSignatureJob)),
+          ...(missingPhotoCountCards(missingBeforePhotosCount, missingAfterPhotosCount)),
+          ...(overdueInvoiceCountCards(overdueInvoicesCount)),
+          ...(lateEmployeeCountCards(lateAlerts.length)),
+          ...(mileageApprovalCountCards(pendingMileageApprovals)),
+          ...(customerFollowUpCountCards(customerUnavailableCount, staleCustomerHint)),
+          ...(topPerformerCards(topEmployeeJobs, previousWeekRevenue, projectedIncrease)),
+        ].sort((left, right) => priorityWeight(right.priority) - priorityWeight(left.priority));
+
+        const forecasts: ForecastCard[] = [
+          {
+            label: "Expected Revenue Today",
+            value: formatCurrency(Math.max(paidTodayRevenue, Math.round(revenueWeek / 7))),
+            detail: "Placeholder forecast based on current weekly revenue patterns.",
+            tone: "text-emerald-700",
+          },
+          {
+            label: "Expected Jobs",
+            value: Math.max(jobsToday.length, Math.round(jobsThisWeek.length / 7)).toString(),
+            detail: "Placeholder forecast derived from current job cadence.",
+            tone: "text-blue-700",
+          },
+          {
+            label: "Completion Forecast",
+            value: `${clampScore((completionRate + healthScore) / 2)}%`,
+            detail: "Placeholder forecast blending live completion and health signals.",
+            tone: "text-violet-700",
+          },
         ];
 
         const trends = buildTrendSeries(dateKeys, invoices, jobs, customers, healthScore);
@@ -857,6 +1032,8 @@ export function AdminDashboardHome() {
           healthBreakdown,
           alerts,
           recommendations,
+          forecasts,
+          healthSlices,
           dailyBrief,
           trends,
         });
@@ -925,9 +1102,9 @@ export function AdminDashboardHome() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <p className="text-sm font-medium text-sky-700">AI Supervisor Dashboard V2</p>
+              <p className="text-sm font-medium text-sky-700">AI Command Center</p>
               <h1 className="text-2xl font-semibold text-slate-900">Operate with Confidence.</h1>
-              <p className="mt-1 text-sm text-slate-600">Live operational analysis with actionable AI guidance.</p>
+              <p className="mt-1 text-sm text-slate-600">Live operational analysis, forecasting, and prioritized guidance.</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -972,7 +1149,34 @@ export function AdminDashboardHome() {
                   ? "Calculating live operations..."
                   : `${totalOpenAlerts} active alerts across field operations, with ${highPriorityAlerts} high-priority risks.`}
               </p>
+              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                {dashboard.healthSlices.map((slice) => (
+                  <div key={slice.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-medium text-slate-700">{slice.label}</span>
+                      <span className="font-semibold text-slate-900">{slice.score}%</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-200">
+                      <div className={`h-2 rounded-full ${slice.tone}`} style={{ width: `${slice.score}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </article>
+          </section>
+
+          <section className="mt-6 grid gap-4 md:grid-cols-3">
+            {dashboard.forecasts.map((forecast) => (
+              <article
+                key={forecast.label}
+                className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-500"
+              >
+                <p className="text-xs uppercase tracking-wide text-slate-500">Forecast</p>
+                <p className={`mt-2 text-3xl font-semibold ${forecast.tone}`}>{forecast.value}</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{forecast.label}</p>
+                <p className="mt-1 text-sm text-slate-600">{forecast.detail}</p>
+              </article>
+            ))}
           </section>
 
           <section className="mt-6">
@@ -1000,16 +1204,36 @@ export function AdminDashboardHome() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-indigo-700">AI Recommendations</p>
-                <h3 className="text-lg font-semibold text-slate-900">Suggested next moves based on live signals</h3>
+                <h3 className="text-lg font-semibold text-slate-900">Prioritized action cards linked to relevant pages</h3>
               </div>
             </div>
-            <ul className="mt-4 space-y-3 text-sm text-slate-700">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {dashboard.recommendations.map((item) => (
-                <li key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  {item}
-                </li>
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 transition-all duration-500 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-100"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                        item.priority === "high"
+                          ? "bg-rose-100 text-rose-700"
+                          : item.priority === "medium"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-sky-100 text-sky-700"
+                      }`}
+                    >
+                      {item.priority}
+                    </span>
+                  </div>
+                </Link>
               ))}
-            </ul>
+            </div>
           </section>
 
           <section className="mt-6 grid gap-4 lg:grid-cols-2">
