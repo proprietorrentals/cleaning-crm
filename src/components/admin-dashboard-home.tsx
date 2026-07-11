@@ -138,6 +138,7 @@ const navigationItems = [
   { label: "Employees", href: "/employees", icon: "◍" },
   { label: "Invoices", href: "/invoices", icon: "◐" },
   { label: "Schedule", href: "/schedule", icon: "◕" },
+  { label: "Website Builder", href: "/website-builder", icon: "✦" },
   { label: "Reports", href: "/reports", icon: "◑" },
   { label: "Settings", href: "/settings", icon: "⚙" },
 ];
