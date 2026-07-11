@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/admin-guard";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 
 type Settings = {
@@ -94,7 +94,7 @@ function SettingsContent() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="w-full border-b border-slate-200 bg-white/90 px-5 py-6 lg:w-64 lg:border-b-0 lg:border-r">
-          <ServiceFlowBrand subtitle="Operations Hub" />
+          <ServiceOSBrand subtitle="Operations Hub" />
           <nav className="mt-8 space-y-1">
             {[
               { label: "Dashboard",  href: "/" },
@@ -144,7 +144,7 @@ function SettingsContent() {
                       value={form.company_name}
                       onChange={set("company_name")}
                       className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
-                      placeholder="ServiceFlow CRM"
+                      placeholder="ServiceOS"
                     />
                   </div>
 

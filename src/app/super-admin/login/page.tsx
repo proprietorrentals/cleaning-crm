@@ -66,7 +66,7 @@ export default function SuperAdminLoginPage() {
             ⚡
           </div>
           <h1 className="text-2xl font-bold text-white">Super Admin</h1>
-          <p className="mt-1 text-sm text-slate-400">ServiceFlow Platform Console</p>
+          <p className="mt-1 text-sm text-slate-400">ServiceOS Platform Console</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -112,7 +112,7 @@ export default function SuperAdminLoginPage() {
         </form>
 
         <p className="mt-6 text-center text-xs text-slate-600">
-          This portal is restricted to ServiceFlow platform administrators.
+          This portal is restricted to ServiceOS platform administrators.
         </p>
       </div>
     </div>

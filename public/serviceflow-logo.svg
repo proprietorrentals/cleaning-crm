@@ -26,7 +26,7 @@
     stroke-linejoin="round"
   />
 
-  <text x="64" y="260" fill="#0B1E3A" font-size="116" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-1.5">service</text>
-  <text x="664" y="260" fill="url(#flowBlue)" font-size="116" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-1.5">flow</text>
-  <text x="65" y="316" fill="#334155" font-size="40" font-family="Segoe UI, Arial, sans-serif" letter-spacing="4">ONE PLAFORM. UNLIMITED GROWTH</text>
+  <text x="64" y="260" fill="#0B1E3A" font-size="116" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-1.5">Service</text>
+  <text x="498" y="260" fill="url(#flowBlue)" font-size="116" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="-1.5">OS</text>
+  <text x="65" y="316" fill="#334155" font-size="40" font-family="Segoe UI, Arial, sans-serif" letter-spacing="4">OPERATE WITH CONFIDENCE.</text>
 </svg>

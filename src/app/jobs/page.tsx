@@ -457,7 +457,7 @@ export default function JobsPage() {
       `Hello${customer?.contact_name ? ` ${customer.contact_name}` : ""},\n\n` +
         `Your job completion report is ready.\n\n` +
         `View report: ${job.report_url}\n\n` +
-        `Thank you,\nServiceFlow CRM`,
+        `Thank you,\nServiceOS`,
     );
 
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;

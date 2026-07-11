@@ -78,7 +78,7 @@ function SuperAdminDashboardContent() {
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-lg">⚡</div>
             <div>
-              <h1 className="text-lg font-bold text-white">ServiceFlow Platform</h1>
+              <h1 className="text-lg font-bold text-white">ServiceOS Platform</h1>
               <p className="text-xs text-slate-400">Super Admin Console</p>
             </div>
           </div>

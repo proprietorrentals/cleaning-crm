@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { ServiceFlowBrand } from "@/components/serviceflow-brand";
+import { ServiceOSBrand } from "@/components/serviceflow-brand";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -92,7 +92,7 @@ function EmployeeLoginContent() {
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
         <div className="mb-7 text-center">
           <div className="mx-auto flex justify-center">
-            <ServiceFlowBrand variant="full" />
+            <ServiceOSBrand variant="full" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold text-slate-900">Employee Portal</h1>
           <p className="mt-2 text-sm text-slate-500">Sign in to view your assigned jobs and schedule.</p>
@@ -106,7 +106,7 @@ function EmployeeLoginContent() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-              placeholder="name@serviceflow.com"
+              placeholder="name@serviceos.com"
               required
             />
           </div>

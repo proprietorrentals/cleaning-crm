@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
     });
 
     const doc = React.createElement(JobCompletionReportPDF, {
-      companyName: settings?.company_name || "ServiceFlow CRM",
+      companyName: settings?.company_name || "ServiceOS",
       companyLogoUrl: settings?.company_logo_url || null,
       customer: {
         companyName: customer.company_name,

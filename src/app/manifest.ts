@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ServiceFlow Employee Portal",
-    short_name: "ServiceFlow",
+    name: "ServiceOS Employee Portal",
+    short_name: "ServiceOS",
     description: "Mobile-first employee portal for jobs, clock in/out, photos, mileage, and customer verification.",
     start_url: "/employee-portal",
     display: "standalone",

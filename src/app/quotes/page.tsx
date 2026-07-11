@@ -309,7 +309,7 @@ export default function QuotesPage() {
 
     const subject = encodeURIComponent(`Cleaning estimate for ${customerName}`);
     const body = encodeURIComponent(
-      `Hello ${contactName},\n\nHere is your commercial cleaning estimate:\n- Company: ${customerName}\n- Square footage: ${quote.square_footage}\n- Frequency: ${quote.cleaning_frequency}\n- Estimated total: ${formatCurrency(quote.total_estimate)}\n\nThanks,\nServiceFlow CRM`,
+      `Hello ${contactName},\n\nHere is your commercial cleaning estimate:\n- Company: ${customerName}\n- Square footage: ${quote.square_footage}\n- Frequency: ${quote.cleaning_frequency}\n- Estimated total: ${formatCurrency(quote.total_estimate)}\n\nThanks,\nServiceOS`,
     );
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
   };

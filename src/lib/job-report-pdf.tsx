@@ -349,7 +349,7 @@ export function JobCompletionReportPDF(props: JobCompletionReportPDFProps) {
         {renderPhotoSection("Before Photos", beforePhotos)}
         {renderPhotoSection("After Photos", afterPhotos)}
 
-        <Text style={styles.footer}>ServiceFlow CRM · Job report generated automatically</Text>
+        <Text style={styles.footer}>ServiceOS · Job report generated automatically</Text>
       </Page>
     </Document>
   );

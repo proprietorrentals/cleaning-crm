@@ -4,13 +4,13 @@ import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ServiceFlow CRM Dashboard",
-  description: "One Plaform. Unlimited Growth",
+  title: "ServiceOS Dashboard",
+  description: "Operate with Confidence.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ServiceFlow Employee",
+    title: "ServiceOS Employee",
   },
   icons: {
     icon: [

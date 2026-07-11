@@ -1,4 +1,4 @@
-const CACHE_NAME = "serviceflow-employee-v1";
+const CACHE_NAME = "serviceos-employee-v1";
 const PRECACHE_URLS = [
   "/",
   "/employee-portal",
