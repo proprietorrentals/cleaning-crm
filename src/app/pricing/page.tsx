@@ -7,9 +7,7 @@ import { ServiceOSBrand } from "@/components/serviceos-brand";
 type PlanCard = {
   name: string;
   priceMonthly: string;
-  priceAnnual: string;
   badge: string;
-  accent: string;
   description: string;
   features: string[];
   highlighted?: boolean;
@@ -25,39 +23,36 @@ type ComparisonRow = {
 const planCards: PlanCard[] = [
   {
     name: "Starter",
-    priceMonthly: "$49",
-    priceAnnual: "$39",
+    priceMonthly: "$99",
     badge: "Best for launch",
-    accent: "from-slate-50 via-white to-slate-100",
-    description: "Core CRM workflow for small teams getting organized.",
+    description: "Get your service business organized with the essentials for daily operations.",
     features: ["CRM", "Customers", "Quotes", "Jobs", "Invoices"],
   },
   {
     name: "Professional",
-    priceMonthly: "$129",
-    priceAnnual: "$109",
+    priceMonthly: "$199",
     badge: "Most popular",
-    accent: "from-blue-600 via-sky-500 to-cyan-400",
-    description: "Everything a growing service company needs to run daily operations.",
+    description: "The complete operating system for teams that want AI, field visibility, and customer experience in one place.",
     features: [
       "Everything in Starter",
+      "AI Supervisor",
+      "Website Builder",
       "Employee Portal",
       "Customer Portal",
-      "Photo verification",
+      "AI Reports",
+      "Mileage",
+      "Photos",
       "Signatures",
-      "Mileage approvals",
-      "AI Job Reports",
-      "AI Supervisor",
+      "Stripe Payments",
+      "Business Health Dashboard",
     ],
     highlighted: true,
   },
   {
     name: "Enterprise",
-    priceMonthly: "Custom",
-    priceAnnual: "Custom",
-    badge: "For multi-location teams",
-    accent: "from-slate-950 via-slate-900 to-slate-800",
-    description: "Structured for larger rollouts, advanced permissions, and onboarding support.",
+    priceMonthly: "Contact Sales",
+    badge: "For larger rollouts",
+    description: "Built for organizations that need deeper deployment support, permissions, and scale.",
     features: [
       "Multi-location",
       "Advanced permissions",
@@ -70,46 +65,46 @@ const planCards: PlanCard[] = [
 
 const comparisonRows: ComparisonRow[] = [
   { label: "CRM, quotes, jobs, invoices", starter: "Included", professional: "Included", enterprise: "Included" },
-  { label: "Employee portal", starter: "—", professional: "Included", enterprise: "Included" },
-  { label: "Customer portal", starter: "—", professional: "Included", enterprise: "Included" },
-  { label: "Photo verification + signatures", starter: "—", professional: "Included", enterprise: "Included" },
-  { label: "Mileage approvals", starter: "—", professional: "Included", enterprise: "Included" },
-  { label: "AI job reports + supervisor tools", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "AI Supervisor", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Website Builder", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Employee Portal", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Customer Portal", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "AI Reports", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Mileage", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Photos + Signatures", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Stripe Payments", starter: "—", professional: "Included", enterprise: "Included" },
+  { label: "Business Health Dashboard", starter: "—", professional: "Included", enterprise: "Included" },
   { label: "Multi-location controls", starter: "—", professional: "—", enterprise: "Included" },
   { label: "Dedicated onboarding", starter: "—", professional: "—", enterprise: "Included" },
 ];
 
 const faqs = [
   {
-    question: "Are these live subscription prices?",
-    answer:
-      "Not yet. The pricing page is launch-ready positioning and does not connect checkout or promise active billing until implementation is complete.",
+    question: "Can I cancel anytime?",
+    answer: "Yes. You can cancel anytime and keep access through the end of your billing period.",
   },
   {
-    question: "What is included in Professional?",
-    answer:
-      "Professional is the recommended plan for service businesses that need field operations, customer access, mileage review, and AI-assisted reporting in one system.",
+    question: "Is there a free trial?",
+    answer: "Yes. You can start a free trial to explore the workflow before you commit.",
   },
   {
-    question: "Can Enterprise be customized?",
-    answer:
-      "Yes. Enterprise is structured for multi-location deployments, permissions, onboarding support, and future white-label or API requirements.",
+    question: "Can I upgrade later?",
+    answer: "Yes. You can start small and upgrade when your team needs more automation or portals.",
   },
   {
-    question: "Can I start with a trial before talking to sales?",
-    answer:
-      "Yes. You can start a free trial if you want to explore the product first, or book a demo if you want a guided walkthrough.",
+    question: "Do you help with onboarding?",
+    answer: "Yes. We provide onboarding support so your team can get live quickly and confidently.",
   },
 ];
 
 export const metadata: Metadata = {
-  title: "ServiceOS Pricing | Plans for Service Teams",
+  title: "ServiceOS Pricing | AI Operating System for Service Businesses",
   description:
-    "Compare ServiceOS launch pricing plans, review the feature matrix, and book a demo or start a free trial.",
+    "Compare ServiceOS pricing plans for an AI-powered operating system for service businesses.",
   openGraph: {
-    title: "ServiceOS Pricing | Plans for Service Teams",
+    title: "ServiceOS Pricing | AI Operating System for Service Businesses",
     description:
-      "Compare ServiceOS pricing plans, see the feature comparison, and choose the best plan for your team.",
+      "Compare ServiceOS pricing plans, feature differences, FAQs, and calls to action for service teams.",
     images: [{ url: "/serviceos-mark.svg", type: "image/svg+xml" }],
   },
 };
@@ -143,11 +138,11 @@ export default function PricingPage() {
                   <ServiceOSBrand variant="full" showTagline />
                 </div>
                 <h1 className="text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl">
-                  Plans designed for operational clarity, not guesswork.
+                  An AI-powered operating system for service businesses.
                 </h1>
                 <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
-                  Choose the plan that matches how your team runs jobs, communicates with customers, reviews mileage,
-                  and keeps service quality visible from the field to the office.
+                  Pick the plan that matches how your team works today and how you want to scale tomorrow. ServiceOS
+                  connects operations, portals, payments, reporting, and field intelligence into one premium experience.
                 </p>
               </div>
 
@@ -169,10 +164,10 @@ export default function PricingPage() {
 
             <div className="grid gap-4 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-1">
               {[
-                { label: "Fast setup", value: "Launch with CRM, jobs, and portals without rebuilding your process." },
-                { label: "Field-ready", value: "Employees can track jobs, photos, signatures, and mileage from mobile workflows." },
-                { label: "Supervisor control", value: "Mileage approvals, AI reporting, and review queues stay in one place." },
-                { label: "Scales with growth", value: "Move from one team to multiple locations without changing systems." },
+                { label: "Connected operations", value: "Run the field, office, and customer experience from one system." },
+                { label: "Built for growth", value: "Add portals, payments, and AI tools as your team scales." },
+                { label: "Premium support", value: "Get guided implementation and onboarding support from day one." },
+                { label: "Professional by default", value: "The Professional plan is designed to be the fastest path to value." },
               ].map((item) => (
                 <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">{item.label}</p>
@@ -193,9 +188,7 @@ export default function PricingPage() {
                   : "border-slate-200"
               }`}
             >
-              {plan.highlighted ? (
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${plan.accent}`} />
-              ) : null}
+              {plan.highlighted ? <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400" /> : null}
               <div
                 className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
                   plan.highlighted ? "bg-blue-50 text-blue-700" : plan.name === "Enterprise" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
@@ -205,7 +198,9 @@ export default function PricingPage() {
               </div>
               <div className="mt-4">
                 <h2 className={`text-2xl font-semibold ${plan.highlighted ? "text-slate-950" : "text-slate-950"}`}>{plan.name}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{plan.description}</p>
+                <p className={`mt-2 rounded-2xl px-4 py-3 text-sm leading-6 ${plan.highlighted ? "bg-blue-50 text-blue-950" : "bg-slate-50 text-slate-700"}`}>
+                  {plan.description}
+                </p>
               </div>
 
               <div className="mt-6 flex items-end gap-2">
@@ -214,7 +209,7 @@ export default function PricingPage() {
                 </p>
                 <p className="pb-1 text-sm text-slate-500">/ month</p>
               </div>
-              <p className="mt-2 text-sm text-slate-500">{plan.priceAnnual} per month billed annually</p>
+              <p className="mt-2 text-sm text-slate-500">No annual pricing for now.</p>
 
               <ul className="mt-6 space-y-3 text-sm text-slate-700">
                 {plan.features.map((feature) => (
@@ -287,9 +282,10 @@ export default function PricingPage() {
         <section className="mt-16 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-[2rem] border border-blue-200 bg-gradient-to-br from-blue-700 via-sky-600 to-cyan-500 p-8 text-white shadow-[0_20px_60px_rgba(37,99,235,0.18)]">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-100">Why Professional stands out</p>
-            <h2 className="mt-3 text-3xl font-semibold">The plan that maps directly to real field operations.</h2>
+            <h2 className="mt-3 text-3xl font-semibold">The fastest way to run your service business with confidence.</h2>
             <p className="mt-4 text-sm leading-6 text-blue-50">
-              Professional adds the portal, approvals, signatures, and AI reporting layers that turn ServiceOS from a CRM into a complete operational system.
+              Professional brings together AI Supervisor, Website Builder, portals, AI Reports, Mileage, Photos,
+              Signatures, Stripe Payments, and the Business Health Dashboard.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -329,7 +325,7 @@ export default function PricingPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">Ready to see it live?</p>
-              <h2 className="mt-2 text-3xl font-semibold">Book a walkthrough or start a trial today.</h2>
+              <h2 className="mt-2 text-3xl font-semibold">Operate with Confidence.</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                 Explore the exact workflows your team will use: customer management, jobs, mileage, AI reports, and portal access in one place.
               </p>
