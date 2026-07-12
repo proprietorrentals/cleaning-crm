@@ -79,6 +79,19 @@ const styles = StyleSheet.create({
     height: 40,
     objectFit: "contain",
   },
+  logoFallbackWrap: {
+    alignItems: "flex-end",
+  },
+  logoFallbackBrand: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#0369a1",
+  },
+  logoFallbackCompany: {
+    marginTop: 2,
+    fontSize: 9,
+    color: "#475569",
+  },
   title: {
     fontSize: 16,
     fontWeight: 700,
@@ -262,7 +275,14 @@ export function JobCompletionReportPDF(props: JobCompletionReportPDFProps) {
               <Text style={styles.title}>Job Completion Report</Text>
               <Text style={styles.subtitle}>Generated: {fmtDateTime(generatedAtIso)}</Text>
             </View>
-            {companyLogoUrl ? <Image style={styles.logo} src={companyLogoUrl} /> : <Text>{companyName}</Text>}
+            {companyLogoUrl ? (
+              <Image style={styles.logo} src={companyLogoUrl} />
+            ) : (
+              <View style={styles.logoFallbackWrap}>
+                <Text style={styles.logoFallbackBrand}>ServiceOS</Text>
+                <Text style={styles.logoFallbackCompany}>{safeText(companyName)}</Text>
+              </View>
+            )}
           </View>
         </View>
 

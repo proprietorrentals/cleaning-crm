@@ -48,10 +48,8 @@ function LoginContent() {
       {/* Logo and Header */}
       <div className="mb-12 text-center">
         <div className="mx-auto flex justify-center mb-4">
-          <ServiceOSBrand variant="full" />
+          <ServiceOSBrand variant="full" showTagline />
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">ServiceOS</h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">Operate with Confidence.</p>
         <p className="mt-2 text-lg text-slate-600">Choose your portal to get started</p>
       </div>
 

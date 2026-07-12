@@ -398,7 +398,7 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
         <header className="rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur sm:p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-4">
-              <ServiceOSBrand subtitle="Operate with Confidence." showTagline />
+              <ServiceOSBrand showTagline />
               <div>
                 <p className="text-sm font-medium uppercase tracking-[0.25em] text-sky-700">ServiceOS Explore Demo</p>
                 <h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">{data.companyName}</h1>
