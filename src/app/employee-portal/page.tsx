@@ -34,6 +34,15 @@ type Customer = {
   address: string | null;
 };
 
+type CalculatedMileageResult = {
+  calculated_miles: number;
+  estimated_duration_minutes: number;
+  origin_address: string;
+  destination_address: string;
+  distance_provider: string;
+  route_preview_url: string;
+};
+
 type TimeEntry = {
   id: string;
   clock_in_time: string | null;
@@ -87,9 +96,11 @@ export default function EmployeePortalPage() {
   const [mileageFromJobId, setMileageFromJobId] = useState("");
   const [mileageToJobId, setMileageToJobId] = useState("");
   const [mileageNotes, setMileageNotes] = useState("");
-  const [mileageEstimatedMiles, setMileageEstimatedMiles] = useState<string | null>(null);
+  const [calculatedMileage, setCalculatedMileage] = useState<CalculatedMileageResult | null>(null);
   const [mileageManualMiles, setMileageManualMiles] = useState("");
-  const [mileageNeedsManual, setMileageNeedsManual] = useState(false);
+  const [manualAdjustmentReason, setManualAdjustmentReason] = useState("");
+  const [allowManualAdjustment, setAllowManualAdjustment] = useState(false);
+  const [mileageNeedsManualFallback, setMileageNeedsManualFallback] = useState(false);
   const [mileageError, setMileageError] = useState<string | null>(null);
   const [mileageSuccess, setMileageSuccess] = useState<string | null>(null);
   const activeClockStart = timeEntry?.clock_in_time;
@@ -240,31 +251,42 @@ export default function EmployeePortalPage() {
     setMileageBusy(true);
     setMileageError(null);
     setMileageSuccess(null);
+    setCalculatedMileage(null);
+    setMileageNeedsManualFallback(false);
+    setAllowManualAdjustment(false);
+    setManualAdjustmentReason("");
+    setMileageManualMiles("");
 
     const response = await fetch("/api/mileage/calculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fromJobId: mileageFromJobId,
-        toJobId: mileageToJobId,
+        from_job_id: mileageFromJobId,
+        to_job_id: mileageToJobId,
       }),
     });
 
-    const payload = (await response.json()) as { miles?: number; error?: string; fromAddress?: string; toAddress?: string; date?: string };
+    const payload = (await response.json()) as Partial<CalculatedMileageResult> & { error?: string };
 
     if (!response.ok) {
-      setMileageEstimatedMiles(null);
-      setMileageNeedsManual(true);
+      setMileageNeedsManualFallback(true);
       setMileageManualMiles("");
       setMileageError(payload.error || "Unable to calculate mileage automatically.");
       setMileageBusy(false);
       return;
     }
 
-    setMileageEstimatedMiles(String(payload.miles ?? 0));
-    setMileageNeedsManual(false);
-    setMileageManualMiles("");
-    setMileageSuccess(`Estimated mileage calculated for ${payload.fromAddress} → ${payload.toAddress}.`);
+    setCalculatedMileage({
+      calculated_miles: Number(payload.calculated_miles ?? 0),
+      estimated_duration_minutes: Number(payload.estimated_duration_minutes ?? 0),
+      origin_address: String(payload.origin_address ?? ""),
+      destination_address: String(payload.destination_address ?? ""),
+      distance_provider: String(payload.distance_provider ?? "unknown"),
+      route_preview_url: String(payload.route_preview_url ?? ""),
+    });
+    setMileageSuccess(
+      `Route calculated from ${payload.origin_address} to ${payload.destination_address}.`,
+    );
     setMileageBusy(false);
   };
 
@@ -289,10 +311,44 @@ export default function EmployeePortalPage() {
       return;
     }
 
-    const milesValue = mileageNeedsManual ? Number(mileageManualMiles) : Number(mileageEstimatedMiles);
-    if (!Number.isFinite(milesValue) || milesValue <= 0) {
-      setMileageError(mileageNeedsManual ? "Enter manual miles to submit." : "Calculate mileage first.");
-      return;
+    const calculatedMiles = calculatedMileage?.calculated_miles ?? null;
+    const manualMilesValue = mileageManualMiles.trim() ? Number(mileageManualMiles) : null;
+
+    let submittedMiles: number | null = calculatedMiles;
+
+    if (mileageNeedsManualFallback) {
+      if (!Number.isFinite(manualMilesValue) || (manualMilesValue ?? 0) <= 0) {
+        setMileageError("Enter manual miles before submitting.");
+        return;
+      }
+
+      if (!manualAdjustmentReason.trim()) {
+        setMileageError("Manual adjustment reason is required when auto-calculation is unavailable.");
+        return;
+      }
+
+      submittedMiles = Number((manualMilesValue ?? 0).toFixed(2));
+    } else {
+      if (calculatedMiles === null || !Number.isFinite(calculatedMiles) || calculatedMiles <= 0) {
+        setMileageError("Calculate mileage first.");
+        return;
+      }
+
+      if (allowManualAdjustment) {
+        if (!Number.isFinite(manualMilesValue) || (manualMilesValue ?? 0) <= 0) {
+          setMileageError("Enter adjusted miles before submitting.");
+          return;
+        }
+
+        if (!manualAdjustmentReason.trim()) {
+          setMileageError("Manual adjustment reason is required when changing calculated mileage.");
+          return;
+        }
+
+        submittedMiles = Number((manualMilesValue ?? 0).toFixed(2));
+      } else {
+        submittedMiles = Number(calculatedMiles.toFixed(2));
+      }
     }
 
     setMileageBusy(true);
@@ -305,7 +361,14 @@ export default function EmployeePortalPage() {
       to_job_id: selectedToJob.id,
       employee_id: profile.id,
       date: selectedFromJob.scheduled_date,
-      miles: milesValue,
+      miles: submittedMiles,
+      calculated_miles: calculatedMiles,
+      submitted_miles: submittedMiles,
+      estimated_duration_minutes: calculatedMileage?.estimated_duration_minutes ?? null,
+      origin_address: calculatedMileage?.origin_address ?? null,
+      destination_address: calculatedMileage?.destination_address ?? null,
+      distance_provider: calculatedMileage?.distance_provider ?? null,
+      manual_adjustment_reason: manualAdjustmentReason.trim() || null,
       notes: mileageNotes.trim() || null,
       status: "pending",
     });
@@ -318,9 +381,11 @@ export default function EmployeePortalPage() {
 
     setMileageSuccess("Mileage submitted for approval.");
     setMileageNotes("");
-    setMileageEstimatedMiles(null);
+    setCalculatedMileage(null);
     setMileageManualMiles("");
-    setMileageNeedsManual(false);
+    setManualAdjustmentReason("");
+    setAllowManualAdjustment(false);
+    setMileageNeedsManualFallback(false);
     setMileageFromJobId("");
     setMileageToJobId("");
     setMileageBusy(false);
@@ -442,8 +507,11 @@ export default function EmployeePortalPage() {
                 value={mileageFromJobId}
                 onChange={(event) => {
                   setMileageFromJobId(event.target.value);
-                  setMileageEstimatedMiles(null);
-                  setMileageNeedsManual(false);
+                  setCalculatedMileage(null);
+                  setMileageNeedsManualFallback(false);
+                  setAllowManualAdjustment(false);
+                  setManualAdjustmentReason("");
+                  setMileageManualMiles("");
                   setMileageError(null);
                   setMileageSuccess(null);
                 }}
@@ -464,8 +532,11 @@ export default function EmployeePortalPage() {
                 value={mileageToJobId}
                 onChange={(event) => {
                   setMileageToJobId(event.target.value);
-                  setMileageEstimatedMiles(null);
-                  setMileageNeedsManual(false);
+                  setCalculatedMileage(null);
+                  setMileageNeedsManualFallback(false);
+                  setAllowManualAdjustment(false);
+                  setManualAdjustmentReason("");
+                  setMileageManualMiles("");
                   setMileageError(null);
                   setMileageSuccess(null);
                 }}
@@ -504,16 +575,69 @@ export default function EmployeePortalPage() {
             </div>
           ) : null}
 
-          {mileageEstimatedMiles ? (
+          {calculatedMileage ? (
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm text-slate-600">Estimated miles</p>
-              <p className="text-2xl font-semibold text-slate-900">{Number(mileageEstimatedMiles).toFixed(2)} mi</p>
+              <p className="text-sm text-slate-600">Calculated route</p>
+              <p className="mt-1 text-sm text-slate-700">{calculatedMileage.origin_address}</p>
+              <p className="text-sm text-slate-700">to {calculatedMileage.destination_address}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Miles</p>
+                  <p className="text-xl font-semibold text-slate-900">{calculatedMileage.calculated_miles.toFixed(2)} mi</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Drive time</p>
+                  <p className="text-xl font-semibold text-slate-900">{calculatedMileage.estimated_duration_minutes} min</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Provider</p>
+                  <p className="text-xl font-semibold text-slate-900">{calculatedMileage.distance_provider}</p>
+                </div>
+              </div>
+              {calculatedMileage.route_preview_url ? (
+                <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                  <iframe
+                    title="Route preview"
+                    src={calculatedMileage.route_preview_url}
+                    className="h-64 w-full"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
+              <a
+                href={calculatedMileage.route_preview_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                Open route in maps
+              </a>
             </div>
           ) : null}
 
-          {mileageNeedsManual ? (
+          {calculatedMileage ? (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allowManualAdjustment}
+                  onChange={(event) => {
+                    setAllowManualAdjustment(event.target.checked);
+                    setMileageManualMiles("");
+                    setManualAdjustmentReason("");
+                  }}
+                />
+                Adjust submitted miles
+              </label>
+              <p className="mt-1 text-xs text-slate-500">Calculated miles are submitted by default and cannot be changed silently.</p>
+            </div>
+          ) : null}
+
+          {(mileageNeedsManualFallback || allowManualAdjustment) ? (
             <div className="mt-4">
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Manual miles</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                {mileageNeedsManualFallback ? "Manual miles" : "Adjusted miles"}
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -521,7 +645,14 @@ export default function EmployeePortalPage() {
                 value={mileageManualMiles}
                 onChange={(event) => setMileageManualMiles(event.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
-                placeholder="Enter mileage if automatic calculation fails"
+                placeholder={mileageNeedsManualFallback ? "Enter mileage if automatic calculation fails" : "Enter adjusted mileage"}
+              />
+              <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">Adjustment reason</label>
+              <textarea
+                value={manualAdjustmentReason}
+                onChange={(event) => setManualAdjustmentReason(event.target.value)}
+                className="min-h-20 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+                placeholder="Explain why submitted miles differ from calculated route"
               />
             </div>
           ) : null}

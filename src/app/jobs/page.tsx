@@ -57,6 +57,13 @@ type MileageRequest = {
   employee_id: string;
   date: string;
   miles: number;
+  calculated_miles: number | null;
+  submitted_miles: number | null;
+  estimated_duration_minutes: number | null;
+  origin_address: string | null;
+  destination_address: string | null;
+  distance_provider: string | null;
+  manual_adjustment_reason: string | null;
   notes: string | null;
   status: string;
   reviewed_at: string | null;
@@ -934,8 +941,11 @@ export default function JobsPage() {
                     <th className="px-4 py-3 text-left font-medium text-slate-700">From Job</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">To Job</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Miles</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Calculated</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Submitted</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Route</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Adjustment</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-700">Notes</th>
                     <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
                   </tr>
@@ -949,13 +959,28 @@ export default function JobsPage() {
                           ? "bg-rose-50 text-rose-700"
                           : "bg-amber-50 text-amber-700";
 
+                    const calculatedMiles = request.calculated_miles ?? null;
+                    const submittedMiles = request.submitted_miles ?? request.miles;
+                    const isAdjusted =
+                      calculatedMiles !== null &&
+                      Number(submittedMiles).toFixed(2) !== Number(calculatedMiles).toFixed(2);
+
                     return (
                       <tr key={request.id} className="border-b border-slate-100">
                         <td className="px-4 py-3 text-slate-700">{formatEmployeeName(request.employee_id)}</td>
                         <td className="px-4 py-3 text-slate-700">{formatMileageJob(request.from_job_id)}</td>
                         <td className="px-4 py-3 text-slate-700">{formatMileageJob(request.to_job_id)}</td>
                         <td className="px-4 py-3 text-slate-700">{request.date}</td>
-                        <td className="px-4 py-3 text-slate-700">{Number(request.miles).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {calculatedMiles !== null ? `${Number(calculatedMiles).toFixed(2)} mi` : "-"}
+                        </td>
+                        <td className={`px-4 py-3 ${isAdjusted ? "font-semibold text-amber-700" : "text-slate-700"}`}>
+                          {Number(submittedMiles).toFixed(2)} mi
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <p>{request.estimated_duration_minutes ? `${request.estimated_duration_minutes} min` : "-"}</p>
+                          <p className="text-xs text-slate-500">{request.distance_provider || "-"}</p>
+                        </td>
                         <td className="px-4 py-3 text-slate-700">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColor}`}>
                             {request.status}
@@ -963,6 +988,18 @@ export default function JobsPage() {
                           {request.reviewed_at ? (
                             <p className="mt-1 text-xs text-slate-400">Reviewed {new Date(request.reviewed_at).toLocaleString()}</p>
                           ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {isAdjusted ? (
+                            <>
+                              <p className="font-medium text-amber-700">Adjusted</p>
+                              <p className="text-xs text-slate-500">{request.manual_adjustment_reason || "Reason not provided"}</p>
+                            </>
+                          ) : request.manual_adjustment_reason ? (
+                            <p className="text-xs text-slate-500">{request.manual_adjustment_reason}</p>
+                          ) : (
+                            "-"
+                          )}
                         </td>
                         <td className="px-4 py-3 text-slate-700">{request.notes || "—"}</td>
                         <td className="px-4 py-3 text-right">

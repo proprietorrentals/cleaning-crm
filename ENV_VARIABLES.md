@@ -30,6 +30,13 @@ Copy `.env.example` to `.env.local` and fill in the required values.
   - Development: `http://localhost:3000`
   - Production: `https://your-domain.com`
 
+## Maps Routing (Automatic Mileage)
+
+- `MAPBOX_ACCESS_TOKEN` - Mapbox access token used server-side for route mileage and duration
+  - Create at: https://account.mapbox.com/access-tokens/
+  - Required scopes: `styles:read`, `fonts:read`
+  - **IMPORTANT: Never expose this in client-side code**
+
 ## How to Set Up Stripe
 
 1. **Create a Stripe Account**

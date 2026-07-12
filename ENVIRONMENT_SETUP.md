@@ -15,6 +15,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxx
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx
 STRIPE_SECRET_KEY=sk_test_xxxx
+MAPBOX_ACCESS_TOKEN=pk.your_mapbox_token
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -28,6 +29,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 STRIPE_SECRET_KEY
+MAPBOX_ACCESS_TOKEN
 NEXT_PUBLIC_APP_URL
 ```
 
@@ -111,6 +113,21 @@ If you're using Stripe for payments:
 - **Type**: Secret (NEVER expose)
 - **Where to find**: https://dashboard.stripe.com/apikeys
 - **Copy**: "Secret key" (starts with `sk_`)
+
+---
+
+## Maps Configuration (Required for Automatic Mileage)
+
+### `MAPBOX_ACCESS_TOKEN`
+- **Type**: Secret (server-only usage)
+- **Purpose**: Calculates route distance and estimated drive duration for mileage requests
+- **Where to find**:
+   1. Go to https://account.mapbox.com/access-tokens/
+   2. Create a token for the application
+   3. Copy the token value
+- **Security**:
+   - Add to `.env.local` and deployment environment settings only
+   - Never expose in browser code
 
 ---
 
