@@ -636,7 +636,7 @@ function TrendSparkline({
 
 export function AdminDashboardHome() {
   const supabase = useMemo(() => createClient(), []);
-  const { t, locale } = useI18n();
+  const { t, locale, isReady } = useI18n();
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
     operatorName: "",
@@ -687,6 +687,10 @@ export function AdminDashboardHome() {
   });
 
   useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
     const loadDashboard = async () => {
       try {
         await supabase.rpc("sync_late_employee_alerts");
@@ -1091,7 +1095,7 @@ export function AdminDashboardHome() {
     }, 60_000);
 
     return () => clearInterval(refreshInterval);
-  }, [locale, supabase, t]);
+  }, [isReady, locale, supabase, t]);
 
   const kpis: KPIItem[] = [
     { label: t("dashboard.metricTodaysRevenue"), value: dashboard.metrics.revenueToday, tone: "text-emerald-700", format: "currency" },
@@ -1112,6 +1116,14 @@ export function AdminDashboardHome() {
 
   const highPriorityAlerts = dashboard.alerts.filter((alert) => alert.severity === "high" && alert.count > 0).length;
   const totalOpenAlerts = dashboard.alerts.reduce((sum, alert) => sum + alert.count, 0);
+
+  if (!isReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-sm text-slate-600">{t("common.loading")}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#e8f5ff_0%,#f8fbff_55%,#f5f8ff_100%)] text-slate-900">
