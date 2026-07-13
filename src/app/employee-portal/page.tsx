@@ -426,6 +426,12 @@ export default function EmployeePortalPage() {
               >
                 Operations Center
               </Link>
+              <Link
+                href="/employee-portal/tasks"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                My Tasks
+              </Link>
               <button
                 type="button"
                 onClick={async () => {

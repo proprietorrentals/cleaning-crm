@@ -38,6 +38,7 @@ const navItems = [
   { label: "Schedule", href: "/schedule" },
   { label: "Website Builder", href: "/website-builder" },
   { label: "Operations Center", href: "/operations-center", active: true },
+  { label: "Tasks", href: "/tasks" },
   { label: "Reports", href: "/reports" },
   { label: "Settings", href: "/settings" },
 ];
