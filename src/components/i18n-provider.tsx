@@ -61,6 +61,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
     const initialize = async () => {
       const preferredFromStorage = readLocalLanguage() ?? readCookieLanguage();
+
       if (preferredFromStorage && isMounted) {
         setLanguageState(preferredFromStorage);
       }
@@ -70,17 +71,21 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       } = await supabase.auth.getSession();
 
       const authPreference = session?.user?.user_metadata?.preferred_language;
-      if (isLanguage(authPreference) && isMounted) {
+
+      // Storage is the client source of truth. Keep profile in sync with it.
+      if (preferredFromStorage && session?.user) {
+        if (authPreference !== preferredFromStorage) {
+          await supabase.auth.updateUser({
+            data: {
+              ...session.user.user_metadata,
+              preferred_language: preferredFromStorage,
+            },
+          });
+        }
+      } else if (isLanguage(authPreference) && isMounted) {
         setLanguageState(authPreference);
         writeLocalLanguage(authPreference);
         writeLanguageCookie(authPreference);
-      } else if (preferredFromStorage && session?.user) {
-        await supabase.auth.updateUser({
-          data: {
-            ...session.user.user_metadata,
-            preferred_language: preferredFromStorage,
-          },
-        });
       }
 
       if (isMounted) {
@@ -91,8 +96,20 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     void initialize();
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      const preferredFromStorage = readLocalLanguage() ?? readCookieLanguage();
       const authPreference = session?.user?.user_metadata?.preferred_language;
-      if (isLanguage(authPreference)) {
+
+      if (preferredFromStorage) {
+        setLanguageState(preferredFromStorage);
+        if (session?.user && authPreference !== preferredFromStorage) {
+          void supabase.auth.updateUser({
+            data: {
+              ...session.user.user_metadata,
+              preferred_language: preferredFromStorage,
+            },
+          });
+        }
+      } else if (isLanguage(authPreference)) {
         setLanguageState(authPreference);
         writeLocalLanguage(authPreference);
         writeLanguageCookie(authPreference);
