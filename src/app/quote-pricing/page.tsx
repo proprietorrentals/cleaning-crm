@@ -43,6 +43,15 @@ type NewPricingItemState = {
   customer_description: string;
 };
 
+type LoadState = "loading" | "ready" | "empty" | "error";
+
+type ErrorPayload = {
+  code: string | null;
+  message: string;
+  details: string | null;
+  hint: string | null;
+};
+
 const navItems = [
   { label: "Dashboard", href: "/" },
   { label: "Customers", href: "/customers" },
@@ -71,103 +80,183 @@ function toNumberOrNull(value: string) {
   return parsed;
 }
 
+function toErrorPayload(error: unknown, fallbackMessage: string): ErrorPayload {
+  if (error && typeof error === "object") {
+    const typed = error as {
+      code?: string | null;
+      message?: string;
+      details?: string | null;
+      hint?: string | null;
+    };
+
+    return {
+      code: typed.code ?? null,
+      message: typed.message ?? fallbackMessage,
+      details: typed.details ?? null,
+      hint: typed.hint ?? null,
+    };
+  }
+
+  return {
+    code: null,
+    message: fallbackMessage,
+    details: null,
+    hint: null,
+  };
+}
+
+function formatErrorText(error: ErrorPayload) {
+  const parts = [error.message];
+  if (error.code) parts.push(`code=${error.code}`);
+  if (error.details) parts.push(`details=${error.details}`);
+  if (error.hint) parts.push(`hint=${error.hint}`);
+  return parts.join(" | ");
+}
+
+function mapSettings(settingsRow: Record<string, unknown>): PricingSettings {
+  return {
+    tenant_id: String(settingsRow.tenant_id ?? ""),
+    base_service_fee: String(settingsRow.base_service_fee ?? 0),
+    price_per_square_foot: String(settingsRow.price_per_square_foot ?? 0),
+    restroom_pricing_mode: (settingsRow.restroom_pricing_mode as "per_restroom" | "per_fixture") ?? "per_restroom",
+    restroom_unit_price: String(settingsRow.restroom_unit_price ?? 0),
+    kitchen_breakroom_price: String(settingsRow.kitchen_breakroom_price ?? 0),
+    floor_care_price: String(settingsRow.floor_care_price ?? 0),
+    carpet_cleaning_price: String(settingsRow.carpet_cleaning_price ?? 0),
+    window_cleaning_price: String(settingsRow.window_cleaning_price ?? 0),
+    frequency_multiplier_one_time: String(settingsRow.frequency_multiplier_one_time ?? 1),
+    frequency_multiplier_daily: String(settingsRow.frequency_multiplier_daily ?? 1),
+    frequency_multiplier_weekly: String(settingsRow.frequency_multiplier_weekly ?? 1),
+    frequency_multiplier_biweekly: String(settingsRow.frequency_multiplier_biweekly ?? 1),
+    frequency_multiplier_monthly: String(settingsRow.frequency_multiplier_monthly ?? 1),
+    minimum_job_price: settingsRow.minimum_job_price == null ? "" : String(settingsRow.minimum_job_price),
+    travel_service_fee: settingsRow.travel_service_fee == null ? "" : String(settingsRow.travel_service_fee),
+    tax_rate_percent: String(settingsRow.tax_rate_percent ?? 0),
+  };
+}
+
 function QuotePricingContent() {
   const supabase = useMemo(() => createClient(), []);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadError, setLoadError] = useState<ErrorPayload | null>(null);
+  const [isCreatingDefaults, setIsCreatingDefaults] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [settings, setSettings] = useState<PricingSettings | null>(null);
   const [items, setItems] = useState<PricingItem[]>([]);
   const [newItem, setNewItem] = useState<NewPricingItemState>(emptyItem);
 
+  const loadPricingData = async () => {
+    setLoadState("loading");
+    setLoadError(null);
+    setMessage(null);
+
+    const timeoutMs = 15000;
+
+    try {
+      await Promise.race([
+        (async () => {
+          const { data: tenantData, error: tenantError } = await supabase.rpc("current_tenant_id");
+          if (tenantError) throw tenantError;
+
+          if (!tenantData) {
+            throw {
+              code: "TENANT_NOT_RESOLVED",
+              message: "Unable to resolve tenant for quote pricing settings.",
+              details: "current_tenant_id() returned null.",
+            };
+          }
+
+          setTenantId(tenantData);
+
+          const { data: settingsRow, error: settingsError } = await supabase
+            .from("quote_pricing_settings")
+            .select("*")
+            .eq("tenant_id", tenantData)
+            .maybeSingle();
+
+          if (settingsError) throw settingsError;
+
+          const { data: itemRows, error: itemError } = await supabase
+            .from("quote_pricing_items")
+            .select("id,name,pricing_type,unit_price,customer_description,is_active,sort_order,created_at")
+            .eq("tenant_id", tenantData)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true });
+
+          if (itemError) throw itemError;
+
+          setItems((itemRows ?? []) as PricingItem[]);
+
+          if (!settingsRow) {
+            setSettings(null);
+            setLoadState("empty");
+            return;
+          }
+
+          setSettings(mapSettings(settingsRow as Record<string, unknown>));
+          setLoadState("ready");
+        })(),
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            reject({
+              code: "CLIENT_TIMEOUT",
+              message: "Timed out while loading quote pricing settings.",
+              details: `No response after ${timeoutMs}ms.`,
+            });
+          }, timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      const payload = toErrorPayload(error, "Failed to load quote pricing settings.");
+      setLoadError(payload);
+      setLoadState("error");
+    } finally {
+      if (loadState === "loading") {
+        setLoadState((current) => (current === "loading" ? "error" : current));
+      }
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setMessage(null);
-
-      const { data: tenantData, error: tenantError } = await supabase.rpc("current_tenant_id");
-      if (tenantError) {
-        setMessage({ type: "error", text: tenantError.message });
-        setLoading(false);
-        return;
-      }
-
-      if (!tenantData) {
-        setMessage({ type: "error", text: "Unable to resolve tenant for quote pricing settings." });
-        setLoading(false);
-        return;
-      }
-
-      setTenantId(tenantData);
-
-      let { data: settingsRow, error: settingsError } = await supabase
-        .from("quote_pricing_settings")
-        .select("*")
-        .eq("tenant_id", tenantData)
-        .maybeSingle();
-
-      if (settingsError) {
-        setMessage({ type: "error", text: settingsError.message });
-        setLoading(false);
-        return;
-      }
-
-      if (!settingsRow) {
-        const { data: insertedSettings, error: insertSettingsError } = await supabase
-          .from("quote_pricing_settings")
-          .insert({ tenant_id: tenantData })
-          .select("*")
-          .single();
-
-        if (insertSettingsError) {
-          setMessage({ type: "error", text: insertSettingsError.message });
-          setLoading(false);
-          return;
-        }
-
-        settingsRow = insertedSettings;
-      }
-
-      const { data: itemRows, error: itemError } = await supabase
-        .from("quote_pricing_items")
-        .select("id,name,pricing_type,unit_price,customer_description,is_active,sort_order")
-        .eq("tenant_id", tenantData)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true });
-
-      if (itemError) {
-        setMessage({ type: "error", text: itemError.message });
-        setLoading(false);
-        return;
-      }
-
-      setSettings({
-        tenant_id: settingsRow.tenant_id,
-        base_service_fee: String(settingsRow.base_service_fee ?? 0),
-        price_per_square_foot: String(settingsRow.price_per_square_foot ?? 0),
-        restroom_pricing_mode: settingsRow.restroom_pricing_mode ?? "per_restroom",
-        restroom_unit_price: String(settingsRow.restroom_unit_price ?? 0),
-        kitchen_breakroom_price: String(settingsRow.kitchen_breakroom_price ?? 0),
-        floor_care_price: String(settingsRow.floor_care_price ?? 0),
-        carpet_cleaning_price: String(settingsRow.carpet_cleaning_price ?? 0),
-        window_cleaning_price: String(settingsRow.window_cleaning_price ?? 0),
-        frequency_multiplier_one_time: String(settingsRow.frequency_multiplier_one_time ?? 1),
-        frequency_multiplier_daily: String(settingsRow.frequency_multiplier_daily ?? 1),
-        frequency_multiplier_weekly: String(settingsRow.frequency_multiplier_weekly ?? 1),
-        frequency_multiplier_biweekly: String(settingsRow.frequency_multiplier_biweekly ?? 1),
-        frequency_multiplier_monthly: String(settingsRow.frequency_multiplier_monthly ?? 1),
-        minimum_job_price: settingsRow.minimum_job_price == null ? "" : String(settingsRow.minimum_job_price),
-        travel_service_fee: settingsRow.travel_service_fee == null ? "" : String(settingsRow.travel_service_fee),
-        tax_rate_percent: String(settingsRow.tax_rate_percent ?? 0),
-      });
-
-      setItems((itemRows ?? []) as PricingItem[]);
-      setLoading(false);
-    };
-
-    load();
+    void loadPricingData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
+
+  const createDefaults = async () => {
+    if (!tenantId) {
+      setMessage({
+        type: "error",
+        text: "Tenant is not loaded yet. Retry loading and try again.",
+      });
+      return;
+    }
+
+    setIsCreatingDefaults(true);
+    setMessage(null);
+
+    try {
+      const { data: insertedSettings, error } = await supabase
+        .from("quote_pricing_settings")
+        .insert({ tenant_id: tenantId })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setSettings(mapSettings(insertedSettings as Record<string, unknown>));
+      setLoadState("ready");
+      setMessage({ type: "success", text: "Default pricing configuration created." });
+    } catch (error) {
+      const payload = toErrorPayload(error, "Failed to create default pricing configuration.");
+      setLoadError(payload);
+      setLoadState("error");
+      setMessage({ type: "error", text: formatErrorText(payload) });
+    } finally {
+      setIsCreatingDefaults(false);
+    }
+  };
 
   const saveSettings = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -200,7 +289,7 @@ function QuotePricingContent() {
     const { error } = await supabase.from("quote_pricing_settings").upsert(payload, { onConflict: "tenant_id" });
 
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: formatErrorText(toErrorPayload(error, "Failed to save pricing settings.")) });
     } else {
       setMessage({ type: "success", text: "Quote pricing settings saved." });
     }
@@ -242,7 +331,7 @@ function QuotePricingContent() {
       .single();
 
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: formatErrorText(toErrorPayload(error, "Failed to add custom pricing item.")) });
       return;
     }
 
@@ -266,15 +355,73 @@ function QuotePricingContent() {
       .eq("id", item.id);
 
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: formatErrorText(toErrorPayload(error, "Failed to update custom pricing item.")) });
       return;
     }
 
     setItems((current) => current.map((entry) => (entry.id === item.id ? next : entry)));
   };
 
-  if (loading || !settings) {
-    return <p className="p-6 text-sm text-slate-500">Loading quote pricing settings...</p>;
+  if (loadState === "loading") {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-slate-500">Loading quote pricing settings...</p>
+      </div>
+    );
+  }
+
+  if (loadState === "error") {
+    return (
+      <div className="p-6">
+        <div className="max-w-2xl rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">
+          <h1 className="text-base font-semibold">Failed to load quote pricing settings</h1>
+          <p className="mt-2 text-sm">{loadError?.message ?? "Unknown error"}</p>
+          <div className="mt-3 space-y-1 text-xs">
+            <p>code: {loadError?.code ?? "n/a"}</p>
+            <p>details: {loadError?.details ?? "n/a"}</p>
+            <p>hint: {loadError?.hint ?? "n/a"}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void loadPricingData();
+            }}
+            className="mt-4 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadState === "empty") {
+    return (
+      <div className="p-6">
+        <div className="max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <h1 className="text-base font-semibold">No pricing configuration yet</h1>
+          <p className="mt-2 text-sm">Create tenant defaults to begin quote pricing.</p>
+          <button
+            type="button"
+            onClick={() => {
+              void createDefaults();
+            }}
+            disabled={isCreatingDefaults}
+            className="mt-4 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {isCreatingDefaults ? "Creating defaults..." : "Create defaults"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-slate-600">Quote pricing settings unavailable.</p>
+      </div>
+    );
   }
 
   return (
