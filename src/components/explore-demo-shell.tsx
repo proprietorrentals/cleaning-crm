@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
 import type { DemoData, DemoJob, DemoInvoice, DemoQuote, DemoMileageRequest, DemoRevenuePoint } from "@/lib/explore-demo-data";
 import { useI18n } from "@/components/i18n-provider";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 type TabId = "dashboard" | "customers" | "employees" | "jobs" | "quotes" | "invoices" | "reports";
 
@@ -360,6 +361,10 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
   const { t, locale } = useI18n();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
 
+  useEffect(() => {
+    trackAnalyticsEvent("interactive_demo_opened", { source: "explore_route" });
+  }, []);
+
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "dashboard", label: t("public.exploreTabDashboard") },
     { id: "customers", label: t("public.exploreTabCustomers") },
@@ -393,8 +398,26 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#e2f2ff_0%,#f8fbff_52%,#eef4ff_100%)] text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mb-5 rounded-[1.75rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900 shadow-sm">
-          {t("public.exploreBanner")}
+        <div className="sticky top-3 z-30 mb-5 rounded-[1.75rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <p>{t("public.exploreBanner")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/signup"
+                onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_banner" })}
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+              >
+                {t("public.startFreeTrial")}
+              </Link>
+              <Link
+                href="/contact"
+                onClick={() => trackAnalyticsEvent("book_demo_clicked", { source: "explore_banner" })}
+                className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-white px-4 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
+              >
+                {t("public.bookDemo")}
+              </Link>
+            </div>
+          </div>
         </div>
 
         <header className="rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur sm:p-6">
@@ -411,8 +434,19 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/signup" className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+              <Link
+                href="/signup"
+                onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_header" })}
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+              >
                 {t("public.startFreeTrial")}
+              </Link>
+              <Link
+                href="/contact"
+                onClick={() => trackAnalyticsEvent("book_demo_clicked", { source: "explore_header" })}
+                className="inline-flex items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+              >
+                {t("public.bookDemo")}
               </Link>
               <div className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700">
                 {t("public.exploreReadOnlyMode")}

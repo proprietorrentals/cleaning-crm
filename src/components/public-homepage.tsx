@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { PublicSiteNav } from "@/components/public-site-nav";
 import { PublicSiteFooter } from "@/components/public-site-footer";
+import { DemoVideoModal } from "@/components/demo-video-modal";
 import { useI18n } from "@/components/i18n-provider";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 import { useLocaleFormat } from "@/lib/i18n/format";
+
+const DEMO_VIDEO_URL = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL;
 
 export function PublicHomepage() {
   const { t } = useI18n();
   const { formatNumber } = useLocaleFormat();
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
 
   const featureCards = [
     {
@@ -88,17 +94,28 @@ export function PublicHomepage() {
               {t("public.heroCopy")}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDemoModalOpen(true);
+                  trackAnalyticsEvent("demo_video_opened", { source: "homepage_hero_modal" });
+                }}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
               >
-                {t("public.startFreeTrial")}
-              </Link>
+                {t("public.watchTwoMinuteDemo")}
+              </button>
               <Link
                 href="/explore"
+                onClick={() => trackAnalyticsEvent("interactive_demo_opened", { source: "homepage_hero_cta" })}
+                className="inline-flex items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                {t("public.exploreInteractiveDemo")}
+              </Link>
+              <Link
+                href="/demo"
                 className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                {t("public.navExploreDemo")}
+                {t("public.viewFullDemoPage")}
               </Link>
             </div>
           </div>
@@ -210,6 +227,7 @@ export function PublicHomepage() {
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
               href="/signup"
+              onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "homepage_final_cta" })}
               className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {t("public.startFreeTrial")}
@@ -222,6 +240,7 @@ export function PublicHomepage() {
             </Link>
             <Link
               href="/explore"
+              onClick={() => trackAnalyticsEvent("interactive_demo_opened", { source: "homepage_final_cta" })}
               className="inline-flex items-center justify-center rounded-xl border border-blue-100 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {t("public.navExploreDemo")}
@@ -229,6 +248,14 @@ export function PublicHomepage() {
           </div>
         </section>
       </main>
+
+      <DemoVideoModal
+        open={isDemoModalOpen}
+        videoUrl={DEMO_VIDEO_URL}
+        title={t("public.demoVideoTitle")}
+        onClose={() => setIsDemoModalOpen(false)}
+        onCompleted={() => trackAnalyticsEvent("demo_video_completed", { source: "homepage_modal" })}
+      />
       <PublicSiteFooter />
     </div>
   );

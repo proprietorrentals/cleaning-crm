@@ -37,6 +37,13 @@ Copy `.env.example` to `.env.local` and fill in the required values.
   - Required scopes: `styles:read`, `fonts:read`
   - **IMPORTANT: Never expose this in client-side code**
 
+## Public Demo Video
+
+- `NEXT_PUBLIC_DEMO_VIDEO_URL` - Public video URL used for the homepage demo modal and `/demo` page
+  - Supported: YouTube, Vimeo, Loom share URLs
+  - Example: `NEXT_PUBLIC_DEMO_VIDEO_URL=https://www.youtube.com/watch?v=VIDEO_ID`
+  - Add this to `.env.local`
+
 ## How to Set Up Stripe
 
 1. **Create a Stripe Account**
