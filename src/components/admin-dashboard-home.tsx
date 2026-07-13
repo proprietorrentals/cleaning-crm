@@ -156,6 +156,7 @@ const navigationItems = [
   { label: "Dashboard", href: "/", active: true, icon: "▣" },
   { label: "Customers", href: "/customers", icon: "◫" },
   { label: "Quotes", href: "/quotes", icon: "◧" },
+    { label: "Quote Pricing", href: "/quote-pricing", icon: "◨" },
   { label: "Jobs", href: "/jobs", icon: "◔" },
   { label: "Employees", href: "/employees", icon: "◍" },
   { label: "Invoices", href: "/invoices", icon: "◐" },

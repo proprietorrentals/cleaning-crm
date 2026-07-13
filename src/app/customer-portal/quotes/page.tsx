@@ -11,8 +11,19 @@ type Quote = {
   total_estimate: number;
   square_footage: number;
   cleaning_frequency: string;
-  extra_services: string[];
+  extra_services: string[] | null;
   notes: string;
+  status?: "Pending" | "Sent" | "Approved" | "Rejected";
+  created_at: string;
+};
+
+type QuoteLineItem = {
+  id: string;
+  quote_id: string;
+  item_name: string;
+  amount: number;
+  customer_description: string | null;
+  customer_visible: boolean;
   created_at: string;
 };
 
@@ -20,7 +31,7 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -35,8 +46,8 @@ function formatDate(dateString: string) {
 export default function CustomerQuotesPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
-  const [customerId, setCustomerId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [lineItemsByQuote, setLineItemsByQuote] = useState<Record<string, QuoteLineItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,28 +63,18 @@ export default function CustomerQuotesPage() {
         return;
       }
 
-      // Get customer ID
       const { data: customer, error: customerError } = await supabase
         .from("customers")
         .select("id")
         .eq("user_id", session.user.id)
         .maybeSingle();
 
-      if (customerError) {
-        console.error("❌ Failed to fetch customer:", customerError);
+      if (customerError || !customer) {
+        setMessage(customerError?.message ?? "No customer profile found.");
         setLoading(false);
         return;
       }
 
-      if (!customer) {
-        console.warn("⚠️ No customer profile found for user", session.user.id);
-        setLoading(false);
-        return;
-      }
-
-      setCustomerId(customer.id);
-
-      // Fetch quotes
       const { data: quotesData, error: quotesError } = await supabase
         .from("quotes")
         .select("*")
@@ -81,10 +82,33 @@ export default function CustomerQuotesPage() {
         .order("created_at", { ascending: false });
 
       if (quotesError) {
-        console.error("❌ Failed to fetch quotes:", quotesError);
         setMessage(`Error loading quotes: ${quotesError.message}`);
-      } else {
-        setQuotes(quotesData || []);
+        setLoading(false);
+        return;
+      }
+
+      const typedQuotes = (quotesData ?? []) as Quote[];
+      setQuotes(typedQuotes);
+
+      if (typedQuotes.length > 0) {
+        const quoteIds = typedQuotes.map((quote) => quote.id);
+        const { data: quoteLineItems, error: lineItemError } = await supabase
+          .from("quote_line_items")
+          .select("id,quote_id,item_name,amount,customer_description,customer_visible,created_at")
+          .in("quote_id", quoteIds)
+          .eq("customer_visible", true)
+          .order("created_at", { ascending: true });
+
+        if (lineItemError) {
+          setMessage(`Quotes loaded but line items failed: ${lineItemError.message}`);
+        } else {
+          const grouped: Record<string, QuoteLineItem[]> = {};
+          for (const item of (quoteLineItems ?? []) as QuoteLineItem[]) {
+            if (!grouped[item.quote_id]) grouped[item.quote_id] = [];
+            grouped[item.quote_id].push(item);
+          }
+          setLineItemsByQuote(grouped);
+        }
       }
 
       setLoading(false);
@@ -97,108 +121,53 @@ export default function CustomerQuotesPage() {
     setApproving(quote.id);
     setMessage(null);
 
-    try {
-      console.log("📋 DEBUG - Starting quote approval for quote:", quote.id);
+    const jobPayload = {
+      quote_id: quote.id,
+      customer_id: quote.customer_id,
+      scheduled_date: new Date().toISOString().split("T")[0],
+      assigned_employee: null,
+      status: "Scheduled",
+      estimated_value: quote.total_estimate,
+      notes: quote.notes || "",
+    };
 
-      // Step 1: Create job from quote
-      console.log("📋 DEBUG - Creating job with data:", {
-        quote_id: quote.id,
-        customer_id: quote.customer_id,
-        scheduled_date: new Date().toISOString().split("T")[0],
-        status: "Scheduled",
-        estimated_value: quote.total_estimate,
-        notes: quote.notes,
-      });
+    const { data: jobData, error: jobError } = await supabase.from("jobs").insert(jobPayload).select();
 
-      const jobPayload = {
-        quote_id: quote.id,
-        customer_id: quote.customer_id,
-        scheduled_date: new Date().toISOString().split("T")[0],
-        assigned_employee: null,
-        status: "Scheduled",
-        estimated_value: quote.total_estimate,
-        notes: quote.notes || "",
-      };
-
-      const { data: jobData, error: jobError } = await supabase
-        .from("jobs")
-        .insert(jobPayload)
-        .select();
-
-      if (jobError) {
-        console.error("❌ Job creation failed:", {
-          message: jobError.message,
-          code: jobError.code,
-          details: jobError.details,
-        });
-        setMessage(`❌ Failed to create job: ${jobError.message}`);
-        setApproving(null);
-        return;
-      }
-
-      if (!jobData || jobData.length === 0) {
-        console.error("❌ Job created but no data returned");
-        setMessage("❌ Job created but failed to confirm. Please refresh.");
-        setApproving(null);
-        return;
-      }
-
-      console.log("✓ Job created successfully:", jobData[0].id);
-
-      // Step 2: Update quote status to "Approved"
-      console.log("📋 DEBUG - Updating quote status to Approved for quote:", quote.id);
-
-      const { error: updateError } = await supabase
-        .from("quotes")
-        .update({ status: "Approved" })
-        .eq("id", quote.id);
-
-      if (updateError) {
-        console.error("❌ Failed to update quote status:", {
-          message: updateError.message,
-          code: updateError.code,
-          details: updateError.details,
-        });
-        setMessage(`❌ Job created but failed to update quote status: ${updateError.message}`);
-        setApproving(null);
-        return;
-      }
-
-      console.log("✓ Quote status updated to Approved");
-
-      // Step 3: Refresh quotes list
-      console.log("📋 DEBUG - Refreshing quotes list");
-
-      const { data: quotesData, error: reloadError } = await supabase
-        .from("quotes")
-        .select("*")
-        .eq("customer_id", quote.customer_id)
-        .order("created_at", { ascending: false });
-
-      if (reloadError) {
-        console.error("⚠️ Warning - failed to reload quotes:", reloadError);
-      } else {
-        setQuotes(quotesData || []);
-        console.log("✓ Quotes reloaded successfully");
-      }
-
-      setMessage(`✓ Quote approved! Job #${jobData[0].id.slice(0, 8).toUpperCase()} has been scheduled.`);
-    } catch (error) {
-      console.error("❌ Unexpected error during quote approval:", error);
-      setMessage(`❌ An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
+    if (jobError || !jobData?.[0]) {
+      setMessage(`Failed to create job: ${jobError?.message ?? "Unknown error"}`);
       setApproving(null);
+      return;
     }
+
+    const { error: updateError } = await supabase
+      .from("quotes")
+      .update({ status: "Approved" })
+      .eq("id", quote.id);
+
+    if (updateError) {
+      setMessage(`Job created but quote status update failed: ${updateError.message}`);
+      setApproving(null);
+      return;
+    }
+
+    const { data: quotesData } = await supabase
+      .from("quotes")
+      .select("*")
+      .eq("customer_id", quote.customer_id)
+      .order("created_at", { ascending: false });
+
+    setQuotes((quotesData ?? []) as Quote[]);
+    setMessage(`Quote approved. Job #${jobData[0].id.slice(0, 8).toUpperCase()} is scheduled.`);
+    setApproving(null);
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             <Link href="/customer-portal" className="text-slate-600 hover:text-slate-900">
-              ← Back to Portal
+              Back to Portal
             </Link>
             <h1 className="text-2xl font-bold text-slate-900">Your Quotes</h1>
           </div>
@@ -206,22 +175,22 @@ export default function CustomerQuotesPage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {message && (
+        {message ? (
           <div
             className={`mb-6 rounded-2xl px-4 py-3 text-sm ${
-              message.includes("❌")
+              message.toLowerCase().includes("failed") || message.toLowerCase().includes("error")
                 ? "border border-red-200 bg-red-50 text-red-700"
                 : "border border-green-200 bg-green-50 text-green-700"
             }`}
           >
             {message}
           </div>
-        )}
+        ) : null}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mx-auto mb-2"></div>
+              <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
               <p className="text-slate-600">Loading quotes...</p>
             </div>
           </div>
@@ -231,65 +200,79 @@ export default function CustomerQuotesPage() {
           </div>
         ) : (
           <div className="grid gap-6">
-            {quotes.map((quote) => (
-              <div key={quote.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600">Quote #{quote.id.slice(0, 8).toUpperCase()}</p>
-                    <p className="text-3xl font-bold text-slate-900 mt-1">
-                      {formatCurrency(quote.total_estimate)}
-                    </p>
-                  </div>
-                  <p className="text-sm text-slate-500">{formatDate(quote.created_at)}</p>
-                </div>
+            {quotes.map((quote) => {
+              const lineItems = lineItemsByQuote[quote.id] ?? [];
 
-                <div className="mb-6 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Area</p>
-                    <p className="font-semibold text-slate-900">{quote.square_footage} sq ft</p>
+              return (
+                <div key={quote.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4 flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600">Quote #{quote.id.slice(0, 8).toUpperCase()}</p>
+                      <p className="mt-1 text-3xl font-bold text-slate-900">{formatCurrency(quote.total_estimate)}</p>
+                      <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                        Status: {quote.status ?? "Pending"}
+                      </p>
+                    </div>
+                    <p className="text-sm text-slate-500">{formatDate(quote.created_at)}</p>
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Frequency</p>
-                    <p className="font-semibold text-slate-900 capitalize">{quote.cleaning_frequency}</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm text-slate-600">Extra Services</p>
-                    <p className="font-semibold text-slate-900">{quote.extra_services.length || 0}</p>
-                  </div>
-                </div>
 
-                {quote.extra_services.length > 0 && (
-                  <div className="mb-6">
-                    <p className="text-sm font-medium text-slate-900 mb-2">Additional Services:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {quote.extra_services.map((service) => (
-                        <span
-                          key={service}
-                          className="rounded-lg bg-blue-50 px-3 py-1 text-sm text-blue-700"
-                        >
-                          {service}
-                        </span>
-                      ))}
+                  <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-sm text-slate-600">Area</p>
+                      <p className="font-semibold text-slate-900">{quote.square_footage} sq ft</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-sm text-slate-600">Frequency</p>
+                      <p className="font-semibold text-slate-900 capitalize">{quote.cleaning_frequency}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-sm text-slate-600">Extra Services</p>
+                      <p className="font-semibold text-slate-900">{quote.extra_services?.length || 0}</p>
                     </div>
                   </div>
-                )}
 
-                {quote.notes && (
-                  <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-700">Notes:</p>
-                    <p className="text-sm text-slate-600 mt-1">{quote.notes}</p>
-                  </div>
-                )}
+                  {lineItems.length > 0 ? (
+                    <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="mb-2 text-sm font-medium text-slate-900">Pricing breakdown</p>
+                      <div className="space-y-2">
+                        {lineItems.map((item) => (
+                          <div key={item.id} className="flex items-start justify-between text-sm">
+                            <div>
+                              <p className="text-slate-800">{item.item_name}</p>
+                              {item.customer_description ? (
+                                <p className="text-xs text-slate-500">{item.customer_description}</p>
+                              ) : null}
+                            </div>
+                            <p className={item.amount < 0 ? "text-rose-600" : "text-slate-900"}>
+                              {formatCurrency(item.amount)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
-                <button
-                  onClick={() => handleApproveQuote(quote)}
-                  disabled={approving === quote.id}
-                  className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
-                >
-                  {approving === quote.id ? "Processing..." : "✓ Approve & Schedule"}
-                </button>
-              </div>
-            ))}
+                  {quote.notes ? (
+                    <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-medium text-slate-700">Notes:</p>
+                      <p className="mt-1 text-sm text-slate-600">{quote.notes}</p>
+                    </div>
+                  ) : null}
+
+                  <button
+                    onClick={() => handleApproveQuote(quote)}
+                    disabled={approving === quote.id || (quote.status ?? "Pending") === "Approved"}
+                    className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+                  >
+                    {(quote.status ?? "Pending") === "Approved"
+                      ? "Already Approved"
+                      : approving === quote.id
+                        ? "Processing..."
+                        : "Approve and Schedule"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
