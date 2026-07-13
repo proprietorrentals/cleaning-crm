@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type EmployeeProfile = {
   id: string;
+  tenant_id: string;
   first_name: string;
   last_name: string;
   role: string;
@@ -123,9 +124,10 @@ export default function EmployeePortalPage() {
       setProfile(employee);
 
       const { data: assignedJobs, error: jobsError } = await supabase
-        .from("employee_assigned_jobs")
+        .from("jobs")
         .select("id,customer_id,tenant_id,scheduled_date,status,notes,assigned_employee")
         .eq("assigned_employee_id", employee.id)
+        .eq("tenant_id", employee.tenant_id)
         .order("scheduled_date", { ascending: true });
 
       if (jobsError) {

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ActiveEmployeeProfile = {
   id: string;
+  tenant_id: string;
   first_name: string;
   last_name: string;
   role: string;
@@ -19,7 +20,7 @@ export async function getActiveEmployeeByAuthUserId(
 ): Promise<{ profile: ActiveEmployeeProfile | null; errorMessage: string | null }> {
   const { data, error } = await supabase
     .from("employees")
-    .select("id,first_name,last_name,role,department,is_active")
+    .select("id,tenant_id,first_name,last_name,role,department,is_active")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
@@ -27,7 +28,7 @@ export async function getActiveEmployeeByAuthUserId(
     return { profile: null, errorMessage: error.message };
   }
 
-  if (!data || !data.is_active) {
+  if (!data || !data.is_active || !data.tenant_id) {
     return { profile: null, errorMessage: null };
   }
 

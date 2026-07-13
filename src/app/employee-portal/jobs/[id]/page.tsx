@@ -28,6 +28,7 @@ type Job = {
 type Customer = { id: string; company_name: string; address: string | null; phone: string | null };
 type EmployeeProfile = {
   id: string;
+  tenant_id: string;
   first_name: string;
   last_name: string;
   role: string;
@@ -113,10 +114,11 @@ export default function JobDetailPage() {
     });
 
     const { data: jobData, error: jobError } = await supabase
-      .from("employee_assigned_jobs")
+      .from("jobs")
       .select("id,tenant_id,assigned_employee_id,customer_id,scheduled_date,status,notes,started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
       .eq("id", jobId)
       .eq("assigned_employee_id", emp.id)
+      .eq("tenant_id", emp.tenant_id)
       .maybeSingle();
 
     if (jobError) {
@@ -300,26 +302,13 @@ export default function JobDetailPage() {
     const path = `${job.id}/${type}-${Date.now()}.${ext}`;
 
     const pathJobId = path.split("/")[0] ?? null;
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const authUserId = session?.user?.id ?? null;
-
-    const employeeRes = authUserId
-      ? await supabase
-          .from("employee_assigned_jobs")
-          .select("id,tenant_id,assigned_employee_id")
-          .eq("id", job.id)
-          .maybeSingle()
-      : { data: null, error: null };
-
-    const resolvedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
-    const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
-    const resolvedJobTenantId = employeeRes.data?.tenant_id ?? null;
-    const selectedJobId = employeeRes.data?.id ?? null;
-    const jobAssignedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
-    const jobTenantId = employeeRes.data?.tenant_id ?? null;
+    const authUserId = profile.id;
+    const resolvedEmployeeId = profile.id;
+    const resolvedEmployeeTenantId = profile.tenant_id;
+    const resolvedJobTenantId = job.tenant_id ?? null;
+    const selectedJobId = job.id;
+    const jobAssignedEmployeeId = job.assigned_employee_id ?? null;
+    const jobTenantId = job.tenant_id ?? null;
     const assignedMatch =
       !!resolvedEmployeeId && jobAssignedEmployeeId === resolvedEmployeeId;
     const tenantMatch =
@@ -471,26 +460,13 @@ export default function JobDetailPage() {
 
     const path = `${job.id}/signature-${Date.now()}.png`;
     const pathJobId = path.split("/")[0] ?? null;
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const authUserId = session?.user?.id ?? null;
-
-    const employeeRes = authUserId
-      ? await supabase
-          .from("employee_assigned_jobs")
-          .select("id,tenant_id,assigned_employee_id")
-          .eq("id", job.id)
-          .maybeSingle()
-      : { data: null, error: null };
-
-    const resolvedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
-    const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
-    const resolvedJobTenantId = employeeRes.data?.tenant_id ?? null;
-    const selectedJobId = employeeRes.data?.id ?? null;
-    const jobAssignedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
-    const jobTenantId = employeeRes.data?.tenant_id ?? null;
+    const authUserId = profile.id;
+    const resolvedEmployeeId = profile.id;
+    const resolvedEmployeeTenantId = profile.tenant_id;
+    const resolvedJobTenantId = job.tenant_id ?? null;
+    const selectedJobId = job.id;
+    const jobAssignedEmployeeId = job.assigned_employee_id ?? null;
+    const jobTenantId = job.tenant_id ?? null;
     const assignedMatch =
       !!resolvedEmployeeId && jobAssignedEmployeeId === resolvedEmployeeId;
     const tenantMatch =

@@ -94,9 +94,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: jobs, error: jobError } = await serverSupabase
-      .from("employee_assigned_jobs")
+      .from("jobs")
       .select("id, customer_id, tenant_id, assigned_employee_id")
-      .in("id", [fromJobId, toJobId]);
+      .in("id", [fromJobId, toJobId])
+      .eq("assigned_employee_id", employee.id)
+      .eq("tenant_id", employee.tenant_id);
 
     if (jobError) {
       return NextResponse.json({ error: jobError.message }, { status: 400 });
