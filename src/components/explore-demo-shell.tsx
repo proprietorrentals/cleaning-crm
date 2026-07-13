@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
 import type { DemoData, DemoJob, DemoInvoice, DemoQuote, DemoMileageRequest, DemoRevenuePoint } from "@/lib/explore-demo-data";
+import { useI18n } from "@/components/i18n-provider";
 
 type TabId = "dashboard" | "customers" | "employees" | "jobs" | "quotes" | "invoices" | "reports";
 
@@ -11,26 +12,16 @@ type ExploreDemoShellProps = {
   data: DemoData;
 };
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "dashboard", label: "AI Supervisor Dashboard" },
-  { id: "customers", label: "Customers" },
-  { id: "employees", label: "Employees" },
-  { id: "jobs", label: "Jobs" },
-  { id: "quotes", label: "Quotes" },
-  { id: "invoices", label: "Invoices" },
-  { id: "reports", label: "Reports" },
-];
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
+function formatCurrency(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
+function formatDate(value: string, locale: string) {
+  return new Date(value).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -47,7 +38,7 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint: 
   );
 }
 
-function SectionShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function SectionShell({ title, subtitle, children, readOnlyLabel }: { title: string; subtitle: string; children: React.ReactNode; readOnlyLabel: string }) {
   return (
     <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -55,21 +46,21 @@ function SectionShell({ title, subtitle, children }: { title: string; subtitle: 
           <h3 className="text-xl font-semibold text-slate-900">{title}</h3>
           <p className="text-sm text-slate-500">{subtitle}</p>
         </div>
-        <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">Read-only demo</p>
+        <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">{readOnlyLabel}</p>
       </div>
       {children}
     </section>
   );
 }
 
-function RevenueBars({ data }: { data: DemoRevenuePoint[] }) {
+function RevenueBars({ data, locale }: { data: DemoRevenuePoint[]; locale: string }) {
   const max = Math.max(...data.map((entry) => entry.total), 1);
 
   return (
     <div className="flex h-44 items-end gap-2 sm:gap-3">
       {data.map((entry) => (
         <div key={entry.label} className="flex flex-1 flex-col items-center gap-2">
-          <span className="text-[10px] font-medium text-slate-500">{formatCurrency(entry.total)}</span>
+          <span className="text-[10px] font-medium text-slate-500">{formatCurrency(entry.total, locale)}</span>
           <div className="flex w-full flex-1 items-end">
             <div
               className="w-full rounded-t-2xl bg-gradient-to-t from-sky-700 to-cyan-400"
@@ -83,20 +74,20 @@ function RevenueBars({ data }: { data: DemoRevenuePoint[] }) {
   );
 }
 
-function DemoPhotoGrid({ job }: { job: DemoJob }) {
+function DemoPhotoGrid({ job, t }: { job: DemoJob; t: (key: string, vars?: Record<string, string | number>) => string }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {[job.before_photo_url, job.after_photo_url].filter(Boolean).map((photoUrl, index) => (
         <div key={`${job.id}-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-          <img src={photoUrl ?? ""} alt={`${index === 0 ? "Before" : "After"} photo for ${job.customer_name}`} className="h-32 w-full object-cover" />
-          <div className="px-3 py-2 text-xs font-medium text-slate-600">{index === 0 ? "Before photo" : "After photo"}</div>
+          <img src={photoUrl ?? ""} alt={index === 0 ? t("public.exploreBeforePhotoAlt", { customer: job.customer_name }) : t("public.exploreAfterPhotoAlt", { customer: job.customer_name })} className="h-32 w-full object-cover" />
+          <div className="px-3 py-2 text-xs font-medium text-slate-600">{index === 0 ? t("public.exploreBeforePhoto") : t("public.exploreAfterPhoto")}</div>
         </div>
       ))}
     </div>
   );
 }
 
-function DashboardTab({ data }: { data: DemoData }) {
+function DashboardTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   const completedJobs = data.completedJobs.length;
   const scheduledJobs = data.scheduledJobs.length;
   const totalCustomers = data.customers.length;
@@ -107,37 +98,37 @@ function DashboardTab({ data }: { data: DemoData }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Customers" value={String(totalCustomers)} hint="Seeded demo accounts" />
-        <StatCard label="Employees" value={String(totalEmployees)} hint="Field and operations staff" />
-        <StatCard label="Completed Jobs" value={String(completedJobs)} hint="Historical service visits" />
-        <StatCard label="Scheduled Jobs" value={String(scheduledJobs)} hint="Upcoming service visits" />
+        <StatCard label={t("public.exploreCustomers")} value={new Intl.NumberFormat(locale).format(totalCustomers)} hint={t("public.exploreSeededDemoAccounts")} />
+        <StatCard label={t("public.exploreEmployees")} value={new Intl.NumberFormat(locale).format(totalEmployees)} hint={t("public.exploreFieldOperationsStaff")} />
+        <StatCard label={t("public.exploreCompletedJobs")} value={new Intl.NumberFormat(locale).format(completedJobs)} hint={t("public.exploreHistoricalServiceVisits")} />
+        <StatCard label={t("public.exploreScheduledJobs")} value={new Intl.NumberFormat(locale).format(scheduledJobs)} hint={t("public.exploreUpcomingServiceVisits")} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <SectionShell title="Revenue History" subtitle="Paid invoice volume across the last 12 months.">
-          <RevenueBars data={data.revenueHistory} />
+        <SectionShell title={t("public.exploreRevenueHistory")} subtitle={t("public.exploreRevenueHistorySubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
+          <RevenueBars data={data.revenueHistory} locale={locale} />
         </SectionShell>
 
-        <SectionShell title="Supervisor Summary" subtitle="The demo surfaces the same operational signals the live dashboard uses.">
+        <SectionShell title={t("public.exploreSupervisorSummary")} subtitle={t("public.exploreSupervisorSummarySubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
           <div className="space-y-4">
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-medium text-slate-700">ServiceOS Demo Cleaning</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{formatCurrency(totalRevenue)}</p>
-              <p className="text-sm text-slate-500">Collected revenue from paid invoices</p>
+              <p className="text-sm font-medium text-slate-700">{t("public.exploreDemoCompany")}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{formatCurrency(totalRevenue, locale)}</p>
+              <p className="text-sm text-slate-500">{t("public.exploreCollectedRevenue")}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-emerald-700">Paid invoices</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-900">{paidInvoices}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-700">{t("public.explorePaidInvoices")}</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-900">{new Intl.NumberFormat(locale).format(paidInvoices)}</p>
               </div>
               <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-sky-700">Coverage</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-sky-700">{t("public.exploreCoverage")}</p>
                 <p className="mt-2 text-2xl font-semibold text-sky-900">{Math.round((paidInvoices / data.invoices.length) * 100)}%</p>
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-medium text-slate-900">Brand Promise</p>
-              <p className="mt-1 text-sm text-slate-500">Operate with Confidence.</p>
+              <p className="text-sm font-medium text-slate-900">{t("public.exploreBrandPromise")}</p>
+              <p className="mt-1 text-sm text-slate-500">{t("public.operateWithConfidence")}</p>
             </div>
           </div>
         </SectionShell>
@@ -146,9 +137,9 @@ function DashboardTab({ data }: { data: DemoData }) {
   );
 }
 
-function CustomersTab({ data }: { data: DemoData }) {
+function CustomersTab({ data, t }: { data: DemoData; t: (key: string, vars?: Record<string, string | number>) => string }) {
   return (
-    <SectionShell title="Customers" subtitle="40 seeded customer accounts with company, contact, and service details.">
+    <SectionShell title={t("public.exploreCustomers")} subtitle={t("public.exploreCustomersSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {data.customers.map((customer) => (
           <article key={customer.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -157,7 +148,7 @@ function CustomersTab({ data }: { data: DemoData }) {
             <div className="mt-3 space-y-1 text-sm text-slate-500">
               <p>{customer.email}</p>
               <p>{customer.phone}</p>
-              <p>{customer.cleaning_frequency} service</p>
+              <p>{customer.cleaning_frequency} {t("public.exploreService")}</p>
             </div>
           </article>
         ))}
@@ -166,9 +157,9 @@ function CustomersTab({ data }: { data: DemoData }) {
   );
 }
 
-function EmployeesTab({ data }: { data: DemoData }) {
+function EmployeesTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   return (
-    <SectionShell title="Employees" subtitle="12 seeded employees with performance, role, and active workload context.">
+    <SectionShell title={t("public.exploreEmployees")} subtitle={t("public.exploreEmployeesSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.employees.map((employee) => (
           <article key={employee.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -177,19 +168,19 @@ function EmployeesTab({ data }: { data: DemoData }) {
                 <p className="text-lg font-semibold text-slate-900">{employee.first_name} {employee.last_name}</p>
                 <p className="text-sm text-slate-500">{employee.role} · {employee.department}</p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{employee.status}</span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{employee.status === "active" ? t("public.exploreStatusActive") : employee.status === "on leave" ? t("public.exploreStatusOnLeave") : employee.status}</span>
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
               <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Active</p>
-                <p className="font-semibold text-slate-900">{employee.active_jobs}</p>
+                <p className="text-xs text-slate-500">{t("public.exploreActive")}</p>
+                <p className="font-semibold text-slate-900">{new Intl.NumberFormat(locale).format(employee.active_jobs)}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Completed</p>
-                <p className="font-semibold text-slate-900">{employee.completed_jobs}</p>
+                <p className="text-xs text-slate-500">{t("public.exploreCompleted")}</p>
+                <p className="font-semibold text-slate-900">{new Intl.NumberFormat(locale).format(employee.completed_jobs)}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Rating</p>
+                <p className="text-xs text-slate-500">{t("public.exploreRating")}</p>
                 <p className="font-semibold text-slate-900">{employee.rating}</p>
               </div>
             </div>
@@ -200,38 +191,38 @@ function EmployeesTab({ data }: { data: DemoData }) {
   );
 }
 
-function JobsTab({ data }: { data: DemoData }) {
+function JobsTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   const featuredCompletedJobs = data.completedJobs.slice(0, 6);
   const featuredScheduledJobs = data.scheduledJobs.slice(0, 6);
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Completed" value={String(data.completedJobs.length)} hint="Before and after photos included" />
-        <StatCard label="Scheduled" value={String(data.scheduledJobs.length)} hint="Future service calendar" />
-        <StatCard label="Signed" value={String(data.completedJobs.filter((job) => !!job.signature_url).length)} hint="Customer signatures captured" />
-        <StatCard label="Mileage Requests" value={String(data.mileageRequests.length)} hint="Included in demo workflow" />
+        <StatCard label={t("public.exploreCompleted")} value={new Intl.NumberFormat(locale).format(data.completedJobs.length)} hint={t("public.exploreBeforeAfterIncluded")} />
+        <StatCard label={t("public.exploreScheduled")} value={new Intl.NumberFormat(locale).format(data.scheduledJobs.length)} hint={t("public.exploreFutureServiceCalendar")} />
+        <StatCard label={t("public.exploreSigned")} value={new Intl.NumberFormat(locale).format(data.completedJobs.filter((job) => !!job.signature_url).length)} hint={t("public.exploreCustomerSignaturesCaptured")} />
+        <StatCard label={t("public.exploreMileageRequests")} value={new Intl.NumberFormat(locale).format(data.mileageRequests.length)} hint={t("public.exploreIncludedInWorkflow")} />
       </div>
 
-      <SectionShell title="Completed Jobs" subtitle="Photo evidence, customer signatures, and AI report summaries are shown in read-only mode.">
+      <SectionShell title={t("public.exploreCompletedJobs")} subtitle={t("public.exploreCompletedJobsSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {featuredCompletedJobs.map((job) => (
             <article key={job.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-slate-900">{job.customer_name}</p>
-                  <p className="text-sm text-slate-500">{job.employee_name} · {formatDate(job.scheduled_date)} · {job.scheduled_start_time}</p>
+                  <p className="text-sm text-slate-500">{job.employee_name} · {formatDate(job.scheduled_date, locale)} · {job.scheduled_start_time}</p>
                 </div>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Completed</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{t("public.exploreCompleted")}</span>
               </div>
-              <div className="mt-4"><DemoPhotoGrid job={job} /></div>
+              <div className="mt-4"><DemoPhotoGrid job={job} t={t} /></div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Customer signature</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t("public.exploreCustomerSignature")}</p>
                   <img src={job.signature_url ?? ""} alt={`Signature for ${job.customer_name}`} className="mt-2 h-20 w-full rounded-xl object-contain bg-white" />
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">AI Job Report</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t("public.exploreAiJobReport")}</p>
                   <p className="mt-2 text-sm text-slate-700">{job.report_summary}</p>
                 </div>
               </div>
@@ -240,13 +231,13 @@ function JobsTab({ data }: { data: DemoData }) {
         </div>
       </SectionShell>
 
-      <SectionShell title="Scheduled Jobs" subtitle="25 upcoming jobs are seeded into the demo schedule.">
+      <SectionShell title={t("public.exploreScheduledJobs")} subtitle={t("public.exploreScheduledJobsSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {featuredScheduledJobs.map((job) => (
             <article key={job.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="font-semibold text-slate-900">{job.customer_name}</p>
               <p className="text-sm text-slate-500">{job.employee_name}</p>
-              <p className="mt-2 text-sm text-slate-600">{formatDate(job.scheduled_date)} · {job.scheduled_start_time}</p>
+              <p className="mt-2 text-sm text-slate-600">{formatDate(job.scheduled_date, locale)} · {job.scheduled_start_time}</p>
               <p className="mt-3 text-sm text-slate-500">{job.notes}</p>
             </article>
           ))}
@@ -256,22 +247,22 @@ function JobsTab({ data }: { data: DemoData }) {
   );
 }
 
-function QuotesTab({ data }: { data: DemoData }) {
+function QuotesTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   return (
-    <SectionShell title="Quotes" subtitle="40 seeded quotes with estimate data and status coverage.">
+    <SectionShell title={t("public.navQuotes")} subtitle={t("public.exploreQuotesSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
       <div className="grid gap-3 xl:grid-cols-2">
         {data.quotes.slice(0, 12).map((quote) => (
           <article key={quote.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-slate-900">{quote.customer_name}</p>
-                <p className="text-sm text-slate-500">{quote.square_footage.toLocaleString()} sq ft · {quote.cleaning_frequency}</p>
+                <p className="text-sm text-slate-500">{new Intl.NumberFormat(locale).format(quote.square_footage)} {t("public.sqFt")} · {quote.cleaning_frequency}</p>
               </div>
-              <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">{quote.status}</span>
+              <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">{quote.status === "Approved" ? t("public.exploreStatusApproved") : quote.status === "Pending" ? t("public.exploreStatusPending") : quote.status === "Sent" ? t("public.exploreStatusSent") : quote.status}</span>
             </div>
             <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
-              <span>{quote.extra_services.join(" · ") || "Standard service"}</span>
-              <span className="font-semibold text-slate-900">{formatCurrency(quote.total_estimate)}</span>
+              <span>{quote.extra_services.join(" · ") || t("public.exploreStandardService")}</span>
+              <span className="font-semibold text-slate-900">{formatCurrency(quote.total_estimate, locale)}</span>
             </div>
           </article>
         ))}
@@ -280,18 +271,18 @@ function QuotesTab({ data }: { data: DemoData }) {
   );
 }
 
-function InvoicesTab({ data }: { data: DemoData }) {
+function InvoicesTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   return (
-    <SectionShell title="Invoices" subtitle="Invoice lifecycle is seeded for paid, pending, and overdue coverage.">
+    <SectionShell title={t("nav.invoices")} subtitle={t("public.exploreInvoicesSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-[900px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-4 py-3 font-medium">Invoice</th>
-              <th className="px-4 py-3 font-medium">Customer</th>
-              <th className="px-4 py-3 font-medium">Amount</th>
-              <th className="px-4 py-3 font-medium">Due</th>
-              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">{t("public.invoice")}</th>
+              <th className="px-4 py-3 font-medium">{t("public.customer")}</th>
+              <th className="px-4 py-3 font-medium">{t("public.amount")}</th>
+              <th className="px-4 py-3 font-medium">{t("public.due")}</th>
+              <th className="px-4 py-3 font-medium">{t("public.status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -299,11 +290,11 @@ function InvoicesTab({ data }: { data: DemoData }) {
               <tr key={invoice.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium text-slate-900">{invoice.invoice_number}</td>
                 <td className="px-4 py-3 text-slate-600">{invoice.customer_name}</td>
-                <td className="px-4 py-3 text-slate-900">{formatCurrency(invoice.amount)}</td>
-                <td className="px-4 py-3 text-slate-600">{formatDate(invoice.due_date)}</td>
+                <td className="px-4 py-3 text-slate-900">{formatCurrency(invoice.amount, locale)}</td>
+                <td className="px-4 py-3 text-slate-600">{formatDate(invoice.due_date, locale)}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === "Paid" ? "bg-emerald-50 text-emerald-700" : invoice.status === "Overdue" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
-                    {invoice.status}
+                    {invoice.status === "Paid" ? t("public.exploreStatusPaid") : invoice.status === "Overdue" ? t("public.exploreStatusOverdue") : invoice.status === "Pending" ? t("public.exploreStatusPending") : invoice.status}
                   </span>
                 </td>
               </tr>
@@ -315,28 +306,28 @@ function InvoicesTab({ data }: { data: DemoData }) {
   );
 }
 
-function ReportsTab({ data }: { data: DemoData }) {
+function ReportsTab({ data, locale, t }: { data: DemoData; locale: string; t: (key: string, vars?: Record<string, string | number>) => string }) {
   const approvedMileage = data.mileageRequests.filter((request) => request.status === "approved").length;
   const pendingMileage = data.mileageRequests.filter((request) => request.status === "pending").length;
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Revenue Months" value={String(data.revenueHistory.length)} hint="Rolling 12 month chart" />
-        <StatCard label="Mileage Approved" value={String(approvedMileage)} hint="Supervisor-reviewed requests" />
-        <StatCard label="Mileage Pending" value={String(pendingMileage)} hint="Awaiting approval" />
+        <StatCard label={t("public.exploreRevenueMonths")} value={new Intl.NumberFormat(locale).format(data.revenueHistory.length)} hint={t("public.exploreRolling12")} />
+        <StatCard label={t("public.exploreMileageApproved")} value={new Intl.NumberFormat(locale).format(approvedMileage)} hint={t("public.exploreSupervisorReviewed")} />
+        <StatCard label={t("public.exploreMileagePending")} value={new Intl.NumberFormat(locale).format(pendingMileage)} hint={t("public.exploreAwaitingApproval")} />
       </div>
 
-      <SectionShell title="AI Job Reports" subtitle="Summaries are generated from the completed job seed set.">
+      <SectionShell title={t("public.exploreAiJobReports")} subtitle={t("public.exploreAiJobReportsSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {data.completedJobs.slice(0, 8).map((job) => (
             <article key={job.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-slate-900">{job.customer_name}</p>
-                  <p className="text-sm text-slate-500">{job.employee_name} · {formatDate(job.scheduled_date)}</p>
+                  <p className="text-sm text-slate-500">{job.employee_name} · {formatDate(job.scheduled_date, locale)}</p>
                 </div>
-                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">Report</span>
+                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">{t("public.exploreReport")}</span>
               </div>
               <p className="mt-3 text-sm text-slate-600">{job.report_summary}</p>
             </article>
@@ -344,17 +335,17 @@ function ReportsTab({ data }: { data: DemoData }) {
         </div>
       </SectionShell>
 
-      <SectionShell title="Mileage Requests" subtitle="Read-only approval history for route-based mileage claims.">
+      <SectionShell title={t("public.exploreMileageRequests")} subtitle={t("public.exploreMileageRequestsSubtitle")} readOnlyLabel={t("public.exploreReadOnlyDemo")}>
         <div className="grid gap-3 md:grid-cols-2">
           {data.mileageRequests.slice(0, 10).map((request) => (
             <article key={request.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-slate-900">{request.employee_name}</p>
-                  <p className="text-sm text-slate-500">{request.miles} miles · {request.notes}</p>
+                  <p className="text-sm text-slate-500">{new Intl.NumberFormat(locale).format(request.miles)} {t("public.miles")} · {request.notes}</p>
                 </div>
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${request.status === "approved" ? "bg-emerald-50 text-emerald-700" : request.status === "pending" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"}`}>
-                  {request.status}
+                  {request.status === "approved" ? t("public.exploreStatusApproved") : request.status === "pending" ? t("public.exploreStatusPending") : request.status === "rejected" ? t("public.exploreStatusRejected") : request.status}
                 </span>
               </div>
             </article>
@@ -366,33 +357,44 @@ function ReportsTab({ data }: { data: DemoData }) {
 }
 
 export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
+  const { t, locale } = useI18n();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+
+  const tabs: Array<{ id: TabId; label: string }> = [
+    { id: "dashboard", label: t("public.exploreTabDashboard") },
+    { id: "customers", label: t("public.exploreTabCustomers") },
+    { id: "employees", label: t("public.exploreTabEmployees") },
+    { id: "jobs", label: t("public.exploreTabJobs") },
+    { id: "quotes", label: t("public.exploreTabQuotes") },
+    { id: "invoices", label: t("public.exploreTabInvoices") },
+    { id: "reports", label: t("public.exploreTabReports") },
+  ];
 
   const activeContent = useMemo(() => {
     switch (activeTab) {
       case "customers":
-        return <CustomersTab data={data} />;
+        return <CustomersTab data={data} t={t} />;
       case "employees":
-        return <EmployeesTab data={data} />;
+        return <EmployeesTab data={data} locale={locale} t={t} />;
       case "jobs":
-        return <JobsTab data={data} />;
+        return <JobsTab data={data} locale={locale} t={t} />;
       case "quotes":
-        return <QuotesTab data={data} />;
+        return <QuotesTab data={data} locale={locale} t={t} />;
       case "invoices":
-        return <InvoicesTab data={data} />;
+        return <InvoicesTab data={data} locale={locale} t={t} />;
       case "reports":
-        return <ReportsTab data={data} />;
+        return <ReportsTab data={data} locale={locale} t={t} />;
       case "dashboard":
       default:
-        return <DashboardTab data={data} />;
+        return <DashboardTab data={data} locale={locale} t={t} />;
     }
-  }, [activeTab, data]);
+  }, [activeTab, data, locale, t]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#e2f2ff_0%,#f8fbff_52%,#eef4ff_100%)] text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <div className="mb-5 rounded-[1.75rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900 shadow-sm">
-          {data.bannerMessage}
+          {t("public.exploreBanner")}
         </div>
 
         <header className="rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur sm:p-6">
@@ -400,27 +402,27 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
             <div className="space-y-4">
               <ServiceOSBrand showTagline />
               <div>
-                <p className="text-sm font-medium uppercase tracking-[0.25em] text-sky-700">ServiceOS Explore Demo</p>
+                <p className="text-sm font-medium uppercase tracking-[0.25em] text-sky-700">{t("public.exploreBannerTitle")}</p>
                 <h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">{data.companyName}</h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                  Explore the ServiceOS experience with seeded customers, employees, jobs, quotes, invoices, reports, mileage activity, and AI supervisor intelligence. Everything below is read-only.
+                  {t("public.exploreIntro")}
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/signup" className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-                Start Free Trial
+                {t("public.startFreeTrial")}
               </Link>
               <div className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-700">
-                Read-only mode
+                {t("public.exploreReadOnlyMode")}
               </div>
             </div>
           </div>
         </header>
 
         <nav className="mt-5 flex flex-wrap gap-2 rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-sm">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -435,7 +437,7 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
         <main className="mt-5 flex-1">{activeContent}</main>
 
         <footer className="py-8 text-center text-xs text-slate-500">
-          Explore demo seeded with 40 customers, 12 employees, 120 completed jobs, 25 scheduled jobs, quotes, invoices, photos, signatures, AI reports, mileage requests, and revenue history.
+          {t("public.exploreFooter")}
         </footer>
       </div>
     </div>

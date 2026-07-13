@@ -2,20 +2,22 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { contactInitialState, submitDemoRequest } from "@/app/contact/actions";
-
-const businessTypes = [
-  "Residential cleaning",
-  "Commercial cleaning",
-  "HVAC",
-  "Plumbing",
-  "Electrical",
-  "Landscaping",
-  "Other",
-];
+import { useI18n } from "@/components/i18n-provider";
 
 export function ContactForm() {
+  const { t, language } = useI18n();
   const [state, formAction, pending] = useActionState(submitDemoRequest, contactInitialState);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const businessTypes = [
+    t("public.contactBusinessResidential"),
+    t("public.contactBusinessCommercial"),
+    "HVAC",
+    "Plumbing",
+    "Electrical",
+    "Landscaping",
+    t("public.contactBusinessOther"),
+  ];
 
   useEffect(() => {
     if (state.success) {
@@ -25,10 +27,11 @@ export function ContactForm() {
 
   return (
     <form ref={formRef} action={formAction} className="space-y-5" noValidate>
+      <input type="hidden" name="language" value={language} />
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Name
+            {t("public.contactName")}
           </label>
           <input
             id="name"
@@ -48,7 +51,7 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="company" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Company
+            {t("public.contactCompany")}
           </label>
           <input
             id="company"
@@ -70,7 +73,7 @@ export function ContactForm() {
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Email
+            {t("public.contactEmail")}
           </label>
           <input
             id="email"
@@ -90,7 +93,7 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Phone (optional)
+            {t("public.contactPhoneOptional")}
           </label>
           <input
             id="phone"
@@ -104,14 +107,14 @@ export function ContactForm() {
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="employeeCount" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Number of employees
+            {t("public.contactEmployeeCount")}
           </label>
           <input
             id="employeeCount"
             name="employeeCount"
             type="text"
             required
-            placeholder="e.g. 12"
+            placeholder={t("public.contactEmployeeCountPlaceholder")}
             aria-invalid={state.fieldErrors?.employeeCount ? true : undefined}
             aria-describedby={state.fieldErrors?.employeeCount ? "employeeCount-error" : undefined}
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -125,7 +128,7 @@ export function ContactForm() {
 
         <div>
           <label htmlFor="businessType" className="mb-1.5 block text-sm font-medium text-slate-700">
-            Business type
+            {t("public.contactBusinessType")}
           </label>
           <select
             id="businessType"
@@ -137,7 +140,7 @@ export function ContactForm() {
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
           >
             <option value="" disabled>
-              Select a business type
+              {t("public.contactSelectBusinessType")}
             </option>
             {businessTypes.map((type) => (
               <option key={type} value={type}>
@@ -155,7 +158,7 @@ export function ContactForm() {
 
       <div>
         <label htmlFor="message" className="mb-1.5 block text-sm font-medium text-slate-700">
-          Message
+          {t("public.contactMessage")}
         </label>
         <textarea
           id="message"
@@ -166,7 +169,7 @@ export function ContactForm() {
           aria-invalid={state.fieldErrors?.message ? true : undefined}
           aria-describedby={state.fieldErrors?.message ? "message-error" : undefined}
           className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          placeholder="Tell us about your current workflow and what you want to improve."
+          placeholder={t("public.contactMessagePlaceholder")}
         />
         {state.fieldErrors?.message ? (
           <p id="message-error" className="mt-1 text-xs text-rose-700">
@@ -191,7 +194,7 @@ export function ContactForm() {
         disabled={pending}
         className="inline-flex items-center justify-center rounded-xl bg-blue-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
-        {pending ? "Submitting..." : "Request Demo"}
+        {pending ? t("public.contactSubmitting") : t("public.contactRequestDemo")}
       </button>
     </form>
   );

@@ -1,25 +1,30 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "@/components/i18n-provider";
 
 export function PublicSiteFooter() {
+  const { t } = useI18n();
+
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <p>ServiceOS | Operate with Confidence.</p>
+        <p>{t("public.footerTagline")}</p>
         <div className="flex flex-wrap gap-4">
           <Link href="/" className="hover:text-blue-700">
-            Home
+            {t("public.navHome")}
           </Link>
           <Link href="/pricing" className="hover:text-blue-700">
-            Pricing
+            {t("public.navPricing")}
           </Link>
           <Link href="/explore" className="hover:text-blue-700">
-            Explore Demo
+            {t("public.navExploreDemo")}
           </Link>
           <Link href="/contact" className="hover:text-blue-700">
-            Contact
+            {t("public.navContact")}
           </Link>
           <Link href="/login" className="hover:text-blue-700">
-            Login
+            {t("public.navLogin")}
           </Link>
         </div>
       </div>
