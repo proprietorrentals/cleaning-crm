@@ -51,18 +51,41 @@ export function PublicHomepage() {
     },
   ];
 
-  const testimonialPlaceholders = [
+  const whyChooseCards = [
     {
-      label: t("public.testimonialSlotLabel"),
-      quote: t("public.testimonialSlotQuote1"),
+      title: t("public.whyChooseAiCommandCenterTitle"),
+      detail: t("public.whyChooseAiCommandCenterDetail"),
     },
     {
-      label: t("public.testimonialSlotLabel"),
-      quote: t("public.testimonialSlotQuote2"),
+      title: t("public.whyChooseEndToEndOpsTitle"),
+      detail: t("public.whyChooseEndToEndOpsDetail"),
     },
     {
-      label: t("public.testimonialSlotLabel"),
-      quote: t("public.testimonialSlotQuote3"),
+      title: t("public.whyChooseEmployeeExecutionTitle"),
+      detail: t("public.whyChooseEmployeeExecutionDetail"),
+    },
+    {
+      title: t("public.whyChooseCustomerExperienceTitle"),
+      detail: t("public.whyChooseCustomerExperienceDetail"),
+    },
+  ];
+
+  const faqItems = [
+    {
+      q: t("public.faqCancelQ"),
+      a: t("public.faqCancelA"),
+    },
+    {
+      q: t("public.faqTrialQ"),
+      a: t("public.faqTrialA"),
+    },
+    {
+      q: t("public.faqUpgradeQ"),
+      a: t("public.faqUpgradeA"),
+    },
+    {
+      q: t("public.faqOnboardingQ"),
+      a: t("public.faqOnboardingA"),
     },
   ];
 
@@ -206,15 +229,47 @@ export function PublicHomepage() {
         </section>
 
         <section className="mt-20 rounded-3xl border border-slate-200 bg-white p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">{t("public.socialProof")}</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{t("public.testimonialsTitle")}</h2>
-          <p className="mt-3 text-slate-600">{t("public.testimonialsSubtitle")}</p>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {testimonialPlaceholders.map((item, index) => (
-              <blockquote key={`${item.label}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
-                <p className="mt-2 text-slate-700">{item.quote}</p>
-              </blockquote>
+          <h2 className="text-3xl font-semibold text-slate-950">{t("public.whyChooseTitle")}</h2>
+          <p className="mt-3 max-w-3xl text-slate-600">{t("public.whyChooseSubtitle")}</p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {whyChooseCards.map((item) => (
+              <article key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-12 rounded-3xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">{t("public.foundingPartnerEyebrow")}</p>
+          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{t("public.foundingPartnerTitle")}</h2>
+          <p className="mt-3 max-w-3xl text-slate-600">{t("public.foundingPartnerSubtitle")}</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit1")}</p>
+            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit2")}</p>
+            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit3")}</p>
+            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit4")}</p>
+          </div>
+          <div className="mt-6">
+            <Link
+              href="/contact"
+              className="inline-flex items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800"
+            >
+              {t("public.foundingPartnerCta")}
+            </Link>
+          </div>
+        </section>
+
+        <section className="mt-12 rounded-3xl border border-slate-200 bg-white p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">{t("public.frequentlyAskedQuestions")}</p>
+          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{t("public.faqHomepageTitle")}</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {faqItems.map((item) => (
+              <article key={item.q} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="text-base font-semibold text-slate-900">{item.q}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.a}</p>
+              </article>
             ))}
           </div>
         </section>
