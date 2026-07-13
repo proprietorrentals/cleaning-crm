@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "ServiceOS | Run Your Service Business Smarter.",
     description:
       "From Lead to Payment. One Platform. ServiceOS helps service businesses run operations with confidence.",
-    images: [{ url: "/serviceos-mark.svg", type: "image/svg+xml" }],
+    images: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
 

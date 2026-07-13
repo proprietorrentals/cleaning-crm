@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "ServiceOS Website Builder",
     description:
       "Create public website pages for ServiceOS and capture quote requests as CRM leads.",
-    images: [{ url: "/serviceos-mark.svg", type: "image/svg+xml" }],
+    images: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
 

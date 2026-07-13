@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -92,7 +92,7 @@ function EmployeeLoginContent() {
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
         <div className="mb-7 text-center">
           <div className="mx-auto flex justify-center">
-            <ServiceOSBrand variant="full" />
+            <ServiceOSLogo variant="stacked" size="mobile" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold text-slate-900">Employee Portal</h1>
           <p className="mt-2 text-sm text-slate-500">Sign in to view your assigned jobs and schedule.</p>

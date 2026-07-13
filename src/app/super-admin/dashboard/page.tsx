@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SuperAdminGuard } from "@/components/super-admin-guard";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 type Tenant = {
   id: string;
@@ -76,10 +77,8 @@ function SuperAdminDashboardContent() {
         {/* Header */}
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-lg">⚡</div>
             <div>
-              <h1 className="text-lg font-bold text-white">ServiceOS Platform</h1>
-              <p className="text-xs text-slate-400">Super Admin Console</p>
+              <ServiceOSLogo variant="horizontal" surface="dark" size="compact-sidebar" subtitle="Super Admin Console" />
             </div>
           </div>
           <button

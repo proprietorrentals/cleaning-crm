@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { PublicSiteNav } from "@/components/public-site-nav";
 import { PublicSiteFooter } from "@/components/public-site-footer";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
 
 function tick(value: string, includedLabel: string) {
@@ -135,7 +135,7 @@ export function PricingPageContent() {
               </div>
               <div className="max-w-2xl">
                 <div className="mb-5">
-                  <ServiceOSBrand variant="full" showTagline />
+                  <ServiceOSLogo variant="stacked" size="mobile" showTagline />
                 </div>
                 <h1 className="text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl">{t("public.pricingHeroTitle")}</h1>
                 <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">{t("public.pricingHeroCopy")}</p>

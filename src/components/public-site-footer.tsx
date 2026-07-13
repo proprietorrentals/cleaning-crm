@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
 
 export function PublicSiteFooter() {
@@ -9,7 +10,10 @@ export function PublicSiteFooter() {
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <p>{t("public.footerTagline")}</p>
+        <div className="space-y-2">
+          <ServiceOSLogo variant="horizontal" size="mobile" />
+          <p>{t("public.footerTagline")}</p>
+        </div>
         <div className="flex flex-wrap gap-4">
           <Link href="/" className="hover:text-blue-700">
             {t("public.navHome")}

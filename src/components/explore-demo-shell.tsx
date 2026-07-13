@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 import type { DemoData, DemoJob, DemoInvoice, DemoQuote, DemoMileageRequest, DemoRevenuePoint } from "@/lib/explore-demo-data";
 import { useI18n } from "@/components/i18n-provider";
 import { trackAnalyticsEvent } from "@/lib/analytics";
@@ -423,7 +423,7 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
         <header className="rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur sm:p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-4">
-              <ServiceOSBrand showTagline />
+              <ServiceOSLogo variant="horizontal" size="mobile" showTagline />
               <div>
                 <p className="text-sm font-medium uppercase tracking-[0.25em] text-sky-700">{t("public.exploreBannerTitle")}</p>
                 <h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">{data.companyName}</h1>

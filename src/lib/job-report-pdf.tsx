@@ -87,6 +87,11 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     color: "#0369a1",
   },
+  logoFallbackTagline: {
+    marginTop: 2,
+    fontSize: 8,
+    color: "#64748b",
+  },
   logoFallbackCompany: {
     marginTop: 2,
     fontSize: 9,
@@ -280,6 +285,7 @@ export function JobCompletionReportPDF(props: JobCompletionReportPDFProps) {
             ) : (
               <View style={styles.logoFallbackWrap}>
                 <Text style={styles.logoFallbackBrand}>ServiceOS</Text>
+                <Text style={styles.logoFallbackTagline}>Operate with Confidence.</Text>
                 <Text style={styles.logoFallbackCompany}>{safeText(companyName)}</Text>
               </View>
             )}
@@ -369,7 +375,7 @@ export function JobCompletionReportPDF(props: JobCompletionReportPDFProps) {
         {renderPhotoSection("Before Photos", beforePhotos)}
         {renderPhotoSection("After Photos", afterPhotos)}
 
-        <Text style={styles.footer}>ServiceOS · Job report generated automatically</Text>
+        <Text style={styles.footer}>ServiceOS · Operate with Confidence. · Job report generated automatically</Text>
       </Page>
     </Document>
   );

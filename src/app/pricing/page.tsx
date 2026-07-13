@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "ServiceOS Pricing | AI Operating System for Service Businesses",
     description:
       "Compare ServiceOS pricing plans, feature differences, FAQs, and calls to action for service teams.",
-    images: [{ url: "/serviceos-mark.svg", type: "image/svg+xml" }],
+    images: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
 

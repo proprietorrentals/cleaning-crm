@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 export default function PaymentCancelledPage() {
   return (
@@ -10,7 +10,7 @@ export default function PaymentCancelledPage() {
       <header className="border-b border-red-200 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <ServiceOSBrand iconSize={40} textSize="sm" />
+            <ServiceOSLogo variant="horizontal" size="mobile" />
           </Link>
         </div>
       </header>

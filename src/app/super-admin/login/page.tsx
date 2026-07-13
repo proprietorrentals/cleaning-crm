@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 export default function SuperAdminLoginPage() {
   const router = useRouter();
@@ -62,11 +63,10 @@ export default function SuperAdminLoginPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl mb-4">
-            ⚡
+          <div className="mb-4 flex justify-center">
+            <ServiceOSLogo variant="stacked" surface="dark" size="mobile" subtitle="Platform Console" />
           </div>
           <h1 className="text-2xl font-bold text-white">Super Admin</h1>
-          <p className="mt-1 text-sm text-slate-400">ServiceOS Platform Console</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

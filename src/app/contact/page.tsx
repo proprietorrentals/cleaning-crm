@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Contact ServiceOS | Request a Demo",
     description: "Book a ServiceOS demo and see how to run service operations with confidence.",
-    images: [{ url: "/serviceos-mark.svg", type: "image/svg+xml" }],
+    images: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
 

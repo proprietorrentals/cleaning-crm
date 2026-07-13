@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 export default function LoginPage() {
   return (
@@ -48,7 +48,7 @@ function LoginContent() {
       {/* Logo and Header */}
       <div className="mb-12 text-center">
         <div className="mx-auto flex justify-center mb-4">
-          <ServiceOSBrand variant="full" showTagline />
+          <ServiceOSLogo variant="stacked" size="mobile" showTagline />
         </div>
         <p className="mt-2 text-lg text-slate-600">Choose your portal to get started</p>
       </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -104,7 +104,7 @@ export default function AdminLoginPage() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex justify-center">
-              <ServiceOSBrand variant="full" />
+              <ServiceOSLogo variant="stacked" size="mobile" />
             </div>
             <p className="text-slate-600 mt-2">Admin Portal</p>
           </div>
