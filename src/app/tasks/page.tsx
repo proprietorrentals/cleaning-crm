@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { useI18n } from "@/components/i18n-provider";
+import { useLocaleFormat } from "@/lib/i18n/format";
 
 type TaskRow = {
   id: string;
@@ -95,6 +97,36 @@ function statusBadge(status: TaskRow["status"]) {
   return "bg-violet-100 text-violet-700";
 }
 
+function statusLabel(status: TaskRow["status"], t: (key: string) => string) {
+  if (status === "assigned") return t("tasks.assigned");
+  if (status === "in_progress") return t("tasks.inProgress");
+  if (status === "completed") return t("tasks.completed");
+  return t("tasks.cancelled");
+}
+
+function priorityLabel(priority: TaskRow["priority"], t: (key: string) => string) {
+  if (priority === "urgent") return t("tasks.urgent");
+  if (priority === "high") return t("tasks.high");
+  if (priority === "low") return t("tasks.low");
+  return t("announcements.normal");
+}
+
+function navLabel(label: string, t: (key: string) => string) {
+  if (label === "Dashboard") return t("common.dashboard");
+  if (label === "Customers") return t("nav.customers");
+  if (label === "Quotes") return t("nav.quotes");
+  if (label === "Jobs") return t("nav.jobs");
+  if (label === "Employees") return t("nav.employees");
+  if (label === "Invoices") return t("nav.invoices");
+  if (label === "Schedule") return t("nav.schedule");
+  if (label === "Website Builder") return t("nav.websiteBuilder");
+  if (label === "Operations Center") return t("nav.operationsCenter");
+  if (label === "Tasks") return t("nav.tasks");
+  if (label === "Reports") return t("nav.reports");
+  if (label === "Settings") return t("common.settings");
+  return label;
+}
+
 function toDatetimeLocalValue(iso: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -118,6 +150,8 @@ function messagePriorityFromTask(priority: TaskRow["priority"]) {
 export default function AdminTasksPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { t } = useI18n();
+  const { formatDate } = useLocaleFormat();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -203,7 +237,7 @@ export default function AdminTasksPage() {
     const tenantId = adminRow?.tenant_id ?? employeeRow?.tenant_id ?? null;
     const canManage = Boolean(adminRow) || isSupervisorRole(employeeRow?.role);
     if (!tenantId || !canManage) {
-      setError("Access denied. Only admins and supervisors can manage tasks.");
+      setError(t("tasks.accessDenied"));
       setLoading(false);
       return;
     }
@@ -364,7 +398,7 @@ export default function AdminTasksPage() {
 
     if (!context) return;
     if (!form.assigned_employee_id) {
-      setError("Assigned employee is required.");
+      setError(t("tasks.assignedEmployeeRequired"));
       return;
     }
 
@@ -460,7 +494,7 @@ export default function AdminTasksPage() {
       return;
     }
 
-    setSuccess("Task reassigned.");
+    setSuccess(t("tasks.reassigned"));
     await loadData();
   };
 
@@ -475,7 +509,7 @@ export default function AdminTasksPage() {
       return;
     }
 
-    setSuccess("Task status updated.");
+    setSuccess(t("tasks.statusUpdated"));
     await loadData();
   };
 
@@ -487,7 +521,7 @@ export default function AdminTasksPage() {
       return;
     }
 
-    setSuccess("Task cancelled.");
+    setSuccess(t("tasks.taskCancelled"));
     await loadData();
   };
 
@@ -523,7 +557,7 @@ export default function AdminTasksPage() {
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
-                {item.label}
+                {navLabel(item.label, t)}
               </Link>
             ))}
           </nav>
@@ -531,8 +565,8 @@ export default function AdminTasksPage() {
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <header className="mb-6 rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
-            <p className="text-sm font-medium text-blue-600">Admin Portal</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Tasks</h1>
+            <p className="text-sm font-medium text-blue-600">{t("portals.admin")}</p>
+            <h1 className="text-2xl font-semibold text-slate-900">{t("tasks.titleAdmin")}</h1>
             <p className="mt-1 text-sm text-slate-500">Assign, track, and close operational tasks across your team.</p>
             {context ? <p className="mt-2 text-xs text-slate-500">Signed in as: {context.roleLabel}</p> : null}
           </header>
@@ -546,7 +580,7 @@ export default function AdminTasksPage() {
           ) : null}
 
           {loading ? (
-            <p className="text-sm text-slate-500">Loading tasks...</p>
+            <p className="text-sm text-slate-500">{t("tasks.loadingAdmin")}</p>
           ) : (
             <div className="space-y-6">
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -557,13 +591,13 @@ export default function AdminTasksPage() {
 
                 <div className="mt-3 space-y-2">
                   {adminNotifications.length === 0 ? (
-                    <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">No unread completion alerts.</p>
+                    <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.noUnreadCompletionAlerts")}</p>
                   ) : (
                     adminNotifications.map((item) => (
                       <div key={item.id} className="flex flex-col gap-2 rounded-2xl border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-medium text-slate-800">{item.message}</p>
-                          <p className="text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{formatDate(item.created_at, { dateStyle: "medium", timeStyle: "short" })}</p>
                         </div>
                         <button
                           type="button"
@@ -579,12 +613,12 @@ export default function AdminTasksPage() {
               </section>
 
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">Create Task</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("tasks.createTask")}</h2>
 
                 <form className="mt-4 space-y-4" onSubmit={handleCreateTask}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Title</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.titleLabel")}</label>
                       <input
                         value={form.title}
                         onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
@@ -596,7 +630,7 @@ export default function AdminTasksPage() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Assigned Employee</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.assignedEmployee")}</label>
                       <select
                         value={form.assigned_employee_id}
                         onChange={(event) => setForm((current) => ({ ...current, assigned_employee_id: event.target.value }))}
@@ -615,7 +649,7 @@ export default function AdminTasksPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.descriptionLabel")}</label>
                     <textarea
                       value={form.description}
                       onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
@@ -628,7 +662,7 @@ export default function AdminTasksPage() {
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Related Job (optional)</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.relatedJobOptional")}</label>
                       <select
                         value={form.job_id}
                         onChange={(event) => setForm((current) => ({ ...current, job_id: event.target.value }))}
@@ -645,7 +679,7 @@ export default function AdminTasksPage() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Due date & time</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.dueDateTime")}</label>
                       <input
                         type="datetime-local"
                         value={form.due_at}
@@ -656,7 +690,7 @@ export default function AdminTasksPage() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Priority</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.priorityLabel")}</label>
                       <select
                         value={form.priority}
                         onChange={(event) =>
@@ -665,15 +699,15 @@ export default function AdminTasksPage() {
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                         disabled={submitting}
                       >
-                        <option value="low">Low</option>
-                        <option value="normal">Normal</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
+                        <option value="low">{t("tasks.low")}</option>
+                        <option value="normal">{t("announcements.normal")}</option>
+                        <option value="high">{t("tasks.high")}</option>
+                        <option value="urgent">{t("tasks.urgent")}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.statusLabel")}</label>
                       <select
                         value={form.status}
                         onChange={(event) =>
@@ -682,16 +716,16 @@ export default function AdminTasksPage() {
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                         disabled={submitting}
                       >
-                        <option value="assigned">Assigned</option>
-                        <option value="in_progress">In progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
+                        <option value="assigned">{t("tasks.assigned")}</option>
+                        <option value="in_progress">{t("tasks.inProgress")}</option>
+                        <option value="completed">{t("tasks.completed")}</option>
+                        <option value="cancelled">{t("tasks.cancelled")}</option>
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Internal Notes</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("tasks.internalNotes")}</label>
                     <textarea
                       value={form.notes}
                       onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
@@ -711,7 +745,7 @@ export default function AdminTasksPage() {
                         }
                         disabled={submitting}
                       />
-                      Completion photo required
+                      {t("tasks.photoRequired")}
                     </label>
 
                     <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -732,20 +766,20 @@ export default function AdminTasksPage() {
                     disabled={submitting}
                     className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {submitting ? "Creating..." : "Create Task"}
+                    {submitting ? t("tasks.createTaskLoading") : t("tasks.createTask")}
                   </button>
                 </form>
               </section>
 
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">Filters</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("tasks.filters")}</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <select
                     value={filters.employeeId}
                     onChange={(event) => setFilters((current) => ({ ...current, employeeId: event.target.value }))}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                   >
-                    <option value="">All employees</option>
+                    <option value="">{t("tasks.allEmployees")}</option>
                     {employees.map((employee) => (
                       <option key={employee.id} value={employee.id}>
                         {employee.first_name} {employee.last_name}
@@ -758,11 +792,11 @@ export default function AdminTasksPage() {
                     onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                   >
-                    <option value="">All statuses</option>
-                    <option value="assigned">Assigned</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+                    <option value="">{t("tasks.allStatuses")}</option>
+                    <option value="assigned">{t("tasks.assigned")}</option>
+                    <option value="in_progress">{t("tasks.inProgress")}</option>
+                    <option value="completed">{t("tasks.completed")}</option>
+                    <option value="cancelled">{t("tasks.cancelled")}</option>
                   </select>
 
                   <select
@@ -770,11 +804,11 @@ export default function AdminTasksPage() {
                     onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value }))}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                   >
-                    <option value="">All priorities</option>
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
+                    <option value="">{t("tasks.allPriorities")}</option>
+                    <option value="low">{t("tasks.low")}</option>
+                    <option value="normal">{t("announcements.normal")}</option>
+                    <option value="high">{t("tasks.high")}</option>
+                    <option value="urgent">{t("tasks.urgent")}</option>
                   </select>
 
                   <input
@@ -789,7 +823,7 @@ export default function AdminTasksPage() {
                     onChange={(event) => setFilters((current) => ({ ...current, jobId: event.target.value }))}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                   >
-                    <option value="">All jobs</option>
+                    <option value="">{t("tasks.allJobs")}</option>
                     {jobs.map((job) => (
                       <option key={job.id} value={job.id}>
                         {jobLabelById[job.id] ?? job.id}
@@ -801,13 +835,13 @@ export default function AdminTasksPage() {
 
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-slate-900">Task List</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">{t("tasks.taskList")}</h2>
                   <span className="text-xs text-slate-500">{filteredTasks.length} tasks</span>
                 </div>
 
                 <div className="mt-4 space-y-3">
                   {filteredTasks.length === 0 ? (
-                    <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">No tasks match your filters.</p>
+                    <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.noTasksMatchFilters")}</p>
                   ) : (
                     filteredTasks.map((task) => {
                       const overdue =
@@ -826,16 +860,16 @@ export default function AdminTasksPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-semibold text-slate-900">{task.title}</h3>
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${priorityBadge(task.priority)}`}>
-                              {task.priority}
+                              {priorityLabel(task.priority, t)}
                             </span>
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(task.status)}`}>
-                              {task.status}
+                              {statusLabel(task.status, t)}
                             </span>
                             {overdue ? (
-                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">Overdue</span>
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">{t("tasks.overdue")}</span>
                             ) : null}
                             {task.completion_photo_required ? (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Photo required</span>
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{t("tasks.photoRequired")}</span>
                             ) : null}
                           </div>
 
@@ -843,11 +877,11 @@ export default function AdminTasksPage() {
 
                           <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
                             <p>Assigned: {employeeLabelById[task.assigned_employee_id] ?? task.assigned_employee_id}</p>
-                            <p>Due: {task.due_at ? new Date(task.due_at).toLocaleString() : "No due date"}</p>
-                            <p>Related job: {task.job_id ? jobLabelById[task.job_id] ?? task.job_id : "None"}</p>
-                            <p>Created: {new Date(task.created_at).toLocaleString()}</p>
+                            <p>Due: {task.due_at ? formatDate(task.due_at, { dateStyle: "medium", timeStyle: "short" }) : t("tasks.noDueDate")}</p>
+                            <p>Related job: {task.job_id ? jobLabelById[task.job_id] ?? task.job_id : t("tasks.none")}</p>
+                            <p>Created: {formatDate(task.created_at, { dateStyle: "medium", timeStyle: "short" })}</p>
                             <p>Created by: {creatorLabelByUserId[task.created_by] ?? task.created_by}</p>
-                            <p>Completed at: {task.completed_at ? new Date(task.completed_at).toLocaleString() : "Not completed"}</p>
+                            <p>Completed at: {task.completed_at ? formatDate(task.completed_at, { dateStyle: "medium", timeStyle: "short" }) : t("jobs.pending")}</p>
                           </div>
 
                           {task.notes ? <p className="mt-2 text-xs text-slate-600">Manager notes: {task.notes}</p> : null}
@@ -855,7 +889,7 @@ export default function AdminTasksPage() {
 
                           <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-3 lg:grid-cols-3">
                             <div>
-                              <label className="mb-1 block text-xs font-medium text-slate-600">Reassign</label>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">{t("tasks.reassign")}</label>
                               <div className="flex gap-2">
                                 <select
                                   value={reassignByTaskId[task.id] ?? ""}
@@ -864,7 +898,7 @@ export default function AdminTasksPage() {
                                   }
                                   className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-500"
                                 >
-                                  <option value="">Select employee</option>
+                                  <option value="">{t("tasks.assignedEmployee")}</option>
                                   {employees.map((employee) => (
                                     <option key={employee.id} value={employee.id}>
                                       {employee.first_name} {employee.last_name}
@@ -876,13 +910,13 @@ export default function AdminTasksPage() {
                                   onClick={() => handleReassign(task.id)}
                                   className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                                 >
-                                  Apply
+                                  {t("tasks.apply")}
                                 </button>
                               </div>
                             </div>
 
                             <div>
-                              <label className="mb-1 block text-xs font-medium text-slate-600">Update status</label>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">{t("tasks.updateStatus")}</label>
                               <div className="flex gap-2">
                                 <select
                                   value={statusByTaskId[task.id] ?? task.status}
@@ -894,17 +928,17 @@ export default function AdminTasksPage() {
                                   }
                                   className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-500"
                                 >
-                                  <option value="assigned">Assigned</option>
-                                  <option value="in_progress">In progress</option>
-                                  <option value="completed">Completed</option>
-                                  <option value="cancelled">Cancelled</option>
+                                  <option value="assigned">{t("tasks.assigned")}</option>
+                                  <option value="in_progress">{t("tasks.inProgress")}</option>
+                                  <option value="completed">{t("tasks.completed")}</option>
+                                  <option value="cancelled">{t("tasks.cancelled")}</option>
                                 </select>
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(task.id)}
                                   className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                                 >
-                                  Save
+                                  {t("tasks.saveStatus")}
                                 </button>
                               </div>
                             </div>
@@ -916,7 +950,7 @@ export default function AdminTasksPage() {
                                 disabled={task.status === "cancelled"}
                                 className="w-full rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Cancel task
+                                {t("tasks.cancelTask")}
                               </button>
                             </div>
                           </div>

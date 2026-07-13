@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useI18n } from "@/components/i18n-provider";
+import { useLocaleFormat } from "@/lib/i18n/format";
 
 type Customer = {
   id: string;
@@ -111,12 +113,20 @@ const emptyForm: JobFormState = {
   notes: "",
 };
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
+function formatCurrency(value: number, locale = "en-US") {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function statusLabel(status: string, t: (key: string) => string) {
+  if (status === "Scheduled") return t("jobs.scheduled");
+  if (status === "In Progress") return t("jobs.inProgress");
+  if (status === "Completed") return t("jobs.completed");
+  if (status === "Pending") return t("jobs.pending");
+  return status;
 }
 
 function formatTimeValue(value: string | null | undefined) {
@@ -145,6 +155,8 @@ function formatVerification(job: Job) {
 
 export default function JobsPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { t, locale } = useI18n();
+  const { formatDate } = useLocaleFormat();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [mileageRequests, setMileageRequests] = useState<MileageRequest[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -277,7 +289,7 @@ export default function JobsPage() {
     setMessage(null);
 
     if (!form.customer_id || !form.scheduled_date) {
-      setMessage("❌ Please select a customer and scheduled date.");
+      setMessage(`❌ ${t("jobs.customerRequired")}`);
       setSaving(false);
       return;
     }
@@ -306,7 +318,7 @@ export default function JobsPage() {
         setSaving(false);
         return;
       }
-      setMessage("✓ Job updated successfully.");
+      setMessage(`✓ ${t("jobs.updateSuccess")}`);
     } else {
       const { error } = await supabase.from("jobs").insert(payload);
       if (error) {
@@ -315,7 +327,7 @@ export default function JobsPage() {
         setSaving(false);
         return;
       }
-      setMessage("✓ Job scheduled successfully.");
+      setMessage(`✓ ${t("jobs.scheduleSuccess")}`);
     }
 
     setForm(emptyForm);
@@ -354,7 +366,7 @@ export default function JobsPage() {
       return;
     }
 
-    setMessage("✓ Job deleted successfully.");
+    setMessage(`✓ ${t("jobs.deleteSuccess")}`);
     await fetchData();
   };
 
@@ -366,7 +378,7 @@ export default function JobsPage() {
       return;
     }
 
-    setMessage(`✓ Job status changed to ${newStatus}.`);
+    setMessage(`✓ ${t("jobs.statusChanged", { status: statusLabel(newStatus, t) })}`);
     await fetchData();
   };
 
@@ -536,8 +548,8 @@ export default function JobsPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
         <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white px-5 py-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-600">Job scheduling</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Jobs</h1>
+            <p className="text-sm font-medium text-blue-600">{t("jobs.title")}</p>
+            <h1 className="text-2xl font-semibold text-slate-900">{t("jobs.title")}</h1>
           </div>
           <Link
             href="/"
@@ -568,7 +580,7 @@ export default function JobsPage() {
                     <div key={quote.id} className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
                       <div>
                         <p className="font-semibold text-slate-900">{customer?.company_name || "Unknown"}</p>
-                        <p className="text-sm text-slate-500">{quote.square_footage} sq ft • {formatCurrency(quote.total_estimate)}</p>
+                        <p className="text-sm text-slate-500">{quote.square_footage} sq ft • {formatCurrency(quote.total_estimate, locale)}</p>
                       </div>
                       <button
                         type="button"
@@ -798,7 +810,7 @@ export default function JobsPage() {
           </div>
 
           {loading ? (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading jobs...</div>
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">{t("jobs.loading")}</div>
           ) : jobs.length === 0 ? (
             <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
               ℹ️ No jobs found in database. Create jobs by approving quotes on the Quotes page.
@@ -831,11 +843,11 @@ export default function JobsPage() {
                     return (
                       <tr key={job.id} className="border-b border-slate-200 hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-slate-900">{customer?.company_name || "Unknown"}</td>
-                        <td className="px-4 py-3 text-slate-600">{job.scheduled_date}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatDate(`${job.scheduled_date}T00:00:00`, { dateStyle: "medium" })}</td>
                         <td className="px-4 py-3 text-slate-600">{formatTimeValue(job.scheduled_start_time)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusColor}`}>
-                            {job.status}
+                            {statusLabel(job.status, t)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-600">{job.assigned_employee || "—"}</td>
@@ -843,12 +855,12 @@ export default function JobsPage() {
                           <p>{formatVerification(job)}</p>
                           {job.attempted_signature_at ? (
                             <p className="text-xs text-slate-400">
-                              {new Date(job.attempted_signature_at).toLocaleString()}
+                              {formatDate(job.attempted_signature_at, { dateStyle: "medium", timeStyle: "short" })}
                             </p>
                           ) : null}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                          {formatCurrency(job.estimated_value)}
+                          {formatCurrency(job.estimated_value, locale)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">

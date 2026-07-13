@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { PwaRegister } from "@/components/pwa-register";
+import { I18nProvider } from "@/components/i18n-provider";
+import { LanguageSelector } from "@/components/language-selector";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,8 +38,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <PwaRegister />
-        {children}
+        <I18nProvider>
+          <PwaRegister />
+          {children}
+          <LanguageSelector />
+        </I18nProvider>
       </body>
     </html>
   );

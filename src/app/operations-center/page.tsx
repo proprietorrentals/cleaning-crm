@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { useI18n } from "@/components/i18n-provider";
+import { useLocaleFormat } from "@/lib/i18n/format";
 
 type Announcement = {
   id: string;
@@ -49,12 +51,28 @@ function priorityBadge(priority: Announcement["priority"]) {
   return "bg-slate-100 text-slate-700";
 }
 
-function audienceLabel(value: Announcement["audience_scope"]) {
-  if (value === "night_shift") return "Night shift";
-  if (value === "day_shift") return "Day shift";
-  if (value === "route_teams") return "Route teams";
-  if (value === "supervisors") return "Supervisors";
-  return "All";
+function audienceLabel(value: Announcement["audience_scope"], t: (key: string) => string) {
+  if (value === "night_shift") return t("announcements.nightShift");
+  if (value === "day_shift") return t("announcements.dayShift");
+  if (value === "route_teams") return t("announcements.routeTeams");
+  if (value === "supervisors") return t("announcements.supervisors");
+  return t("announcements.all");
+}
+
+function navLabel(label: string, t: (key: string) => string) {
+  if (label === "Dashboard") return t("common.dashboard");
+  if (label === "Customers") return t("nav.customers");
+  if (label === "Quotes") return t("nav.quotes");
+  if (label === "Jobs") return t("nav.jobs");
+  if (label === "Employees") return t("nav.employees");
+  if (label === "Invoices") return t("nav.invoices");
+  if (label === "Schedule") return t("nav.schedule");
+  if (label === "Website Builder") return t("nav.websiteBuilder");
+  if (label === "Operations Center") return t("nav.operationsCenter");
+  if (label === "Tasks") return t("nav.tasks");
+  if (label === "Reports") return t("nav.reports");
+  if (label === "Settings") return t("common.settings");
+  return label;
 }
 
 function isSupervisorRole(role: string | null | undefined) {
@@ -65,6 +83,8 @@ function isSupervisorRole(role: string | null | undefined) {
 export default function OperationsCenterAdminPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { t } = useI18n();
+  const { formatDate } = useLocaleFormat();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -132,7 +152,7 @@ export default function OperationsCenterAdminPage() {
 
     const tenantId = adminRow?.tenant_id ?? employeeRow?.tenant_id ?? null;
     if (!tenantId) {
-      setError("You do not have tenant access for Operations Center.");
+      setError(t("announcements.noTenantAccess"));
       setLoading(false);
       return;
     }
@@ -203,12 +223,12 @@ export default function OperationsCenterAdminPage() {
 
     if (!context) return;
     if (!context.canCreate) {
-      setError("You do not have permission to create announcements.");
+      setError(t("announcements.noPermissionCreate"));
       return;
     }
 
     if (!form.title.trim() || !form.body.trim()) {
-      setError("Title and message are required.");
+      setError(t("announcements.titleRequired"));
       return;
     }
 
@@ -238,7 +258,7 @@ export default function OperationsCenterAdminPage() {
       requires_ack: false,
     });
 
-    setSuccess("Announcement created.");
+    setSuccess(t("announcements.created"));
     await loadData();
     setSubmitting(false);
   };
@@ -259,7 +279,7 @@ export default function OperationsCenterAdminPage() {
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
-                {item.label}
+                {navLabel(item.label, t)}
               </Link>
             ))}
           </nav>
@@ -267,10 +287,10 @@ export default function OperationsCenterAdminPage() {
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <header className="mb-6 rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
-            <p className="text-sm font-medium text-blue-600">Admin Portal</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Operations Center</h1>
+            <p className="text-sm font-medium text-blue-600">{t("portals.admin")}</p>
+            <h1 className="text-2xl font-semibold text-slate-900">{t("announcements.title")}</h1>
             <p className="mt-1 text-sm text-slate-500">Create and monitor tenant announcements with read and acknowledgement tracking.</p>
-            {context ? <p className="mt-2 text-xs text-slate-500">Signed in as: {context.roleLabel}</p> : null}
+            {context ? <p className="mt-2 text-xs text-slate-500">{t("announcements.signedInAs", { role: context.roleLabel })}</p> : null}
           </header>
 
           {error ? (
@@ -282,20 +302,20 @@ export default function OperationsCenterAdminPage() {
           ) : null}
 
           {loading ? (
-            <p className="text-sm text-slate-500">Loading Operations Center...</p>
+            <p className="text-sm text-slate-500">{t("announcements.loading")}</p>
           ) : (
             <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-slate-900">Create Announcement</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t("announcements.createAnnouncement")}</h2>
                 {!context?.canCreate ? (
                   <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    You have read-only access. Only admins and supervisors can create announcements.
+                    {t("announcements.readOnly")}
                   </p>
                 ) : null}
 
                 <form className="mt-4 space-y-4" onSubmit={handleCreateAnnouncement}>
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Title</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("announcements.titleLabel")}</label>
                     <input
                       type="text"
                       value={form.title}
@@ -307,7 +327,7 @@ export default function OperationsCenterAdminPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Message</label>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("announcements.messageLabel")}</label>
                     <textarea
                       value={form.body}
                       onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))}
@@ -319,7 +339,7 @@ export default function OperationsCenterAdminPage() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Priority</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("announcements.priorityLabel")}</label>
                       <select
                         value={form.priority}
                         onChange={(event) =>
@@ -332,14 +352,14 @@ export default function OperationsCenterAdminPage() {
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
                         disabled={!context?.canCreate || submitting}
                       >
-                        <option value="normal">Normal</option>
-                        <option value="important">Important</option>
-                        <option value="urgent">Urgent</option>
+                        <option value="normal">{t("announcements.normal")}</option>
+                        <option value="important">{t("announcements.important")}</option>
+                        <option value="urgent">{t("announcements.urgent")}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Audience</label>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("announcements.audienceLabel")}</label>
                       <select
                         value={form.audience_scope}
                         onChange={(event) =>
@@ -351,11 +371,11 @@ export default function OperationsCenterAdminPage() {
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
                         disabled={!context?.canCreate || submitting}
                       >
-                        <option value="all">All</option>
-                        <option value="supervisors">Supervisors</option>
-                        <option value="night_shift">Night Shift</option>
-                        <option value="day_shift">Day Shift</option>
-                        <option value="route_teams">Route Teams</option>
+                        <option value="all">{t("announcements.all")}</option>
+                        <option value="supervisors">{t("announcements.supervisors")}</option>
+                        <option value="night_shift">{t("announcements.nightShift")}</option>
+                        <option value="day_shift">{t("announcements.dayShift")}</option>
+                        <option value="route_teams">{t("announcements.routeTeams")}</option>
                       </select>
                     </div>
                   </div>
@@ -372,7 +392,7 @@ export default function OperationsCenterAdminPage() {
                         }))
                       }
                     />
-                    Require acknowledgement
+                    {t("announcements.requiresAcknowledgement")}
                   </label>
 
                   <button
@@ -380,7 +400,7 @@ export default function OperationsCenterAdminPage() {
                     disabled={!context?.canCreate || submitting}
                     className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
                   >
-                    {submitting ? "Saving..." : "Create Announcement"}
+                    {submitting ? t("common.loading") : t("announcements.createAnnouncement")}
                   </button>
                 </form>
               </section>
@@ -404,17 +424,17 @@ export default function OperationsCenterAdminPage() {
                               {announcement.priority}
                             </span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                              {audienceLabel(announcement.audience_scope)}
+                              {audienceLabel(announcement.audience_scope, t)}
                             </span>
                             {announcement.requires_ack ? (
-                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">Ack required</span>
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">{t("announcements.requiresAcknowledgement")}</span>
                             ) : null}
                           </div>
 
                           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{announcement.body}</p>
 
                           <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
-                            <p>Created: {new Date(announcement.created_at).toLocaleString()}</p>
+                            <p>Created: {formatDate(announcement.created_at, { dateStyle: "medium", timeStyle: "short" })}</p>
                             <p>Read: {stats.read}</p>
                             <p>Acknowledged: {stats.acknowledged}</p>
                           </div>

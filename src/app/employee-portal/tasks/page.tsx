@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { useI18n } from "@/components/i18n-provider";
+import { useLocaleFormat } from "@/lib/i18n/format";
 
 type EmployeeProfile = {
   id: string;
@@ -52,9 +54,25 @@ function statusBadge(status: TaskRow["status"]) {
   return "bg-violet-100 text-violet-700";
 }
 
+function statusLabel(status: TaskRow["status"], t: (key: string) => string) {
+  if (status === "assigned") return t("tasks.assigned");
+  if (status === "in_progress") return t("tasks.inProgress");
+  if (status === "completed") return t("tasks.completed");
+  return t("tasks.cancelled");
+}
+
+function priorityLabel(priority: TaskRow["priority"], t: (key: string) => string) {
+  if (priority === "urgent") return t("tasks.urgent");
+  if (priority === "high") return t("tasks.high");
+  if (priority === "low") return t("tasks.low");
+  return t("announcements.normal");
+}
+
 export default function EmployeeTasksPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { t } = useI18n();
+  const { formatDate } = useLocaleFormat();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -249,7 +267,7 @@ export default function EmployeeTasksPage() {
     const effectivePhoto = photoPath || selectedTask.completion_photo_url;
 
     if (nextStatus === "completed" && needsPhoto && !effectivePhoto) {
-      setError("Completion photo is required before marking this task completed.");
+      setError(t("tasks.completionPhotoRequired"));
       setSaving(false);
       return;
     }
@@ -269,7 +287,7 @@ export default function EmployeeTasksPage() {
       return;
     }
 
-    setSuccess("Task updated.");
+    setSuccess(t("tasks.updated"));
     await loadData();
     setSaving(false);
   };
@@ -283,7 +301,7 @@ export default function EmployeeTasksPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <ServiceOSBrand subtitle="Employee Portal" />
-              <h1 className="mt-4 text-2xl font-semibold text-slate-900">My Tasks</h1>
+              <h1 className="mt-4 text-2xl font-semibold text-slate-900">{t("tasks.titleEmployee")}</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Track your assignments, update progress, and complete tasks from the field.
               </p>
@@ -315,19 +333,19 @@ export default function EmployeeTasksPage() {
 
         <section className="grid gap-3 sm:grid-cols-3">
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("tasks.assigned")}</p>
             <p className="mt-2 text-3xl font-semibold text-slate-900">
               {tasks.filter((task) => task.status === "assigned").length}
             </p>
           </article>
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Urgent</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("tasks.urgent")}</p>
             <p className="mt-2 text-3xl font-semibold text-rose-700">
               {tasks.filter((task) => task.priority === "urgent" && task.status !== "completed").length}
             </p>
           </article>
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overdue</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("tasks.overdue")}</p>
             <p className="mt-2 text-3xl font-semibold text-amber-700">
               {
                 tasks.filter(
@@ -344,26 +362,26 @@ export default function EmployeeTasksPage() {
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">New Task Notifications</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t("tasks.notifications")}</h2>
             <span className="text-xs text-slate-500">{taskNotifications.length} unread</span>
           </div>
 
           <div className="mt-3 space-y-2">
             {taskNotifications.length === 0 ? (
-              <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">No unread task notifications.</p>
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.noUnreadNotifications")}</p>
             ) : (
               taskNotifications.map((notification) => (
                 <div key={notification.id} className="flex flex-col gap-2 rounded-2xl border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{notification.message}</p>
-                    <p className="text-xs text-slate-500">{new Date(notification.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-slate-500">{formatDate(notification.created_at, { dateStyle: "medium", timeStyle: "short" })}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => markNotificationRead(notification.id)}
                     className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    Mark read
+                    {t("common.save")}
                   </button>
                 </div>
               ))
@@ -374,15 +392,15 @@ export default function EmployeeTasksPage() {
         <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Task Queue</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{t("tasks.taskList")}</h2>
               <span className="text-xs text-slate-500">{tasks.length} total</span>
             </div>
 
             <div className="mt-3 space-y-3">
               {loading ? (
-                <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">Loading tasks...</p>
+                <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.loadingEmployee")}</p>
               ) : tasks.length === 0 ? (
-                <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">No tasks assigned.</p>
+                <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.assigned")}: 0</p>
               ) : (
                 tasks.map((task) => {
                   const overdue =
@@ -407,17 +425,17 @@ export default function EmployeeTasksPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold text-slate-900">{task.title}</p>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${priorityBadge(task.priority)}`}>
-                          {task.priority}
+                          {priorityLabel(task.priority, t)}
                         </span>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(task.status)}`}>
-                          {task.status}
+                          {statusLabel(task.status, t)}
                         </span>
                         {overdue ? (
-                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">Overdue</span>
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">{t("tasks.overdue")}</span>
                         ) : null}
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm text-slate-600">{task.description}</p>
-                      <p className="mt-1 text-xs text-slate-500">Due: {task.due_at ? new Date(task.due_at).toLocaleString() : "No due date"}</p>
+                      <p className="mt-1 text-xs text-slate-500">Due: {task.due_at ? formatDate(task.due_at, { dateStyle: "medium", timeStyle: "short" }) : t("tasks.noDueDate")}</p>
                     </button>
                   );
                 })
@@ -427,24 +445,24 @@ export default function EmployeeTasksPage() {
 
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             {!selectedTask ? (
-              <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">Select a task to view details.</p>
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{t("tasks.taskList")}</p>
             ) : (
               <div className="space-y-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold text-slate-900">{selectedTask.title}</h2>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${priorityBadge(selectedTask.priority)}`}>
-                      {selectedTask.priority}
+                      {priorityLabel(selectedTask.priority, t)}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(selectedTask.status)}`}>
-                      {selectedTask.status}
+                      {statusLabel(selectedTask.status, t)}
                     </span>
                     {selectedTask.completion_photo_required ? (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Photo required</span>
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{t("tasks.photoRequired")}</span>
                     ) : null}
                   </div>
                   <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selectedTask.description}</p>
-                  <p className="mt-2 text-xs text-slate-500">Due: {selectedTask.due_at ? new Date(selectedTask.due_at).toLocaleString() : "No due date"}</p>
+                  <p className="mt-2 text-xs text-slate-500">Due: {selectedTask.due_at ? formatDate(selectedTask.due_at, { dateStyle: "medium", timeStyle: "short" }) : t("tasks.noDueDate")}</p>
                 </div>
 
                 <div>
@@ -486,7 +504,7 @@ export default function EmployeeTasksPage() {
                     disabled={saving || uploading || selectedTask.status === "cancelled" || selectedTask.status === "completed"}
                     className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Mark In Progress
+                    {t("tasks.inProgress")}
                   </button>
                   <button
                     type="button"
@@ -494,7 +512,7 @@ export default function EmployeeTasksPage() {
                     disabled={saving || uploading || selectedTask.status === "cancelled"}
                     className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Mark Completed
+                    {t("tasks.completed")}
                   </button>
                 </div>
               </div>

@@ -5,12 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminDashboardHome } from "@/components/admin-dashboard-home";
 import { PublicHomepage } from "@/components/public-homepage";
+import { useI18n } from "@/components/i18n-provider";
 
 type HomeMode = "loading" | "public" | "admin";
 
 export function HomeRouteShell() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { t } = useI18n();
   const [mode, setMode] = useState<HomeMode>("loading");
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function HomeRouteShell() {
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-b-2 border-blue-600" />
-          <p className="text-sm text-slate-600">Loading ServiceOS…</p>
+          <p className="text-sm text-slate-600">{t("public.loading")}</p>
         </div>
       </div>
     );
