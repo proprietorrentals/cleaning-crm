@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: jobs, error: jobError } = await serverSupabase
-      .from("jobs")
+      .from("employee_assigned_jobs")
       .select("id, customer_id, tenant_id, assigned_employee_id")
       .in("id", [fromJobId, toJobId]);
 

@@ -1,34 +1,42 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabase = await createServerSupabaseClient();
 
-    if (!supabaseUrl || !supabaseKey) {
-      return Response.json(
-        { error: "Missing Supabase configuration" },
-        { status: 500 }
-      );
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const [{ data: adminRow }, { data: superAdminRow }] = await Promise.all([
+      supabase.from("tenant_admins").select("id").eq("auth_user_id", user.id).maybeSingle(),
+      supabase.from("super_admins").select("id").eq("auth_user_id", user.id).maybeSingle(),
+    ]);
+
+    if (!adminRow && !superAdminRow) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     // Query 1: Get all jobs (no filter)
     const { data: allJobs, error: allJobsError } = await supabase
       .from("jobs")
-      .select("*");
+      .select("id,customer_id,assigned_employee_id,status,scheduled_date,created_at");
 
     // Query 2: Get jobs with status="Completed"
     const { data: completedJobs, error: completedError } = await supabase
       .from("jobs")
-      .select("*")
+      .select("id,customer_id,assigned_employee_id,status,scheduled_date,created_at")
       .eq("status", "Completed");
 
     // Query 3: Get jobs with lowercase status
     const { data: completedLowerJobs, error: completedLowerError } = await supabase
       .from("jobs")
-      .select("*")
+      .select("id,customer_id,assigned_employee_id,status,scheduled_date,created_at")
       .eq("status", "completed");
 
     // Query 4: Check table info (raw query)
@@ -47,17 +55,11 @@ export async function GET() {
     // Get all customers
     const { data: customers, error: customersError } = await supabase
       .from("customers")
-      .select("*");
-
-    // Get all invoices
-    const { data: invoices, error: invoicesError } = await supabase
-      .from("invoices")
-      .select("*");
+      .select("id,company_name,created_at");
 
     const response = {
       database_info: {
-        url: supabaseUrl,
-        has_anon_key: !!supabaseKey,
+        has_authenticated_user: !!user,
       },
       queries: {
         all_jobs: {
@@ -75,7 +77,6 @@ export async function GET() {
             status: j.status,
             status_length: j.status?.length,
             status_bytes: j.status ? Array.from(j.status).map((c: any) => (c as string).charCodeAt(0)) : null,
-            estimated_value: j.estimated_value,
             scheduled_date: j.scheduled_date,
           })) ?? [],
         },
@@ -107,13 +108,6 @@ export async function GET() {
           error: customersError ? {
             message: customersError.message,
             code: customersError.code,
-          } : null,
-        },
-        invoices: {
-          count: invoices?.length ?? 0,
-          error: invoicesError ? {
-            message: invoicesError.message,
-            code: invoicesError.code,
           } : null,
         },
       },

@@ -23,7 +23,6 @@ type Job = {
   tenant_id: string | null;
   scheduled_date: string;
   status: string;
-  estimated_value: number;
   notes: string | null;
   assigned_employee: string | null;
 };
@@ -50,14 +49,6 @@ type TimeEntry = {
   total_minutes: number | null;
   status: string | null;
 };
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value ?? 0);
-}
 
 function formatDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
@@ -132,8 +123,8 @@ export default function EmployeePortalPage() {
       setProfile(employee);
 
       const { data: assignedJobs, error: jobsError } = await supabase
-        .from("jobs")
-        .select("id,customer_id,tenant_id,scheduled_date,status,estimated_value,notes,assigned_employee")
+        .from("employee_assigned_jobs")
+        .select("id,customer_id,tenant_id,scheduled_date,status,notes,assigned_employee")
         .eq("assigned_employee_id", employee.id)
         .order("scheduled_date", { ascending: true });
 
@@ -414,12 +405,6 @@ export default function EmployeePortalPage() {
               <InstallPwaButton
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               />
-              <Link
-                href="/jobs"
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-              >
-                Jobs
-              </Link>
               <Link
                 href="/employee-portal/operations-center"
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -748,7 +733,6 @@ export default function EmployeePortalPage() {
                       </Link>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{job.status}</p>
-                    <p className="mt-1 text-sm font-medium text-slate-700">{formatCurrency(job.estimated_value)}</p>
                   </div>
                 ))
               )}
@@ -773,7 +757,6 @@ export default function EmployeePortalPage() {
                     <th className="px-2 py-2 font-medium">Date</th>
                     <th className="px-2 py-2 font-medium">Customer</th>
                     <th className="px-2 py-2 font-medium">Status</th>
-                    <th className="px-2 py-2 text-right font-medium">Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -782,7 +765,6 @@ export default function EmployeePortalPage() {
                       <td className="px-2 py-3 text-slate-700">{formatDate(job.scheduled_date)}</td>
                       <td className="px-2 py-3 font-medium text-slate-900">{customersById[job.customer_id]?.company_name ?? "Customer"}</td>
                       <td className="px-2 py-3 text-slate-700">{job.status}</td>
-                      <td className="px-2 py-3 text-right font-semibold text-slate-900">{formatCurrency(job.estimated_value)}</td>
                     </tr>
                   ))}
                 </tbody>

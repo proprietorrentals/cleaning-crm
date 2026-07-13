@@ -209,7 +209,7 @@ export default function OperationsCenterPage() {
 
     const [jobsResp, channelsResp, announcementsResp, mileageResp] = await Promise.all([
       supabase
-        .from("jobs")
+        .from("employee_assigned_jobs")
         .select("id,customer_id,scheduled_date,status")
         .eq("assigned_employee_id", employeeProfile.id)
         .order("scheduled_date", { ascending: true }),

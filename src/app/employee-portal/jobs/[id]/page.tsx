@@ -13,7 +13,8 @@ type Job = {
   customer_id: string;
   scheduled_date: string;
   status: string;
-  estimated_value: number;
+  tenant_id: string | null;
+  assigned_employee_id: string | null;
   notes: string | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -43,10 +44,6 @@ type TimeEntry = {
 type JobPhoto = { id: string; photo_url: string; photo_type: string; notes: string | null };
 
 const STATUS_SEQUENCE = ["Scheduled", "In Progress", "Completed"] as const;
-
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v ?? 0);
-}
 
 function formatDate(iso: string) {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -116,8 +113,8 @@ export default function JobDetailPage() {
     });
 
     const { data: jobData, error: jobError } = await supabase
-      .from("jobs")
-      .select("id,customer_id,scheduled_date,status,estimated_value,notes")
+      .from("employee_assigned_jobs")
+      .select("id,tenant_id,assigned_employee_id,customer_id,scheduled_date,status,notes,started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
       .eq("id", jobId)
       .eq("assigned_employee_id", emp.id)
       .maybeSingle();
@@ -147,23 +144,6 @@ export default function JobDetailPage() {
 
     setJob(jobData);
     setNotes(jobData.notes ?? "");
-
-    const { data: optionalJobFields, error: optionalJobFieldsError } = await supabase
-      .from("jobs")
-      .select("started_at,completed_at,signature_url,signature_status,signature_reason,signature_notes,attempted_signature_at")
-      .eq("id", jobId)
-      .maybeSingle();
-
-    if (optionalJobFieldsError) {
-      console.debug("Employee job detail optional fields query error", {
-        jobId,
-        employeeId: emp.id,
-        error: optionalJobFieldsError.message,
-      });
-      setMessage({ type: "error", text: `Database schema/query error: ${optionalJobFieldsError.message}` });
-    } else if (optionalJobFields) {
-      setJob((current) => (current ? { ...current, ...optionalJobFields } : current));
-    }
 
     const [custRes, teRes, photoRes] = await Promise.all([
       supabase.from("customers").select("id,company_name,address,phone").eq("id", jobData.customer_id).maybeSingle(),
@@ -326,28 +306,20 @@ export default function JobDetailPage() {
 
     const authUserId = session?.user?.id ?? null;
 
-    const [employeeRes, jobContextRes] = await Promise.all([
-      authUserId
-        ? supabase
-            .from("employees")
-            .select("id,tenant_id")
-            .eq("auth_user_id", authUserId)
-            .eq("is_active", true)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      supabase
-        .from("jobs")
-        .select("id,assigned_employee_id,tenant_id")
-        .eq("id", job.id)
-        .maybeSingle(),
-    ]);
+    const employeeRes = authUserId
+      ? await supabase
+          .from("employee_assigned_jobs")
+          .select("id,tenant_id,assigned_employee_id")
+          .eq("id", job.id)
+          .maybeSingle()
+      : { data: null, error: null };
 
-    const resolvedEmployeeId = employeeRes.data?.id ?? null;
+    const resolvedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
     const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
-    const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
-    const selectedJobId = jobContextRes.data?.id ?? null;
-    const jobAssignedEmployeeId = jobContextRes.data?.assigned_employee_id ?? null;
-    const jobTenantId = jobContextRes.data?.tenant_id ?? null;
+    const resolvedJobTenantId = employeeRes.data?.tenant_id ?? null;
+    const selectedJobId = employeeRes.data?.id ?? null;
+    const jobAssignedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
+    const jobTenantId = employeeRes.data?.tenant_id ?? null;
     const assignedMatch =
       !!resolvedEmployeeId && jobAssignedEmployeeId === resolvedEmployeeId;
     const tenantMatch =
@@ -505,28 +477,20 @@ export default function JobDetailPage() {
 
     const authUserId = session?.user?.id ?? null;
 
-    const [employeeRes, jobContextRes] = await Promise.all([
-      authUserId
-        ? supabase
-            .from("employees")
-            .select("id,tenant_id")
-            .eq("auth_user_id", authUserId)
-            .eq("is_active", true)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      supabase
-        .from("jobs")
-        .select("id,assigned_employee_id,tenant_id")
-        .eq("id", job.id)
-        .maybeSingle(),
-    ]);
+    const employeeRes = authUserId
+      ? await supabase
+          .from("employee_assigned_jobs")
+          .select("id,tenant_id,assigned_employee_id")
+          .eq("id", job.id)
+          .maybeSingle()
+      : { data: null, error: null };
 
-    const resolvedEmployeeId = employeeRes.data?.id ?? null;
+    const resolvedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
     const resolvedEmployeeTenantId = employeeRes.data?.tenant_id ?? null;
-    const resolvedJobTenantId = jobContextRes.data?.tenant_id ?? null;
-    const selectedJobId = jobContextRes.data?.id ?? null;
-    const jobAssignedEmployeeId = jobContextRes.data?.assigned_employee_id ?? null;
-    const jobTenantId = jobContextRes.data?.tenant_id ?? null;
+    const resolvedJobTenantId = employeeRes.data?.tenant_id ?? null;
+    const selectedJobId = employeeRes.data?.id ?? null;
+    const jobAssignedEmployeeId = employeeRes.data?.assigned_employee_id ?? null;
+    const jobTenantId = employeeRes.data?.tenant_id ?? null;
     const assignedMatch =
       !!resolvedEmployeeId && jobAssignedEmployeeId === resolvedEmployeeId;
     const tenantMatch =
@@ -777,8 +741,8 @@ export default function JobDetailPage() {
                   <p className="mt-1 text-sm font-semibold text-slate-900">{formatDate(job.scheduled_date)}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Value</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{formatCurrency(job.estimated_value)}</p>
+                  <p className="text-xs text-slate-500">Verification</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{job.signature_status === "signed" ? "Signed" : job.signature_status === "unavailable" ? "Unavailable" : "Pending"}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
                   <p className="text-xs text-slate-500">Assigned to</p>
