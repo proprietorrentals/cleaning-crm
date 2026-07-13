@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -545,7 +545,7 @@ export default function AdminTasksPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="w-full border-b border-slate-200 bg-white/90 px-5 py-6 lg:w-64 lg:border-b-0 lg:border-r">
-          <ServiceOSLogo variant="horizontal" size="compact-sidebar" subtitle="Operations Hub" />
+          <ServiceOSLogo variant="horizontal" size="compact-sidebar" />
           <nav className="mt-8 space-y-1">
             {navItems.map((item) => (
               <Link

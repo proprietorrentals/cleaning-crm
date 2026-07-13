@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -300,7 +300,7 @@ export default function EmployeeTasksPage() {
         <header className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <ServiceOSLogo variant="horizontal" size="compact-sidebar" subtitle="Employee Portal" />
+              <ServiceOSLogo variant="horizontal" size="compact-sidebar" />
               <h1 className="mt-4 text-2xl font-semibold text-slate-900">{t("tasks.titleEmployee")}</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Track your assignments, update progress, and complete tasks from the field.

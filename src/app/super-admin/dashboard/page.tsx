@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -78,7 +78,7 @@ function SuperAdminDashboardContent() {
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <ServiceOSLogo variant="horizontal" surface="dark" size="compact-sidebar" subtitle="Super Admin Console" />
+              <ServiceOSLogo variant="horizontal" surface="dark" size="compact-sidebar" />
             </div>
           </div>
           <button

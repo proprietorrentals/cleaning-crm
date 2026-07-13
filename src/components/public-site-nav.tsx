@@ -22,7 +22,7 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
       <nav aria-label="Primary" className="mx-auto w-full max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <ServiceOSLogo variant="horizontal" size="mobile" showTagline />
+            <ServiceOSLogo variant="horizontal" showTagline />
           </Link>
           <Link
             href="/login"
