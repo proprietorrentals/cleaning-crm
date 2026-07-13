@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSBrand } from "@/components/serviceos-brand";
+import { useI18n } from "@/components/i18n-provider";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -153,28 +154,28 @@ type DashboardState = {
 };
 
 const navigationItems = [
-  { label: "Dashboard", href: "/", active: true, icon: "▣" },
-  { label: "Customers", href: "/customers", icon: "◫" },
-  { label: "Quotes", href: "/quotes", icon: "◧" },
-    { label: "Quote Pricing", href: "/quote-pricing", icon: "◨" },
-  { label: "Jobs", href: "/jobs", icon: "◔" },
-  { label: "Employees", href: "/employees", icon: "◍" },
-  { label: "Invoices", href: "/invoices", icon: "◐" },
-  { label: "Schedule", href: "/schedule", icon: "◕" },
-  { label: "Website Builder", href: "/website-builder", icon: "✦" },
-  { label: "Operations Center", href: "/operations-center", icon: "◉" },
-  { label: "Tasks", href: "/tasks", icon: "☑" },
-  { label: "Reports", href: "/reports", icon: "◑" },
-  { label: "Settings", href: "/settings", icon: "⚙" },
+  { labelKey: "common.dashboard", href: "/", active: true, icon: "▣" },
+  { labelKey: "nav.customers", href: "/customers", icon: "◫" },
+  { labelKey: "nav.quotes", href: "/quotes", icon: "◧" },
+  { labelKey: "nav.quotePricing", href: "/quote-pricing", icon: "◨" },
+  { labelKey: "nav.jobs", href: "/jobs", icon: "◔" },
+  { labelKey: "nav.employees", href: "/employees", icon: "◍" },
+  { labelKey: "nav.invoices", href: "/invoices", icon: "◐" },
+  { labelKey: "nav.schedule", href: "/schedule", icon: "◕" },
+  { labelKey: "nav.websiteBuilder", href: "/website-builder", icon: "✦" },
+  { labelKey: "nav.operationsCenter", href: "/operations-center", icon: "◉" },
+  { labelKey: "nav.tasks", href: "/tasks", icon: "☑" },
+  { labelKey: "nav.reports", href: "/reports", icon: "◑" },
+  { labelKey: "common.settings", href: "/settings", icon: "⚙" },
 ];
 
 const QUICK_ACTIONS = [
-  { label: "New Quote", href: "/quotes" },
-  { label: "Schedule Job", href: "/schedule" },
-  { label: "Assign Employee", href: "/employees" },
-  { label: "Review Mileage", href: "/reports" },
-  { label: "Generate Report", href: "/reports" },
-  { label: "Send Invoice", href: "/invoices" },
+  { labelKey: "dashboard.quickNewQuote", href: "/quotes" },
+  { labelKey: "dashboard.quickScheduleJob", href: "/schedule" },
+  { labelKey: "dashboard.quickAssignEmployee", href: "/employees" },
+  { labelKey: "dashboard.quickReviewMileage", href: "/reports" },
+  { labelKey: "dashboard.quickGenerateReport", href: "/reports" },
+  { labelKey: "dashboard.quickSendInvoice", href: "/invoices" },
 ];
 
 const RANGE_DAYS = 7;
@@ -191,14 +192,14 @@ function addDays(base: Date, days: number) {
   return copy;
 }
 
-function formatShortDate(dateStr: string) {
+function formatShortDate(dateStr: string, locale: string) {
   const [year, month, day] = dateStr.split("-").map((part) => Number(part));
   const dt = new Date(year, month - 1, day);
-  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return dt.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
+function formatCurrency(value: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
@@ -215,11 +216,11 @@ function safeRatio(numerator: number, denominator: number) {
   return (numerator / denominator) * 100;
 }
 
-function scoreLabel(score: number) {
-  if (score >= 90) return "Excellent";
-  if (score >= 75) return "Strong";
-  if (score >= 60) return "Needs Attention";
-  return "Critical";
+function scoreLabel(score: number, t: (key: string) => string) {
+  if (score >= 90) return t("dashboard.healthExcellent");
+  if (score >= 75) return t("dashboard.healthStrong");
+  if (score >= 60) return t("dashboard.healthNeedsAttention");
+  return t("dashboard.healthCritical");
 }
 
 function priorityWeight(priority: RecommendationCard["priority"]) {
@@ -233,35 +234,47 @@ function dashboardMetricsProductivityLabel(completedJobs: number, activeEmployee
   return (completedJobs / activeEmployees).toFixed(1);
 }
 
-function missingSignatureCountCards(count: number, job: JobRecord | undefined): RecommendationCard[] {
+function pluralSuffix(count: number) {
+  return count === 1 ? "" : "s";
+}
+
+function missingSignatureCountCards(
+  count: number,
+  job: JobRecord | undefined,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): RecommendationCard[] {
   if (count <= 0) return [];
   return [
     {
-      title: "Resolve missing signatures",
+      title: t("dashboard.recResolveMissingSignatures"),
       detail: job
-        ? `${count} job${count === 1 ? "" : "s"} still need a signature before invoicing.`
-        : `${count} completed job${count === 1 ? "" : "s"} still need signature capture before invoicing.`,
+        ? t("dashboard.recMissingSignaturesWithJob", { count, suffix: pluralSuffix(count) })
+        : t("dashboard.recMissingSignaturesCompleted", { count, suffix: pluralSuffix(count) }),
       href: "/jobs",
       priority: "high",
     },
   ];
 }
 
-function missingPhotoCountCards(beforeCount: number, afterCount: number): RecommendationCard[] {
+function missingPhotoCountCards(
+  beforeCount: number,
+  afterCount: number,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): RecommendationCard[] {
   const cards: RecommendationCard[] = [];
   const totalMissing = beforeCount + afterCount;
   if (beforeCount > 0) {
     cards.push({
-      title: "Capture missing before photos",
-      detail: `${beforeCount} job${beforeCount === 1 ? "" : "s"} are missing required pre-service photos.`,
+      title: t("dashboard.recCaptureMissingBeforePhotos"),
+      detail: t("dashboard.recCaptureMissingBeforePhotosDetail", { count: beforeCount, suffix: pluralSuffix(beforeCount) }),
       href: "/jobs",
       priority: "medium",
     });
   }
   if (afterCount > 0) {
     cards.push({
-      title: "Capture missing after photos",
-      detail: `${afterCount} completed job${afterCount === 1 ? "" : "s"} still need post-service photos.`,
+      title: t("dashboard.recCaptureMissingAfterPhotos"),
+      detail: t("dashboard.recCaptureMissingAfterPhotosDetail", { count: afterCount, suffix: pluralSuffix(afterCount) }),
       href: "/jobs",
       priority: "medium",
     });
@@ -270,68 +283,80 @@ function missingPhotoCountCards(beforeCount: number, afterCount: number): Recomm
   return cards;
 }
 
-function overdueInvoiceCountCards(count: number): RecommendationCard[] {
+function overdueInvoiceCountCards(count: number, t: (key: string, vars?: Record<string, string | number>) => string): RecommendationCard[] {
   if (count <= 0) return [];
   return [
     {
-      title: "Collect overdue invoices",
-      detail: `${count} open invoice${count === 1 ? " is" : "s are"} past due and ready for follow-up.`,
+      title: t("dashboard.recCollectOverdueInvoices"),
+      detail: t("dashboard.recCollectOverdueInvoicesDetail", { count, suffix: pluralSuffix(count) }),
       href: "/invoices",
       priority: "high",
     },
   ];
 }
 
-function lateEmployeeCountCards(count: number): RecommendationCard[] {
+function lateEmployeeCountCards(count: number, t: (key: string, vars?: Record<string, string | number>) => string): RecommendationCard[] {
   if (count <= 0) return [];
   return [
     {
-      title: "Review late employee schedule",
-      detail: `${count} employee${count === 1 ? "" : "s"} are flagged in the current late alert queue.`,
+      title: t("dashboard.recReviewLateEmployeeSchedule"),
+      detail: t("dashboard.recReviewLateEmployeeScheduleDetail", { count, suffix: pluralSuffix(count) }),
       href: "/schedule",
       priority: "medium",
     },
   ];
 }
 
-function mileageApprovalCountCards(count: number): RecommendationCard[] {
+function mileageApprovalCountCards(count: number, t: (key: string, vars?: Record<string, string | number>) => string): RecommendationCard[] {
   if (count <= 0) return [];
   return [
     {
-      title: "Approve mileage requests",
-      detail: `${count} mileage request${count === 1 ? "" : "s"} are waiting for supervisor review.`,
+      title: t("dashboard.recApproveMileage"),
+      detail: t("dashboard.recApproveMileageDetail", { count, suffix: pluralSuffix(count) }),
       href: "/reports",
       priority: "medium",
     },
   ];
 }
 
-function customerFollowUpCountCards(count: number, hint: string): RecommendationCard[] {
+function customerFollowUpCountCards(
+  count: number,
+  hint: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): RecommendationCard[] {
   if (count <= 0 && !hint) return [];
   return [
     {
-      title: "Follow up on customer activity",
-      detail: count > 0 ? `${count} customer${count === 1 ? "" : "s"} may need follow-up communication.` : hint,
+      title: t("dashboard.recFollowUpCustomerActivity"),
+      detail: count > 0 ? t("dashboard.recFollowUpCustomerActivityDetail", { count, suffix: pluralSuffix(count) }) : hint,
       href: "/customers",
       priority: "low",
     },
   ];
 }
 
-function topPerformerCards(topEmployeeJobs: number, previousWeekRevenue: number, projectedIncrease: number): RecommendationCard[] {
+function topPerformerCards(
+  topEmployeeJobs: number,
+  previousWeekRevenue: number,
+  projectedIncrease: number,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): RecommendationCard[] {
   const cards: RecommendationCard[] = [];
   if (topEmployeeJobs > 0) {
     cards.push({
-      title: "Celebrate top-performing employee",
-      detail: `One employee completed ${topEmployeeJobs} job${topEmployeeJobs === 1 ? "" : "s"} this month with strong consistency.`,
+      title: t("dashboard.recCelebrateTopPerformer"),
+      detail: t("dashboard.recCelebrateTopPerformerDetail", { count: topEmployeeJobs, suffix: pluralSuffix(topEmployeeJobs) }),
       href: "/employees",
       priority: "low",
     });
   }
   if (previousWeekRevenue > 0) {
     cards.push({
-      title: "Review revenue trend",
-      detail: `Revenue is projected to ${projectedIncrease >= 0 ? "exceed" : "trail"} last week by ${Math.abs(projectedIncrease)}%.`,
+      title: t("dashboard.recReviewRevenueTrend"),
+      detail: t("dashboard.recReviewRevenueTrendDetail", {
+        direction: projectedIncrease >= 0 ? t("dashboard.recRevenueDirectionExceed") : t("dashboard.recRevenueDirectionTrail"),
+        percent: Math.abs(projectedIncrease),
+      }),
       href: "/reports",
       priority: projectedIncrease >= 0 ? "low" : "medium",
     });
@@ -343,10 +368,10 @@ function normalizeStatus(status: string | null | undefined) {
   return (status ?? "").trim().toLowerCase();
 }
 
-function greetingForHour(hour: number) {
-  if (hour < 12) return "Good Morning";
-  if (hour < 18) return "Good Afternoon";
-  return "Good Evening";
+function greetingForHour(hour: number, t: (key: string) => string) {
+  if (hour < 12) return t("dashboard.greetingMorning");
+  if (hour < 18) return t("dashboard.greetingAfternoon");
+  return t("dashboard.greetingEvening");
 }
 
 function getDateKeys(days: number) {
@@ -376,6 +401,7 @@ function buildTrendSeries(
   jobs: JobRecord[],
   customers: CustomerRecord[],
   healthToday: number,
+  locale: string,
 ) {
   const revenueByDate = new Map<string, number>();
   const jobsCompletedByDate = new Map<string, number>();
@@ -412,16 +438,16 @@ function buildTrendSeries(
   let cumulativeCustomers = 0;
   const customerTrend = dateKeys.map((dateKey) => {
     cumulativeCustomers += customersByDate.get(dateKey) ?? 0;
-    return { label: formatShortDate(dateKey), value: cumulativeCustomers };
+    return { label: formatShortDate(dateKey, locale), value: cumulativeCustomers };
   });
 
   const revenueTrend = dateKeys.map((dateKey) => ({
-    label: formatShortDate(dateKey),
+    label: formatShortDate(dateKey, locale),
     value: revenueByDate.get(dateKey) ?? 0,
   }));
 
   const jobsTrend = dateKeys.map((dateKey) => ({
-    label: formatShortDate(dateKey),
+    label: formatShortDate(dateKey, locale),
     value: jobsCompletedByDate.get(dateKey) ?? 0,
   }));
 
@@ -430,7 +456,7 @@ function buildTrendSeries(
     const jobsCount = jobsTrend[index]?.value ?? 0;
     const trendSignal = clampScore(55 + Math.min(30, jobsCount * 4) + Math.min(15, Math.round(rev / 400)));
     const blended = clampScore((trendSignal + healthToday) / 2);
-    return { label: formatShortDate(dateKey), value: blended };
+    return { label: formatShortDate(dateKey, locale), value: blended };
   });
 
   return {
@@ -470,24 +496,26 @@ function useAnimatedNumber(value: number, durationMs = 900) {
 function AnimatedMetricValue({
   value,
   format,
+  locale,
 }: {
   value: number;
   format: "currency" | "percent" | "number";
+  locale: string;
 }) {
   const animated = useAnimatedNumber(value);
 
   if (format === "currency") {
-    return <>{formatCurrency(animated)}</>;
+    return <>{formatCurrency(animated, locale)}</>;
   }
 
   if (format === "percent") {
     return <>{Math.round(animated)}%</>;
   }
 
-  return <>{Math.round(animated).toLocaleString()}</>;
+  return <>{new Intl.NumberFormat(locale).format(Math.round(animated))}</>;
 }
 
-function BusinessHealthGauge({ score, label }: { score: number; label: string }) {
+function BusinessHealthGauge({ score, label, riskSignalLabel }: { score: number; label: string; riskSignalLabel: string }) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const progress = clampScore(score) / 100;
@@ -520,7 +548,7 @@ function BusinessHealthGauge({ score, label }: { score: number; label: string })
         </div>
       </div>
       <p className="mt-2 text-sm font-semibold text-slate-700">{label}</p>
-      <p className="text-xs text-slate-500">Green / Yellow / Red risk signal</p>
+      <p className="text-xs text-slate-500">{riskSignalLabel}</p>
     </div>
   );
 }
@@ -529,10 +557,14 @@ function TrendSparkline({
   points,
   color,
   format,
+  locale,
+  lastDaysLabel,
 }: {
   points: TrendPoint[];
   color: string;
   format: "currency" | "number" | "percent";
+  locale: string;
+  lastDaysLabel: string;
 }) {
   const [ready, setReady] = useState(false);
   const polylineRef = useRef<SVGPolylineElement | null>(null);
@@ -566,15 +598,15 @@ function TrendSparkline({
   const latest = points[points.length - 1]?.value ?? 0;
   const latestText =
     format === "currency"
-      ? formatCurrency(latest)
+      ? formatCurrency(latest, locale)
       : format === "percent"
         ? `${Math.round(latest)}%`
-        : Math.round(latest).toLocaleString();
+        : new Intl.NumberFormat(locale).format(Math.round(latest));
 
   return (
     <div>
       <div className="mb-2 flex items-end justify-between">
-        <p className="text-xs text-slate-500">Last 7 days</p>
+        <p className="text-xs text-slate-500">{lastDaysLabel}</p>
         <p className="text-sm font-semibold text-slate-900">{latestText}</p>
       </div>
       <svg viewBox="0 0 100 100" className="h-28 w-full rounded-xl bg-slate-50 p-2">
@@ -604,9 +636,10 @@ function TrendSparkline({
 
 export function AdminDashboardHome() {
   const supabase = useMemo(() => createClient(), []);
+  const { t, locale } = useI18n();
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
-    operatorName: "Operator",
+    operatorName: "",
     metrics: {
       employeesWorking: 0,
       employeesDriving: 0,
@@ -627,7 +660,7 @@ export function AdminDashboardHome() {
       activeEmployees: 0,
     },
     healthScore: 0,
-    healthLabel: "Critical",
+    healthLabel: "",
     healthBreakdown: {
       onTimeArrivals: 0,
       completedJobs: 0,
@@ -641,9 +674,9 @@ export function AdminDashboardHome() {
     forecasts: [],
     healthSlices: [],
     dailyBrief: {
-      greeting: "Good Evening, Operator.",
+      greeting: "",
       lines: [],
-      recommendation: "Review operations before invoicing.",
+      recommendation: "",
     },
     trends: {
       revenue: [],
@@ -717,7 +750,7 @@ export function AdminDashboardHome() {
         const operatorName =
           (user?.user_metadata?.first_name as string | undefined) ||
           (user?.user_metadata?.name as string | undefined) ||
-          "Operator";
+          t("dashboard.operatorFallback");
 
         const activeEmployees = employeesResponse.count ?? 0;
         const openTimeEntries = (openTimeEntriesResponse.data ?? []) as TimeEntryRecord[];
@@ -858,56 +891,56 @@ export function AdminDashboardHome() {
         const alerts: AiAlert[] = [
           {
             id: "late-employees",
-            title: "Late employees",
-            description: "Assigned employees have not clocked in within the grace window.",
+            title: t("dashboard.alertLateEmployeesTitle"),
+            description: t("dashboard.alertLateEmployeesDescription"),
             count: lateAlerts.length,
             severity: "high",
             href: "/schedule",
           },
           {
             id: "missing-before",
-            title: "Missing before photos",
-            description: "Jobs in motion are missing required pre-service photos.",
+            title: t("dashboard.alertMissingBeforeTitle"),
+            description: t("dashboard.alertMissingBeforeDescription"),
             count: missingBeforePhotosCount,
             severity: "medium",
             href: "/jobs",
           },
           {
             id: "missing-after",
-            title: "Missing after photos",
-            description: "Completed jobs today are missing after photos.",
+            title: t("dashboard.alertMissingAfterTitle"),
+            description: t("dashboard.alertMissingAfterDescription"),
             count: missingAfterPhotosCount,
             severity: "medium",
             href: "/jobs",
           },
           {
             id: "missing-signatures",
-            title: "Missing signatures",
-            description: "Completed jobs today still need customer signature verification.",
+            title: t("dashboard.alertMissingSignaturesTitle"),
+            description: t("dashboard.alertMissingSignaturesDescription"),
             count: missingSignaturesCount,
             severity: "high",
             href: "/jobs",
           },
           {
             id: "customer-unavailable",
-            title: "Customer unavailable",
-            description: "Jobs marked unavailable may require follow-up communication.",
+            title: t("dashboard.alertCustomerUnavailableTitle"),
+            description: t("dashboard.alertCustomerUnavailableDescription"),
             count: customerUnavailableCount,
             severity: "low",
             href: "/jobs",
           },
           {
             id: "mileage-awaiting",
-            title: "Mileage awaiting approval",
-            description: "Mileage requests are pending supervisor review.",
+            title: t("dashboard.alertMileageAwaitingTitle"),
+            description: t("dashboard.alertMileageAwaitingDescription"),
             count: pendingMileageApprovals,
             severity: "medium",
             href: "/reports",
           },
           {
             id: "overdue-invoices",
-            title: "Overdue invoices",
-            description: "Open invoices are past due and need collection actions.",
+            title: t("dashboard.alertOverdueInvoicesTitle"),
+            description: t("dashboard.alertOverdueInvoicesDescription"),
             count: overdueInvoicesCount,
             severity: "high",
             href: "/invoices",
@@ -937,8 +970,8 @@ export function AdminDashboardHome() {
 
         const recentCustomerThreshold = isoDateValue(addDays(now, -43));
         const staleCustomerHint = customers.some((customer) => customer.created_at.slice(0, 10) < recentCustomerThreshold)
-          ? "One commercial customer has not booked service in 43+ days."
-          : "New customer bookings are staying active this cycle.";
+          ? t("dashboard.staleCustomerHint")
+          : t("dashboard.activeCustomerHint");
 
         const missingSignatureJob = completedTodayJobs.find((job) => {
           const signatureStatus = normalizeStatus(job.signature_status);
@@ -946,67 +979,69 @@ export function AdminDashboardHome() {
         });
 
         const satisfactionLine =
-          signatureComplianceScore >= 90 ? "Customer satisfaction remains excellent." : "Customer satisfaction needs follow-up on signature completion.";
+          signatureComplianceScore >= 90
+            ? t("dashboard.briefSatisfactionExcellent")
+            : t("dashboard.briefSatisfactionNeedsFollowUp");
 
         const revenueHealth = clampScore(safeRatio(revenueWeek, revenueMonth || revenueWeek || 1));
         const customerSatisfactionHealth = clampScore((onTimeArrivalsScore + signatureComplianceScore) / 2);
         const healthSlices: HealthSlice[] = [
-          { label: "Revenue", score: revenueHealth, tone: "bg-blue-600" },
-          { label: "Job Completion", score: completedJobsScore, tone: "bg-emerald-600" },
-          { label: "Customer Satisfaction", score: customerSatisfactionHealth, tone: "bg-cyan-600" },
-          { label: "Photo Compliance", score: photoComplianceScore, tone: "bg-violet-600" },
-          { label: "Signature Compliance", score: signatureComplianceScore, tone: "bg-amber-600" },
-          { label: "Invoice Collection", score: invoiceHealthScore, tone: "bg-rose-600" },
+          { label: t("dashboard.healthRevenue"), score: revenueHealth, tone: "bg-blue-600" },
+          { label: t("dashboard.healthJobCompletion"), score: completedJobsScore, tone: "bg-emerald-600" },
+          { label: t("dashboard.healthCustomerSatisfaction"), score: customerSatisfactionHealth, tone: "bg-cyan-600" },
+          { label: t("dashboard.healthPhotoCompliance"), score: photoComplianceScore, tone: "bg-violet-600" },
+          { label: t("dashboard.healthSignatureCompliance"), score: signatureComplianceScore, tone: "bg-amber-600" },
+          { label: t("dashboard.healthInvoiceCollection"), score: invoiceHealthScore, tone: "bg-rose-600" },
         ];
 
         const dailyBrief = {
-          greeting: `${greetingForHour(now.getHours())}, ${operatorName}.`,
+          greeting: t("dashboard.greetingLine", { greeting: greetingForHour(now.getHours(), t), name: operatorName }),
           lines: [
-            `${completedTodayJobs.length} jobs completed`,
-            `Revenue ${formatCurrency(paidTodayRevenue)}`,
-            `${missingSignaturesCount} missing signature${missingSignaturesCount === 1 ? "" : "s"}`,
-            `${missingBeforePhotosCount + missingAfterPhotosCount} missing photo${missingBeforePhotosCount + missingAfterPhotosCount === 1 ? "" : "s"}`,
-            `${outstandingInvoices} invoice${outstandingInvoices === 1 ? "" : "s"} still unpaid`,
-            `Employee productivity averages ${dashboardMetricsProductivityLabel(completedTodayJobs.length, activeEmployees)} jobs per employee.`,
+            t("dashboard.briefJobsCompleted", { count: completedTodayJobs.length }),
+            t("dashboard.briefRevenue", { amount: formatCurrency(paidTodayRevenue, locale) }),
+            t("dashboard.briefMissingSignatures", { count: missingSignaturesCount, suffix: pluralSuffix(missingSignaturesCount) }),
+            t("dashboard.briefMissingPhotos", { count: missingBeforePhotosCount + missingAfterPhotosCount, suffix: pluralSuffix(missingBeforePhotosCount + missingAfterPhotosCount) }),
+            t("dashboard.briefUnpaidInvoices", { count: outstandingInvoices, suffix: pluralSuffix(outstandingInvoices) }),
+            t("dashboard.briefProductivity", { value: dashboardMetricsProductivityLabel(completedTodayJobs.length, activeEmployees) }),
             satisfactionLine,
           ],
           recommendation: missingSignatureJob
-            ? `Review job #${missingSignatureJob.id.slice(0, 8)} before sending invoice.`
-            : "Review overdue invoices and follow up with top-value customers.",
+            ? t("dashboard.briefRecommendationReviewJob", { jobId: missingSignatureJob.id.slice(0, 8) })
+            : t("dashboard.briefRecommendationInvoices"),
         };
 
         const recommendations: RecommendationCard[] = [
-          ...(missingSignatureCountCards(missingSignaturesCount, missingSignatureJob)),
-          ...(missingPhotoCountCards(missingBeforePhotosCount, missingAfterPhotosCount)),
-          ...(overdueInvoiceCountCards(overdueInvoicesCount)),
-          ...(lateEmployeeCountCards(lateAlerts.length)),
-          ...(mileageApprovalCountCards(pendingMileageApprovals)),
-          ...(customerFollowUpCountCards(customerUnavailableCount, staleCustomerHint)),
-          ...(topPerformerCards(topEmployeeJobs, previousWeekRevenue, projectedIncrease)),
+          ...(missingSignatureCountCards(missingSignaturesCount, missingSignatureJob, t)),
+          ...(missingPhotoCountCards(missingBeforePhotosCount, missingAfterPhotosCount, t)),
+          ...(overdueInvoiceCountCards(overdueInvoicesCount, t)),
+          ...(lateEmployeeCountCards(lateAlerts.length, t)),
+          ...(mileageApprovalCountCards(pendingMileageApprovals, t)),
+          ...(customerFollowUpCountCards(customerUnavailableCount, staleCustomerHint, t)),
+          ...(topPerformerCards(topEmployeeJobs, previousWeekRevenue, projectedIncrease, t)),
         ].sort((left, right) => priorityWeight(right.priority) - priorityWeight(left.priority));
 
         const forecasts: ForecastCard[] = [
           {
-            label: "Expected Revenue Today",
-            value: formatCurrency(Math.max(paidTodayRevenue, Math.round(revenueWeek / 7))),
-            detail: "Placeholder forecast based on current weekly revenue patterns.",
+            label: t("dashboard.forecastExpectedRevenueToday"),
+            value: formatCurrency(Math.max(paidTodayRevenue, Math.round(revenueWeek / 7)), locale),
+            detail: t("dashboard.forecastRevenueDetail"),
             tone: "text-emerald-700",
           },
           {
-            label: "Expected Jobs",
+            label: t("dashboard.forecastExpectedJobs"),
             value: Math.max(jobsToday.length, Math.round(jobsThisWeek.length / 7)).toString(),
-            detail: "Placeholder forecast derived from current job cadence.",
+            detail: t("dashboard.forecastJobsDetail"),
             tone: "text-blue-700",
           },
           {
-            label: "Completion Forecast",
+            label: t("dashboard.forecastCompletion"),
             value: `${clampScore((completionRate + healthScore) / 2)}%`,
-            detail: "Placeholder forecast blending live completion and health signals.",
+            detail: t("dashboard.forecastCompletionDetail"),
             tone: "text-violet-700",
           },
         ];
 
-        const trends = buildTrendSeries(dateKeys, invoices, jobs, customers, healthScore);
+        const trends = buildTrendSeries(dateKeys, invoices, jobs, customers, healthScore, locale);
 
         setDashboard({
           loading: false,
@@ -1031,7 +1066,7 @@ export function AdminDashboardHome() {
             activeEmployees,
           },
           healthScore,
-          healthLabel: scoreLabel(healthScore),
+          healthLabel: scoreLabel(healthScore, t),
           healthBreakdown,
           alerts,
           recommendations,
@@ -1056,19 +1091,19 @@ export function AdminDashboardHome() {
     }, 60_000);
 
     return () => clearInterval(refreshInterval);
-  }, [supabase]);
+  }, [locale, supabase, t]);
 
   const kpis: KPIItem[] = [
-    { label: "Today's Revenue", value: dashboard.metrics.revenueToday, tone: "text-emerald-700", format: "currency" },
-    { label: "Weekly Revenue", value: dashboard.metrics.revenueWeek, tone: "text-blue-700", format: "currency" },
-    { label: "Monthly Revenue", value: dashboard.metrics.revenueMonth, tone: "text-indigo-700", format: "currency" },
-    { label: "Jobs Today", value: dashboard.metrics.jobsScheduledToday, tone: "text-slate-900", format: "number" },
-    { label: "Jobs This Week", value: dashboard.metrics.jobsWeek, tone: "text-cyan-700", format: "number" },
-    { label: "Jobs This Month", value: dashboard.metrics.jobsMonth, tone: "text-sky-700", format: "number" },
-    { label: "Completion Rate", value: dashboard.metrics.completionRate, tone: "text-teal-700", format: "percent" },
-    { label: "Average Invoice", value: dashboard.metrics.avgInvoice, tone: "text-amber-700", format: "currency" },
+    { label: t("dashboard.metricTodaysRevenue"), value: dashboard.metrics.revenueToday, tone: "text-emerald-700", format: "currency" },
+    { label: t("dashboard.metricWeeklyRevenue"), value: dashboard.metrics.revenueWeek, tone: "text-blue-700", format: "currency" },
+    { label: t("dashboard.metricMonthlyRevenue"), value: dashboard.metrics.revenueMonth, tone: "text-indigo-700", format: "currency" },
+    { label: t("dashboard.metricJobsToday"), value: dashboard.metrics.jobsScheduledToday, tone: "text-slate-900", format: "number" },
+    { label: t("dashboard.metricJobsThisWeek"), value: dashboard.metrics.jobsWeek, tone: "text-cyan-700", format: "number" },
+    { label: t("dashboard.metricJobsThisMonth"), value: dashboard.metrics.jobsMonth, tone: "text-sky-700", format: "number" },
+    { label: t("dashboard.metricCompletionRate"), value: dashboard.metrics.completionRate, tone: "text-teal-700", format: "percent" },
+    { label: t("dashboard.metricAverageInvoice"), value: dashboard.metrics.avgInvoice, tone: "text-amber-700", format: "currency" },
     {
-      label: "Employee Productivity",
+      label: t("dashboard.metricEmployeeProductivity"),
       value: Number((dashboard.metrics.employeeProductivity * 10).toFixed(1)),
       tone: "text-violet-700",
       format: "number",
@@ -1087,7 +1122,7 @@ export function AdminDashboardHome() {
           <nav className="mt-8 space-y-1">
             {navigationItems.map((item) => (
               <Link
-                key={item.label}
+                key={item.labelKey}
                 href={item.href}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                   item.active
@@ -1096,7 +1131,7 @@ export function AdminDashboardHome() {
                 }`}
               >
                 <span>{item.icon}</span>
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
           </nav>
@@ -1105,9 +1140,9 @@ export function AdminDashboardHome() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <header className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white/90 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <p className="text-sm font-medium text-sky-700">AI Command Center</p>
-              <h1 className="text-2xl font-semibold text-slate-900">Operate with Confidence.</h1>
-              <p className="mt-1 text-sm text-slate-600">Live operational analysis, forecasting, and prioritized guidance.</p>
+              <p className="text-sm font-medium text-sky-700">{t("dashboard.commandCenter")}</p>
+              <h1 className="text-2xl font-semibold text-slate-900">{t("dashboard.operateWithConfidence")}</h1>
+              <p className="mt-1 text-sm text-slate-600">{t("dashboard.liveOpsSubtitle")}</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1116,8 +1151,8 @@ export function AdminDashboardHome() {
                   AI
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Supervisor Agent</p>
-                  <p className="text-xs text-slate-500">Refreshes every 60 seconds</p>
+                  <p className="text-sm font-semibold text-slate-900">{t("dashboard.supervisorAgent")}</p>
+                  <p className="text-xs text-slate-500">{t("dashboard.refreshesEvery60")}</p>
                 </div>
               </div>
             </div>
@@ -1125,9 +1160,9 @@ export function AdminDashboardHome() {
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">AI Daily Brief</p>
+              <p className="text-sm font-medium text-slate-500">{t("dashboard.dailyBrief")}</p>
               <h2 className="mt-1 text-2xl font-semibold text-slate-900">{dashboard.dailyBrief.greeting}</h2>
-              <p className="mt-1 text-sm text-slate-500">Today's Summary</p>
+              <p className="mt-1 text-sm text-slate-500">{t("dashboard.todaysSummary")}</p>
               <ul className="mt-4 space-y-2 text-sm text-slate-700">
                 {dashboard.dailyBrief.lines.map((line) => (
                   <li key={line} className="flex items-start gap-2">
@@ -1137,20 +1172,20 @@ export function AdminDashboardHome() {
                 ))}
               </ul>
               <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                <p className="font-semibold">Recommended Action</p>
+                <p className="font-semibold">{t("dashboard.recommendedAction")}</p>
                 <p className="mt-1">{dashboard.dailyBrief.recommendation}</p>
               </div>
             </article>
 
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Business Health Gauge</p>
+              <p className="text-sm font-medium text-slate-500">{t("dashboard.businessHealthGauge")}</p>
               <div className="mt-2 flex justify-center">
-                <BusinessHealthGauge score={dashboard.healthScore} label={dashboard.healthLabel} />
+                <BusinessHealthGauge score={dashboard.healthScore} label={dashboard.healthLabel} riskSignalLabel={t("dashboard.healthRiskSignal")} />
               </div>
               <p className="mt-3 text-sm text-slate-600">
                 {dashboard.loading
-                  ? "Calculating live operations..."
-                  : `${totalOpenAlerts} active alerts across field operations, with ${highPriorityAlerts} high-priority risks.`}
+                  ? t("dashboard.calculatingLiveOperations")
+                  : t("dashboard.alertsSummary", { total: totalOpenAlerts, high: highPriorityAlerts })}
               </p>
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 {dashboard.healthSlices.map((slice) => (
@@ -1174,7 +1209,7 @@ export function AdminDashboardHome() {
                 key={forecast.label}
                 className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-500"
               >
-                <p className="text-xs uppercase tracking-wide text-slate-500">Forecast</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">{t("dashboard.forecast")}</p>
                 <p className={`mt-2 text-3xl font-semibold ${forecast.tone}`}>{forecast.value}</p>
                 <p className="mt-2 text-sm font-medium text-slate-900">{forecast.label}</p>
                 <p className="mt-1 text-sm text-slate-600">{forecast.detail}</p>
@@ -1184,8 +1219,8 @@ export function AdminDashboardHome() {
 
           <section className="mt-6">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">KPI Cards</h3>
-              <p className="text-xs uppercase tracking-wide text-slate-500">Animated live metrics</p>
+              <h3 className="text-lg font-semibold text-slate-900">{t("dashboard.kpiCards")}</h3>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("dashboard.animatedLiveMetrics")}</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {kpis.map((item, index) => (
@@ -1196,7 +1231,7 @@ export function AdminDashboardHome() {
                 >
                   <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
                   <p className={`mt-2 text-3xl font-semibold ${item.tone}`}>
-                    <AnimatedMetricValue value={item.value} format={item.format} />
+                    <AnimatedMetricValue value={item.value} format={item.format} locale={locale} />
                   </p>
                 </article>
               ))}
@@ -1206,8 +1241,8 @@ export function AdminDashboardHome() {
           <section className="mt-6 rounded-3xl border border-indigo-200/70 bg-white/95 p-6 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-indigo-700">AI Recommendations</p>
-                <h3 className="text-lg font-semibold text-slate-900">Prioritized action cards linked to relevant pages</h3>
+                <p className="text-sm font-medium text-indigo-700">{t("dashboard.aiRecommendations")}</p>
+                <h3 className="text-lg font-semibold text-slate-900">{t("dashboard.prioritizedActionCards")}</h3>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1231,7 +1266,7 @@ export function AdminDashboardHome() {
                             : "bg-sky-100 text-sky-700"
                       }`}
                     >
-                      {item.priority}
+                      {item.priority === "high" ? t("dashboard.priorityHigh") : item.priority === "medium" ? t("dashboard.priorityMedium") : t("dashboard.priorityLow")}
                     </span>
                   </div>
                 </Link>
@@ -1241,40 +1276,40 @@ export function AdminDashboardHome() {
 
           <section className="mt-6 grid gap-4 lg:grid-cols-2">
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-700">Revenue Trend</p>
-              <TrendSparkline points={dashboard.trends.revenue} color="#2563eb" format="currency" />
+              <p className="text-sm font-medium text-slate-700">{t("dashboard.revenueTrend")}</p>
+              <TrendSparkline points={dashboard.trends.revenue} color="#2563eb" format="currency" locale={locale} lastDaysLabel={t("dashboard.trendLast7Days")} />
             </article>
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-700">Completed Jobs Trend</p>
-              <TrendSparkline points={dashboard.trends.jobs} color="#0f766e" format="number" />
+              <p className="text-sm font-medium text-slate-700">{t("dashboard.completedJobsTrend")}</p>
+              <TrendSparkline points={dashboard.trends.jobs} color="#0f766e" format="number" locale={locale} lastDaysLabel={t("dashboard.trendLast7Days")} />
             </article>
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-700">Customer Growth Trend</p>
-              <TrendSparkline points={dashboard.trends.customers} color="#7c3aed" format="number" />
+              <p className="text-sm font-medium text-slate-700">{t("dashboard.customerGrowthTrend")}</p>
+              <TrendSparkline points={dashboard.trends.customers} color="#7c3aed" format="number" locale={locale} lastDaysLabel={t("dashboard.trendLast7Days")} />
             </article>
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm">
-              <p className="text-sm font-medium text-slate-700">Business Health Trend</p>
-              <TrendSparkline points={dashboard.trends.health} color="#16a34a" format="percent" />
+              <p className="text-sm font-medium text-slate-700">{t("dashboard.businessHealthTrend")}</p>
+              <TrendSparkline points={dashboard.trends.health} color="#16a34a" format="percent" locale={locale} lastDaysLabel={t("dashboard.trendLast7Days")} />
             </article>
           </section>
 
           <section className="mt-6 rounded-3xl border border-rose-200/70 bg-white/95 p-6 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-rose-600">AI Alerts</p>
-                <h3 className="text-lg font-semibold text-slate-900">Rule-based operational alerts</h3>
-                <p className="mt-1 text-sm text-slate-500">Generated from live jobs, photos, signatures, mileage, and invoices.</p>
+                <p className="text-sm font-medium text-rose-600">{t("dashboard.aiAlerts")}</p>
+                <h3 className="text-lg font-semibold text-slate-900">{t("dashboard.ruleBasedOperationalAlerts")}</h3>
+                <p className="mt-1 text-sm text-slate-500">{t("dashboard.generatedFromLiveData")}</p>
               </div>
               <div className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">
-                {dashboard.alerts.filter((alert) => alert.count > 0).length} active categories
+                {t("dashboard.activeCategories", { count: dashboard.alerts.filter((alert) => alert.count > 0).length })}
               </div>
             </div>
 
             {dashboard.loading ? (
-              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading AI alerts...</div>
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">{t("dashboard.loadingAiAlerts")}</div>
             ) : dashboard.alerts.every((alert) => alert.count === 0) ? (
               <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                No active alerts right now. Operations are currently stable.
+                {t("dashboard.noActiveAlerts")}
               </div>
             ) : (
               <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1300,11 +1335,11 @@ export function AdminDashboardHome() {
                                 : "bg-sky-100 text-sky-700"
                           }`}
                         >
-                          {alert.severity}
+                          {alert.severity === "high" ? t("dashboard.severityHigh") : alert.severity === "medium" ? t("dashboard.severityMedium") : t("dashboard.severityLow")}
                         </span>
                       </div>
                       <p className="mt-3 text-3xl font-semibold text-slate-900">
-                        <AnimatedMetricValue value={alert.count} format="number" />
+                        <AnimatedMetricValue value={alert.count} format="number" locale={locale} />
                       </p>
                     </Link>
                   ))}
@@ -1314,15 +1349,15 @@ export function AdminDashboardHome() {
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-3xl border border-emerald-200/70 bg-white/95 p-6 shadow-sm">
-              <p className="text-sm font-medium text-emerald-700">Health Breakdown</p>
+              <p className="text-sm font-medium text-emerald-700">{t("dashboard.healthBreakdown")}</p>
               <div className="mt-5 space-y-4">
                 {[
-                  ["On-time arrivals", dashboard.healthBreakdown.onTimeArrivals],
-                  ["Completed jobs", dashboard.healthBreakdown.completedJobs],
-                  ["Photo compliance", dashboard.healthBreakdown.photoCompliance],
-                  ["Signature compliance", dashboard.healthBreakdown.signatureCompliance],
-                  ["Mileage approvals", dashboard.healthBreakdown.mileageApprovals],
-                  ["Invoice health", dashboard.healthBreakdown.invoiceHealth],
+                  [t("dashboard.healthOnTimeArrivals"), dashboard.healthBreakdown.onTimeArrivals],
+                  [t("dashboard.healthCompletedJobs"), dashboard.healthBreakdown.completedJobs],
+                  [t("dashboard.healthPhotoCompliance"), dashboard.healthBreakdown.photoCompliance],
+                  [t("dashboard.healthSignatureCompliance"), dashboard.healthBreakdown.signatureCompliance],
+                  [t("dashboard.healthMileageApprovals"), dashboard.healthBreakdown.mileageApprovals],
+                  [t("dashboard.healthInvoiceHealth"), dashboard.healthBreakdown.invoiceHealth],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div className="mb-1 flex items-center justify-between text-sm">
@@ -1341,16 +1376,16 @@ export function AdminDashboardHome() {
             </div>
 
             <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
-              <p className="mt-1 text-sm text-slate-500">Jump to the next best operational task.</p>
+              <h3 className="text-lg font-semibold text-slate-900">{t("dashboard.quickActions")}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t("dashboard.quickActionsSubtitle")}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {QUICK_ACTIONS.map((action) => (
                   <Link
-                    key={action.label}
+                    key={action.labelKey}
                     href={action.href}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
                   >
-                    {action.label}
+                    {t(action.labelKey)}
                   </Link>
                 ))}
               </div>
@@ -1359,9 +1394,9 @@ export function AdminDashboardHome() {
 
           <section className="mt-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 text-sm text-slate-600 shadow-sm">
             <p>
-              Employees tracked today: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : dashboard.metrics.employeesWorking + dashboard.metrics.employeesDriving}</span>
+              {t("dashboard.employeesTrackedToday")}: <span className="font-semibold text-slate-900">{dashboard.loading ? t("dashboard.loadingEllipsis") : new Intl.NumberFormat(locale).format(dashboard.metrics.employeesWorking + dashboard.metrics.employeesDriving)}</span>
               {" · "}
-              Active employees: <span className="font-semibold text-slate-900">{dashboard.loading ? "..." : dashboard.metrics.activeEmployees}</span>
+              {t("dashboard.activeEmployees")}: <span className="font-semibold text-slate-900">{dashboard.loading ? t("dashboard.loadingEllipsis") : new Intl.NumberFormat(locale).format(dashboard.metrics.activeEmployees)}</span>
             </p>
           </section>
         </main>
