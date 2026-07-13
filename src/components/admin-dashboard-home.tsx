@@ -113,6 +113,7 @@ type KPIItem = {
 
 type DashboardState = {
   loading: boolean;
+  error: string | null;
   operatorName: string;
   metrics: {
     employeesWorking: number;
@@ -639,6 +640,7 @@ export function AdminDashboardHome() {
   const { t, locale, isReady } = useI18n();
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
+    error: null,
     operatorName: "",
     metrics: {
       employeesWorking: 0,
@@ -1049,6 +1051,7 @@ export function AdminDashboardHome() {
 
         setDashboard({
           loading: false,
+          error: null,
           operatorName,
           metrics: {
             employeesWorking: openWorkingEmployees.size,
@@ -1084,6 +1087,7 @@ export function AdminDashboardHome() {
         setDashboard((previous) => ({
           ...previous,
           loading: false,
+          error: t("dashboard.loadError"),
         }));
       }
     };
@@ -1169,6 +1173,19 @@ export function AdminDashboardHome() {
               </div>
             </div>
           </header>
+
+          {dashboard.error ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 sm:flex-row sm:items-center sm:justify-between">
+              <p>{dashboard.error}</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+              >
+                {t("common.retry")}
+              </button>
+            </div>
+          ) : null}
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
             <article className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm">

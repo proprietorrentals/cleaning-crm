@@ -73,6 +73,7 @@ export const en: Dictionary = {
     healthBreakdown: "Health Breakdown",
     quickActions: "Quick Actions",
     quickActionsSubtitle: "Jump to the next best operational task.",
+    loadError: "Could not load dashboard data. Please retry.",
     employeesTrackedToday: "Employees tracked today",
     activeEmployees: "Active employees",
     loadingEllipsis: "...",

@@ -73,6 +73,7 @@ export const es: Dictionary = {
     healthBreakdown: "Desglose de salud",
     quickActions: "Acciones rapidas",
     quickActionsSubtitle: "Ve a la siguiente mejor tarea operativa.",
+    loadError: "No se pudieron cargar los datos del panel. Vuelve a intentarlo.",
     employeesTrackedToday: "Empleados rastreados hoy",
     activeEmployees: "Empleados activos",
     loadingEllipsis: "...",
