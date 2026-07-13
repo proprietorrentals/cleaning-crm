@@ -5,6 +5,11 @@ import { PublicSiteNav } from "@/components/public-site-nav";
 import { PublicSiteFooter } from "@/components/public-site-footer";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
+import {
+  FOUNDING_PARTNER_PRICE,
+  FOUNDING_PARTNER_PRO_PRICE,
+  FOUNDING_PARTNER_SPOTS,
+} from "@/lib/founding-partner";
 
 function tick(value: string, includedLabel: string) {
   return value === includedLabel ? (
@@ -19,6 +24,16 @@ function tick(value: string, includedLabel: string) {
 
 export function PricingPageContent() {
   const { t, locale } = useI18n();
+  const foundingProPrice = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(FOUNDING_PARTNER_PRO_PRICE);
+  const foundingPartnerPrice = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(FOUNDING_PARTNER_PRICE);
 
   const planCards = [
     {
@@ -201,6 +216,46 @@ export function PricingPageContent() {
               </div>
             </article>
           ))}
+        </section>
+
+        <section id="founding-partners" className="mt-12 rounded-[2rem] border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-blue-50 p-6 shadow-sm sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">{t("public.foundingPartnerEyebrow")}</p>
+          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{t("public.foundingPartnerTitle")}</h2>
+          <p className="mt-2 text-base text-slate-700">{t("public.foundingPartnerPricingSubtitle")}</p>
+          <p className="mt-3 text-sm font-semibold text-slate-900">{t("public.foundingPartnerSpotsAvailable", { count: String(FOUNDING_PARTNER_SPOTS) })}</p>
+          <p className="mt-1 text-sm text-slate-600">{t("public.foundingPartnerLimitedTo", { count: String(FOUNDING_PARTNER_SPOTS) })}</p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <article className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{t("public.foundingPartnerRegularPriceLabel")}</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">{foundingProPrice}<span className="text-base font-medium text-slate-500"> / {t("public.month")}</span></p>
+            </article>
+            <article className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">{t("public.foundingPartnerPriceLabel")}</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-950">{foundingPartnerPrice}<span className="text-base font-medium text-slate-600"> / {t("public.month")}</span></p>
+              <p className="mt-1 text-sm font-medium text-amber-800">{t("public.foundingPartnerForLife")}</p>
+            </article>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitLockedPricing")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitFreeOnboarding")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitWebsiteBuilder")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitPrioritySupport")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitEarlyAi")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitFounderAccess")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitRoadmap")}</p>
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefitRecognition")}</p>
+          </div>
+
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link href="/contact" className="inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+              {t("public.foundingPartnerPrimaryCta")}
+            </Link>
+            <Link href="/contact" className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
+              {t("public.foundingPartnerSecondaryCta")}
+            </Link>
+          </div>
         </section>
 
         <section className="mt-16 overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">

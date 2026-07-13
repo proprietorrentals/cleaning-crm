@@ -7,6 +7,7 @@ import { PublicSiteFooter } from "@/components/public-site-footer";
 import { DemoVideoModal } from "@/components/demo-video-modal";
 import { useI18n } from "@/components/i18n-provider";
 import { trackAnalyticsEvent } from "@/lib/analytics";
+import { FOUNDING_PARTNER_SPOTS } from "@/lib/founding-partner";
 import { useLocaleFormat } from "@/lib/i18n/format";
 
 const DEMO_VIDEO_URL = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL;
@@ -57,16 +58,24 @@ export function PublicHomepage() {
       detail: t("public.whyChooseAiCommandCenterDetail"),
     },
     {
-      title: t("public.whyChooseEndToEndOpsTitle"),
-      detail: t("public.whyChooseEndToEndOpsDetail"),
+      title: t("public.whyChooseSmartQuotesTitle"),
+      detail: t("public.whyChooseSmartQuotesDetail"),
     },
     {
-      title: t("public.whyChooseEmployeeExecutionTitle"),
-      detail: t("public.whyChooseEmployeeExecutionDetail"),
+      title: t("public.whyChooseEmployeeOpsCenterTitle"),
+      detail: t("public.whyChooseEmployeeOpsCenterDetail"),
     },
     {
-      title: t("public.whyChooseCustomerExperienceTitle"),
-      detail: t("public.whyChooseCustomerExperienceDetail"),
+      title: t("public.whyChooseWebsiteBuilderTitle"),
+      detail: t("public.whyChooseWebsiteBuilderDetail"),
+    },
+    {
+      title: t("public.whyChooseFieldVerificationTitle"),
+      detail: t("public.whyChooseFieldVerificationDetail"),
+    },
+    {
+      title: t("public.whyChoosePaymentsBillingTitle"),
+      detail: t("public.whyChoosePaymentsBillingDetail"),
     },
   ];
 
@@ -104,6 +113,21 @@ export function PublicHomepage() {
       <PublicSiteNav active="home" />
 
       <main id="home" className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8 lg:pt-16">
+        <section className="mb-8 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-blue-50 px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">{t("public.foundingBannerTitle", { count: String(FOUNDING_PARTNER_SPOTS) })}</p>
+              <p className="text-xs text-slate-600 sm:text-sm">{t("public.foundingBannerSubtitle")}</p>
+            </div>
+            <Link
+              href="/pricing#founding-partners"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 sm:text-sm"
+            >
+              {t("public.foundingBannerCta")}
+            </Link>
+          </div>
+        </section>
+
         <section className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr]">
           <div>
             <p className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
@@ -238,26 +262,6 @@ export function PublicHomepage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">{item.detail}</p>
               </article>
             ))}
-          </div>
-        </section>
-
-        <section className="mt-12 rounded-3xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">{t("public.foundingPartnerEyebrow")}</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{t("public.foundingPartnerTitle")}</h2>
-          <p className="mt-3 max-w-3xl text-slate-600">{t("public.foundingPartnerSubtitle")}</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit1")}</p>
-            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit2")}</p>
-            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit3")}</p>
-            <p className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700">{t("public.foundingPartnerBenefit4")}</p>
-          </div>
-          <div className="mt-6">
-            <Link
-              href="/contact"
-              className="inline-flex items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800"
-            >
-              {t("public.foundingPartnerCta")}
-            </Link>
           </div>
         </section>
 

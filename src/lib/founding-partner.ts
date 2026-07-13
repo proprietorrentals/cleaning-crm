@@ -1,0 +1,3 @@
+export const FOUNDING_PARTNER_SPOTS = 25;
+export const FOUNDING_PARTNER_PRO_PRICE = 199;
+export const FOUNDING_PARTNER_PRICE = 149;
