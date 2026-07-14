@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-label="Demo thumbnail placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g)"/>
+  <rect x="140" y="150" width="920" height="500" rx="26" fill="#f8fafc" opacity="0.95"/>
+  <rect x="220" y="260" width="760" height="70" rx="12" fill="#bfdbfe"/>
+  <rect x="220" y="370" width="620" height="50" rx="10" fill="#cbd5e1"/>
+  <text x="220" y="520" font-family="Segoe UI, sans-serif" font-size="44" fill="#1e3a8a">ServiceOS Demo</text>
+</svg>

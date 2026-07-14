@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { DemoLandingPage } from "@/components/demo/demo-landing-page";
+import { DemoCustomerPage } from "@/components/demo/demo-customer-page";
 import {
   type DemoMetadataLanguage,
   demoMetadataByLanguage,
@@ -14,16 +14,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const copy = demoMetadataByLanguage[lang];
 
   return {
-    title: copy.landingTitle,
-    description: copy.landingDescription,
-    openGraph: {
-      title: copy.landingOgTitle,
-      description: copy.landingOgDescription,
-      images: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    },
+    title: copy.customerTitle,
+    description: copy.customerDescription,
   };
 }
 
-export default function DemoPage() {
-  return <DemoLandingPage />;
+export default function DemoCustomerRoute() {
+  return <DemoCustomerPage />;
 }

@@ -1,9 +1,20 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, type Language } from "@/lib/i18n/types";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { translate } from "@/lib/i18n";
+import {
+  DEFAULT_LANGUAGE,
+  type Language,
+  SUPPORTED_LANGUAGES,
+} from "@/lib/i18n/types";
+import { createClient } from "@/lib/supabase/client";
 
 type I18nContextValue = {
   language: Language;
@@ -19,7 +30,9 @@ const STORAGE_KEY = "serviceos.language";
 const COOKIE_KEY = "serviceos_lang";
 
 function isLanguage(value: string | null | undefined): value is Language {
-  return Boolean(value && (SUPPORTED_LANGUAGES as readonly string[]).includes(value));
+  return Boolean(
+    value && (SUPPORTED_LANGUAGES as readonly string[]).includes(value),
+  );
 }
 
 function localeFromLanguage(language: Language) {
@@ -51,41 +64,63 @@ function writeLocalLanguage(language: Language) {
   window.localStorage.setItem(STORAGE_KEY, language);
 }
 
-export function I18nProvider({ children }: { children: React.ReactNode }) {
+function getPreferredLanguage(opts: {
+  cookieLanguage: Language | null;
+  localLanguage: Language | null;
+  authLanguage: Language | null;
+  initialLanguage: Language;
+}) {
+  if (opts.cookieLanguage) return opts.cookieLanguage;
+  if (opts.localLanguage) return opts.localLanguage;
+  if (opts.authLanguage) return opts.authLanguage;
+  return opts.initialLanguage;
+}
+
+export function I18nProvider({
+  children,
+  initialLanguage = DEFAULT_LANGUAGE,
+}: {
+  children: React.ReactNode;
+  initialLanguage?: Language;
+}) {
   const supabase = useMemo(() => createClient(), []);
-  const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     const initialize = async () => {
-      const preferredFromStorage = readLocalLanguage() ?? readCookieLanguage();
-
-      if (preferredFromStorage && isMounted) {
-        setLanguageState(preferredFromStorage);
-      }
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
+      const cookieLanguage = readCookieLanguage();
+      const localLanguage = readLocalLanguage();
       const authPreference = session?.user?.user_metadata?.preferred_language;
+      const authLanguage = isLanguage(authPreference) ? authPreference : null;
+      const preferredLanguage = getPreferredLanguage({
+        cookieLanguage,
+        localLanguage,
+        authLanguage,
+        initialLanguage,
+      });
 
-      // Storage is the client source of truth. Keep profile in sync with it.
-      if (preferredFromStorage && session?.user) {
-        if (authPreference !== preferredFromStorage) {
-          await supabase.auth.updateUser({
-            data: {
-              ...session.user.user_metadata,
-              preferred_language: preferredFromStorage,
-            },
-          });
-        }
-      } else if (isLanguage(authPreference) && isMounted) {
-        setLanguageState(authPreference);
-        writeLocalLanguage(authPreference);
-        writeLanguageCookie(authPreference);
+      if (isMounted) {
+        setLanguageState(preferredLanguage);
+      }
+
+      // Cookie is authoritative for SSR/client consistency. Keep local/auth in sync.
+      writeLanguageCookie(preferredLanguage);
+      writeLocalLanguage(preferredLanguage);
+
+      if (session?.user && authPreference !== preferredLanguage) {
+        await supabase.auth.updateUser({
+          data: {
+            ...session.user.user_metadata,
+            preferred_language: preferredLanguage,
+          },
+        });
       }
 
       if (isMounted) {
@@ -95,32 +130,39 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
     void initialize();
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      const preferredFromStorage = readLocalLanguage() ?? readCookieLanguage();
-      const authPreference = session?.user?.user_metadata?.preferred_language;
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const cookieLanguage = readCookieLanguage();
+        const localLanguage = readLocalLanguage();
+        const authPreference = session?.user?.user_metadata?.preferred_language;
+        const authLanguage = isLanguage(authPreference) ? authPreference : null;
+        const preferredLanguage = getPreferredLanguage({
+          cookieLanguage,
+          localLanguage,
+          authLanguage,
+          initialLanguage,
+        });
 
-      if (preferredFromStorage) {
-        setLanguageState(preferredFromStorage);
-        if (session?.user && authPreference !== preferredFromStorage) {
+        setLanguageState(preferredLanguage);
+        writeLanguageCookie(preferredLanguage);
+        writeLocalLanguage(preferredLanguage);
+
+        if (session?.user && authPreference !== preferredLanguage) {
           void supabase.auth.updateUser({
             data: {
               ...session.user.user_metadata,
-              preferred_language: preferredFromStorage,
+              preferred_language: preferredLanguage,
             },
           });
         }
-      } else if (isLanguage(authPreference)) {
-        setLanguageState(authPreference);
-        writeLocalLanguage(authPreference);
-        writeLanguageCookie(authPreference);
-      }
-    });
+      },
+    );
 
     return () => {
       isMounted = false;
       subscription.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [initialLanguage, supabase]);
 
   const setLanguage = useCallback(
     async (nextLanguage: Language) => {

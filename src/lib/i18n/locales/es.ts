@@ -39,7 +39,8 @@ export const es: Dictionary = {
     operatorFallback: "Operador",
     commandCenter: "Centro de Comando IA",
     operateWithConfidence: "Opera con confianza.",
-    liveOpsSubtitle: "Analisis operativo en vivo, pronosticos y orientacion priorizada.",
+    liveOpsSubtitle:
+      "Analisis operativo en vivo, pronosticos y orientacion priorizada.",
     supervisorAgent: "Agente Supervisor",
     refreshesEvery60: "Se actualiza cada 60 segundos",
     dailyBrief: "Resumen Diario IA",
@@ -47,33 +48,41 @@ export const es: Dictionary = {
     recommendedAction: "Accion recomendada",
     businessHealthGauge: "Indicador de Salud del Negocio",
     calculatingLiveOperations: "Calculando operaciones en vivo...",
-    alertsSummary: "{{total}} alertas activas en operaciones de campo, con {{high}} riesgos de alta prioridad.",
+    alertsSummary:
+      "{{total}} alertas activas en operaciones de campo, con {{high}} riesgos de alta prioridad.",
     healthRiskSignal: "Senal de riesgo Verde / Amarillo / Rojo",
     forecast: "Pronostico",
     forecastExpectedRevenueToday: "Ingresos esperados hoy",
     forecastExpectedJobs: "Trabajos esperados",
     forecastCompletion: "Pronostico de cumplimiento",
-    forecastRevenueDetail: "Pronostico provisional basado en patrones semanales actuales de ingresos.",
-    forecastJobsDetail: "Pronostico provisional derivado de la cadencia actual de trabajos.",
-    forecastCompletionDetail: "Pronostico provisional que mezcla cumplimiento en vivo y senales de salud.",
+    forecastRevenueDetail:
+      "Pronostico provisional basado en patrones semanales actuales de ingresos.",
+    forecastJobsDetail:
+      "Pronostico provisional derivado de la cadencia actual de trabajos.",
+    forecastCompletionDetail:
+      "Pronostico provisional que mezcla cumplimiento en vivo y senales de salud.",
     kpiCards: "Tarjetas KPI",
     animatedLiveMetrics: "Metricas en vivo animadas",
     aiRecommendations: "Recomendaciones IA",
-    prioritizedActionCards: "Tarjetas de accion priorizadas enlazadas a paginas relevantes",
+    prioritizedActionCards:
+      "Tarjetas de accion priorizadas enlazadas a paginas relevantes",
     revenueTrend: "Tendencia de ingresos",
     completedJobsTrend: "Tendencia de trabajos completados",
     customerGrowthTrend: "Tendencia de crecimiento de clientes",
     businessHealthTrend: "Tendencia de salud del negocio",
     aiAlerts: "Alertas IA",
     ruleBasedOperationalAlerts: "Alertas operativas basadas en reglas",
-    generatedFromLiveData: "Generadas desde trabajos, fotos, firmas, kilometraje y facturas en vivo.",
+    generatedFromLiveData:
+      "Generadas desde trabajos, fotos, firmas, kilometraje y facturas en vivo.",
     activeCategories: "{{count}} categorias activas",
     loadingAiAlerts: "Cargando alertas IA...",
-    noActiveAlerts: "No hay alertas activas ahora. Las operaciones estan estables.",
+    noActiveAlerts:
+      "No hay alertas activas ahora. Las operaciones estan estables.",
     healthBreakdown: "Desglose de salud",
     quickActions: "Acciones rapidas",
     quickActionsSubtitle: "Ve a la siguiente mejor tarea operativa.",
-    loadError: "No se pudieron cargar los datos del panel. Vuelve a intentarlo.",
+    loadError:
+      "No se pudieron cargar los datos del panel. Vuelve a intentarlo.",
     employeesTrackedToday: "Empleados rastreados hoy",
     activeEmployees: "Empleados activos",
     loadingEllipsis: "...",
@@ -116,48 +125,72 @@ export const es: Dictionary = {
     briefMissingSignatures: "{{count}} firma{{suffix}} faltante{{suffix}}",
     briefMissingPhotos: "{{count}} foto{{suffix}} faltante{{suffix}}",
     briefUnpaidInvoices: "{{count}} factura{{suffix}} aun sin pagar",
-    briefProductivity: "La productividad de empleados promedia {{value}} trabajos por empleado.",
-    briefSatisfactionExcellent: "La satisfaccion del cliente se mantiene excelente.",
-    briefSatisfactionNeedsFollowUp: "La satisfaccion del cliente necesita seguimiento en cumplimiento de firmas.",
-    briefRecommendationReviewJob: "Revisa el trabajo #{{jobId}} antes de enviar la factura.",
-    briefRecommendationInvoices: "Revisa facturas vencidas y da seguimiento a clientes de mayor valor.",
+    briefProductivity:
+      "La productividad de empleados promedia {{value}} trabajos por empleado.",
+    briefSatisfactionExcellent:
+      "La satisfaccion del cliente se mantiene excelente.",
+    briefSatisfactionNeedsFollowUp:
+      "La satisfaccion del cliente necesita seguimiento en cumplimiento de firmas.",
+    briefRecommendationReviewJob:
+      "Revisa el trabajo #{{jobId}} antes de enviar la factura.",
+    briefRecommendationInvoices:
+      "Revisa facturas vencidas y da seguimiento a clientes de mayor valor.",
     recResolveMissingSignatures: "Resolver firmas faltantes",
-    recMissingSignaturesWithJob: "{{count}} trabajo{{suffix}} aun necesita firma antes de facturar.",
-    recMissingSignaturesCompleted: "{{count}} trabajo{{suffix}} completado{{suffix}} aun necesita captura de firma antes de facturar.",
+    recMissingSignaturesWithJob:
+      "{{count}} trabajo{{suffix}} aun necesita firma antes de facturar.",
+    recMissingSignaturesCompleted:
+      "{{count}} trabajo{{suffix}} completado{{suffix}} aun necesita captura de firma antes de facturar.",
     recCaptureMissingBeforePhotos: "Capturar fotos iniciales faltantes",
-    recCaptureMissingBeforePhotosDetail: "{{count}} trabajo{{suffix}} no tiene fotos requeridas antes del servicio.",
+    recCaptureMissingBeforePhotosDetail:
+      "{{count}} trabajo{{suffix}} no tiene fotos requeridas antes del servicio.",
     recCaptureMissingAfterPhotos: "Capturar fotos finales faltantes",
-    recCaptureMissingAfterPhotosDetail: "{{count}} trabajo{{suffix}} completado{{suffix}} aun necesita fotos posteriores.",
+    recCaptureMissingAfterPhotosDetail:
+      "{{count}} trabajo{{suffix}} completado{{suffix}} aun necesita fotos posteriores.",
     recCollectOverdueInvoices: "Cobrar facturas vencidas",
-    recCollectOverdueInvoicesDetail: "{{count}} factura{{suffix}} abierta{{suffix}} esta vencida y lista para seguimiento.",
+    recCollectOverdueInvoicesDetail:
+      "{{count}} factura{{suffix}} abierta{{suffix}} esta vencida y lista para seguimiento.",
     recReviewLateEmployeeSchedule: "Revisar horario de empleados con retraso",
-    recReviewLateEmployeeScheduleDetail: "{{count}} empleado{{suffix}} esta marcado en la cola actual de alertas por retraso.",
+    recReviewLateEmployeeScheduleDetail:
+      "{{count}} empleado{{suffix}} esta marcado en la cola actual de alertas por retraso.",
     recApproveMileage: "Aprobar solicitudes de kilometraje",
-    recApproveMileageDetail: "{{count}} solicitud{{suffix}} de kilometraje espera revision del supervisor.",
+    recApproveMileageDetail:
+      "{{count}} solicitud{{suffix}} de kilometraje espera revision del supervisor.",
     recFollowUpCustomerActivity: "Dar seguimiento a actividad de clientes",
-    recFollowUpCustomerActivityDetail: "{{count}} cliente{{suffix}} puede necesitar seguimiento de comunicacion.",
+    recFollowUpCustomerActivityDetail:
+      "{{count}} cliente{{suffix}} puede necesitar seguimiento de comunicacion.",
     recCelebrateTopPerformer: "Reconocer al empleado con mejor rendimiento",
-    recCelebrateTopPerformerDetail: "Un empleado completo {{count}} trabajo{{suffix}} este mes con alta consistencia.",
+    recCelebrateTopPerformerDetail:
+      "Un empleado completo {{count}} trabajo{{suffix}} este mes con alta consistencia.",
     recReviewRevenueTrend: "Revisar tendencia de ingresos",
-    recReviewRevenueTrendDetail: "Se proyecta que los ingresos {{direction}} la semana pasada en {{percent}}%.",
+    recReviewRevenueTrendDetail:
+      "Se proyecta que los ingresos {{direction}} la semana pasada en {{percent}}%.",
     recRevenueDirectionExceed: "superen",
     recRevenueDirectionTrail: "queden por debajo de",
-    staleCustomerHint: "Un cliente comercial no ha reservado servicio en mas de 43 dias.",
-    activeCustomerHint: "Las nuevas reservas de clientes se mantienen activas en este ciclo.",
+    staleCustomerHint:
+      "Un cliente comercial no ha reservado servicio en mas de 43 dias.",
+    activeCustomerHint:
+      "Las nuevas reservas de clientes se mantienen activas en este ciclo.",
     alertLateEmployeesTitle: "Empleados retrasados",
-    alertLateEmployeesDescription: "Empleados asignados no han fichado dentro de la ventana de tolerancia.",
+    alertLateEmployeesDescription:
+      "Empleados asignados no han fichado dentro de la ventana de tolerancia.",
     alertMissingBeforeTitle: "Faltan fotos iniciales",
-    alertMissingBeforeDescription: "Los trabajos en curso no tienen fotos previas requeridas.",
+    alertMissingBeforeDescription:
+      "Los trabajos en curso no tienen fotos previas requeridas.",
     alertMissingAfterTitle: "Faltan fotos finales",
-    alertMissingAfterDescription: "Los trabajos completados hoy no tienen fotos posteriores.",
+    alertMissingAfterDescription:
+      "Los trabajos completados hoy no tienen fotos posteriores.",
     alertMissingSignaturesTitle: "Faltan firmas",
-    alertMissingSignaturesDescription: "Los trabajos completados hoy aun necesitan verificacion de firma del cliente.",
+    alertMissingSignaturesDescription:
+      "Los trabajos completados hoy aun necesitan verificacion de firma del cliente.",
     alertCustomerUnavailableTitle: "Cliente no disponible",
-    alertCustomerUnavailableDescription: "Los trabajos marcados como no disponible pueden requerir seguimiento.",
+    alertCustomerUnavailableDescription:
+      "Los trabajos marcados como no disponible pueden requerir seguimiento.",
     alertMileageAwaitingTitle: "Kilometraje pendiente de aprobacion",
-    alertMileageAwaitingDescription: "Las solicitudes de kilometraje estan pendientes de revision del supervisor.",
+    alertMileageAwaitingDescription:
+      "Las solicitudes de kilometraje estan pendientes de revision del supervisor.",
     alertOverdueInvoicesTitle: "Facturas vencidas",
-    alertOverdueInvoicesDescription: "Las facturas abiertas estan vencidas y requieren accion de cobro.",
+    alertOverdueInvoicesDescription:
+      "Las facturas abiertas estan vencidas y requieren accion de cobro.",
     quickNewQuote: "Nueva cotizacion",
     quickScheduleJob: "Programar trabajo",
     quickAssignEmployee: "Asignar empleado",
@@ -170,7 +203,8 @@ export const es: Dictionary = {
     createAnnouncement: "Crear Anuncio",
     loading: "Cargando Centro de Operaciones...",
     created: "Anuncio creado.",
-    readOnly: "Tienes acceso de solo lectura. Solo administradores y supervisores pueden crear anuncios.",
+    readOnly:
+      "Tienes acceso de solo lectura. Solo administradores y supervisores pueden crear anuncios.",
     noTenantAccess: "No tienes acceso de tenant para el Centro de Operaciones.",
     noPermissionCreate: "No tienes permiso para crear anuncios.",
     titleRequired: "El titulo y el mensaje son obligatorios.",
@@ -225,7 +259,8 @@ export const es: Dictionary = {
     taskCancelled: "Tarea cancelada.",
     loadingAdmin: "Cargando tareas...",
     loadingEmployee: "Cargando tus tareas...",
-    accessDenied: "Acceso denegado. Solo administradores y supervisores pueden gestionar tareas.",
+    accessDenied:
+      "Acceso denegado. Solo administradores y supervisores pueden gestionar tareas.",
     updated: "Tarea actualizada.",
     noUnreadNotifications: "No hay notificaciones de tareas sin leer.",
     assigned: "Asignada",
@@ -237,7 +272,8 @@ export const es: Dictionary = {
     overdue: "Atrasada",
     urgent: "Urgente",
     notifications: "Notificaciones de Nuevas Tareas",
-    completionPhotoRequired: "Se requiere foto de finalizacion antes de marcar esta tarea como completada.",
+    completionPhotoRequired:
+      "Se requiere foto de finalizacion antes de marcar esta tarea como completada.",
   },
   jobs: {
     title: "Trabajos",
@@ -272,9 +308,11 @@ export const es: Dictionary = {
     navLogin: "Iniciar sesion",
     navQuotes: "Cotizaciones",
     operateWithConfidence: "Opera con confianza.",
-    heroTitle: "Gestiona tu negocio de servicios con un solo sistema operativo impulsado por IA.",
+    heroTitle:
+      "Gestiona tu negocio de servicios con un solo sistema operativo impulsado por IA.",
     heroSubtitle: "Planifica mejor. Ejecuta mejor. Crece mas rapido.",
-    heroCopy: "ServiceOS conecta clientes, empleados, trabajos, cotizaciones, facturas, reportes y portales en un flujo premium para equipos de campo modernos.",
+    heroCopy:
+      "ServiceOS conecta clientes, empleados, trabajos, cotizaciones, facturas, reportes y portales en un flujo premium para equipos de campo modernos.",
     startFreeTrial: "Iniciar prueba gratis",
     viewPricing: "Ver precios",
     previewAiSupervisorDashboard: "Panel del Supervisor IA",
@@ -285,23 +323,32 @@ export const es: Dictionary = {
     previewMockNote: "Datos de vista previa mostrados solo para demostracion.",
     featuresTitle: "Disenado para cada momento operativo",
     featureAiDashboardTitle: "Panel IA",
-    featureAiDashboardDetail: "Ve senales de riesgo, recomendaciones y rendimiento en vivo en un solo lugar.",
+    featureAiDashboardDetail:
+      "Ve senales de riesgo, recomendaciones y rendimiento en vivo en un solo lugar.",
     featureCustomerEmployeeTitle: "Clientes y empleados",
-    featureCustomerEmployeeDetail: "Gestiona clientes y equipos con responsabilidad clara y actualizaciones en tiempo real.",
+    featureCustomerEmployeeDetail:
+      "Gestiona clientes y equipos con responsabilidad clara y actualizaciones en tiempo real.",
     featureQuotesSchedulingTitle: "Cotizaciones y programacion",
-    featureQuotesSchedulingDetail: "Pasa de estimacion a trabajo confirmado con menos friccion.",
+    featureQuotesSchedulingDetail:
+      "Pasa de estimacion a trabajo confirmado con menos friccion.",
     featurePhotosSignaturesTitle: "Fotos y firmas",
-    featurePhotosSignaturesDetail: "Captura evidencia y aprobaciones en campo al instante.",
+    featurePhotosSignaturesDetail:
+      "Captura evidencia y aprobaciones en campo al instante.",
     featureMileageTitle: "Control de kilometraje",
-    featureMileageDetail: "Registra rutas y aprobaciones sin depender de hojas de calculo.",
+    featureMileageDetail:
+      "Registra rutas y aprobaciones sin depender de hojas de calculo.",
     featureInvoicesTitle: "Facturas y pagos",
-    featureInvoicesDetail: "Genera facturas rapido y cobra antes con soporte Stripe.",
+    featureInvoicesDetail:
+      "Genera facturas rapido y cobra antes con soporte Stripe.",
     featureAiReportsTitle: "Reportes IA",
-    featureAiReportsDetail: "Convierte trabajos completados en resmenes claros para equipo y clientes.",
+    featureAiReportsDetail:
+      "Convierte trabajos completados en resmenes claros para equipo y clientes.",
     featurePortalsTitle: "Portales de admin, empleado y cliente",
-    featurePortalsDetail: "Ofrece experiencias por rol sin perder control operativo.",
+    featurePortalsDetail:
+      "Ofrece experiencias por rol sin perder control operativo.",
     aiSupervisorTitle: "Tu supervisor IA para la operacion diaria",
-    aiSupervisorCopy: "Prioriza lo importante, reduce pasos perdidos y alinea equipos con recomendaciones IA sobre datos reales del negocio.",
+    aiSupervisorCopy:
+      "Prioriza lo importante, reduce pasos perdidos y alinea equipos con recomendaciones IA sobre datos reales del negocio.",
     howItWorks: "Como funciona",
     workflowTitle: "Del lead al pago, en un solo flujo",
     flowLead: "Lead",
@@ -314,43 +361,61 @@ export const es: Dictionary = {
     portals: "Portales",
     portalsTitle: "Disenado para todos en tu operacion",
     portalAdminTitle: "Portal Administrativo",
-    portalAdminCopy: "Gestiona salud del negocio, asigna trabajo y monitorea resultados en tiempo real.",
+    portalAdminCopy:
+      "Gestiona salud del negocio, asigna trabajo y monitorea resultados en tiempo real.",
     portalEmployeeTitle: "Portal de Empleado",
-    portalEmployeeCopy: "Consulta agenda, captura fotos y firmas, y completa trabajos con confianza.",
+    portalEmployeeCopy:
+      "Consulta agenda, captura fotos y firmas, y completa trabajos con confianza.",
     portalCustomerTitle: "Portal de Cliente",
-    portalCustomerCopy: "Da visibilidad clara a historial de servicio, cotizaciones y facturas.",
+    portalCustomerCopy:
+      "Da visibilidad clara a historial de servicio, cotizaciones y facturas.",
     socialProof: "Prueba social",
     testimonialsTitle: "Historias de clientes proximamente",
-    testimonialsSubtitle: "Estos ejemplos se reemplazaran por testimonios verificados.",
+    testimonialsSubtitle:
+      "Estos ejemplos se reemplazaran por testimonios verificados.",
     testimonialSlotLabel: "Espacio reservado para testimonio",
-    testimonialSlotQuote1: "\"ServiceOS simplifico muchisimo nuestro despacho y facturacion.\"",
-    testimonialSlotQuote2: "\"Ahora terminamos trabajos con cumplimiento completo de fotos y firmas.\"",
-    testimonialSlotQuote3: "\"Por fin tenemos una sola fuente de verdad para operacion e ingresos.\"",
+    testimonialSlotQuote1:
+      '"ServiceOS simplifico muchisimo nuestro despacho y facturacion."',
+    testimonialSlotQuote2:
+      '"Ahora terminamos trabajos con cumplimiento completo de fotos y firmas."',
+    testimonialSlotQuote3:
+      '"Por fin tenemos una sola fuente de verdad para operacion e ingresos."',
     whyChooseTitle: "Por que las empresas eligen ServiceOS",
-    whyChooseSubtitle: "Todo lo que tu negocio de servicios necesita para operar, gestionar y crecer desde una sola plataforma.",
+    whyChooseSubtitle:
+      "Todo lo que tu negocio de servicios necesita para operar, gestionar y crecer desde una sola plataforma.",
     whyChooseAiCommandCenterTitle: "🤖 Centro de Comando IA",
-    whyChooseAiCommandCenterDetail: "Monitorea tu negocio en tiempo real con insights operativos, salud del negocio y recomendaciones impulsadas por IA.",
+    whyChooseAiCommandCenterDetail:
+      "Monitorea tu negocio en tiempo real con insights operativos, salud del negocio y recomendaciones impulsadas por IA.",
     whyChooseSmartQuotesTitle: "💡 Cotizaciones inteligentes",
-    whyChooseSmartQuotesDetail: "Crea cotizaciones precisas y profesionales rapidamente para pasar de propuesta a trabajo aprobado con menos friccion.",
+    whyChooseSmartQuotesDetail:
+      "Crea cotizaciones precisas y profesionales rapidamente para pasar de propuesta a trabajo aprobado con menos friccion.",
     whyChooseEmployeeOpsCenterTitle: "🛠 Centro de operaciones para empleados",
-    whyChooseEmployeeOpsCenterDetail: "Coordina equipos de campo con agenda, tareas y actualizaciones en tiempo real desde un solo panel operativo.",
+    whyChooseEmployeeOpsCenterDetail:
+      "Coordina equipos de campo con agenda, tareas y actualizaciones en tiempo real desde un solo panel operativo.",
     whyChooseWebsiteBuilderTitle: "🌐 Constructor web",
-    whyChooseWebsiteBuilderDetail: "Lanza un sitio web moderno con captura de leads integrada y conectada directamente a tu CRM.",
+    whyChooseWebsiteBuilderDetail:
+      "Lanza un sitio web moderno con captura de leads integrada y conectada directamente a tu CRM.",
     whyChooseFieldVerificationTitle: "✅ Verificacion en campo",
-    whyChooseFieldVerificationDetail: "Captura fotos, firmas y detalles de finalizacion en campo para que cada trabajo tenga evidencia verificable.",
+    whyChooseFieldVerificationDetail:
+      "Captura fotos, firmas y detalles de finalizacion en campo para que cada trabajo tenga evidencia verificable.",
     whyChoosePaymentsBillingTitle: "💳 Pagos y facturacion",
-    whyChoosePaymentsBillingDetail: "Genera facturas rapido, sigue su estado y cobra en un solo lugar para mejorar flujo de caja.",
-    foundingBannerTitle: "Ahora aceptando nuestros primeros {{count}} Founding Partners",
-    foundingBannerSubtitle: "Asegura precios exclusivos de lanzamiento y ayuda a definir ServiceOS.",
+    whyChoosePaymentsBillingDetail:
+      "Genera facturas rapido, sigue su estado y cobra en un solo lugar para mejorar flujo de caja.",
+    foundingBannerTitle:
+      "Ahora aceptando nuestros primeros {{count}} Founding Partners",
+    foundingBannerSubtitle:
+      "Asegura precios exclusivos de lanzamiento y ayuda a definir ServiceOS.",
     foundingBannerCta: "Ver Programa Founding Partner",
     foundingPartnerEyebrow: "Programa premium",
     foundingPartnerTitle: "Programa Founding Partner",
     foundingPartnerPricingSubtitle: "Ayuda a definir el futuro de ServiceOS.",
-    foundingPartnerSpotsAvailable: "{{count}} cupos de Founding Partner disponibles",
+    foundingPartnerSpotsAvailable:
+      "{{count}} cupos de Founding Partner disponibles",
     foundingPartnerRegularPriceLabel: "Precio regular Professional",
     foundingPartnerPriceLabel: "Precio Founding Partner",
     foundingPartnerForLife: "de por vida",
-    foundingPartnerLimitedTo: "Limitado a las primeras {{count}} empresas de limpieza comercial.",
+    foundingPartnerLimitedTo:
+      "Limitado a las primeras {{count}} empresas de limpieza comercial.",
     foundingPartnerBenefitLockedPricing: "Precio bloqueado de por vida",
     foundingPartnerBenefitFreeOnboarding: "Onboarding gratis",
     foundingPartnerBenefitWebsiteBuilder: "Website Builder incluido",
@@ -361,26 +426,36 @@ export const es: Dictionary = {
     foundingPartnerBenefitRecognition: "Reconocimiento como Founding Partner",
     foundingPartnerPrimaryCta: "Convertirme en Founding Partner",
     foundingPartnerSecondaryCta: "Reservar demo",
-    foundingPartnerSubtitle: "Unete a un grupo limitado de socios fundadores y ayuda a definir el futuro de ServiceOS con beneficios premium de lanzamiento.",
+    foundingPartnerSubtitle:
+      "Unete a un grupo limitado de socios fundadores y ayuda a definir el futuro de ServiceOS con beneficios premium de lanzamiento.",
     foundingPartnerBenefit1: "Onboarding y migracion con prioridad.",
-    foundingPartnerBenefit2: "Acceso directo para influir en la hoja de ruta del producto.",
-    foundingPartnerBenefit3: "Acceso anticipado a funciones premium de IA y automatizacion.",
-    foundingPartnerBenefit4: "Ventajas de precio para socios fundadores durante tu etapa de lanzamiento.",
+    foundingPartnerBenefit2:
+      "Acceso directo para influir en la hoja de ruta del producto.",
+    foundingPartnerBenefit3:
+      "Acceso anticipado a funciones premium de IA y automatizacion.",
+    foundingPartnerBenefit4:
+      "Ventajas de precio para socios fundadores durante tu etapa de lanzamiento.",
     foundingPartnerCta: "Aplicar al acceso Founding Partner",
     faqHomepageTitle: "Preguntas que hacen los equipos antes de cambiar",
-    finalCtaCopy: "Lanza con confianza y dale a tu equipo un sistema conectado para la ejecucion diaria.",
-    footerTagline: "ServiceOS. Una plataforma para operaciones de servicios modernas.",
+    finalCtaCopy:
+      "Lanza con confianza y dale a tu equipo un sistema conectado para la ejecucion diaria.",
+    footerTagline:
+      "ServiceOS. Una plataforma para operaciones de servicios modernas.",
     pricingHeroTitle: "Elige el plan que coincide con tu etapa de crecimiento",
-    pricingHeroCopy: "Los precios de ServiceOS estan pensados para empezar ligero, escalar rapido y operar con confianza.",
+    pricingHeroCopy:
+      "Los precios de ServiceOS estan pensados para empezar ligero, escalar rapido y operar con confianza.",
     pricingStarterName: "Starter",
     pricingStarterBadge: "Ideal para iniciar",
-    pricingStarterDescription: "Herramientas esenciales para equipos pequenos y operaciones dirigidas por duenos.",
+    pricingStarterDescription:
+      "Herramientas esenciales para equipos pequenos y operaciones dirigidas por duenos.",
     pricingProfessionalName: "Professional",
     pricingProfessionalBadge: "Mas popular",
-    pricingProfessionalDescription: "Nuestro sistema operativo completo para equipos que quieren escalar con IA y portales.",
+    pricingProfessionalDescription:
+      "Nuestro sistema operativo completo para equipos que quieren escalar con IA y portales.",
     pricingEnterpriseName: "Enterprise",
     pricingEnterpriseBadge: "Para despliegues grandes",
-    pricingEnterpriseDescription: "Soporte y controles avanzados para organizaciones con multiples ubicaciones.",
+    pricingEnterpriseDescription:
+      "Soporte y controles avanzados para organizaciones con multiples ubicaciones.",
     pricingContactSales: "Contactar ventas",
     pricingFeatureCrm: "CRM",
     pricingFeatureCustomers: "Gestion de clientes",
@@ -411,7 +486,8 @@ export const es: Dictionary = {
     notIncluded: "No incluido",
     featureComparison: "Comparacion de funciones",
     featureComparisonTitle: "Ve que incluye cada plan",
-    featureComparisonSubtitle: "Compara capacidades lado a lado para elegir la mejor opcion para tu negocio.",
+    featureComparisonSubtitle:
+      "Compara capacidades lado a lado para elegir la mejor opcion para tu negocio.",
     feature: "Funcion",
     cmpCore: "CRM, cotizaciones, trabajos, facturas",
     cmpAiSupervisor: "Supervisor IA",
@@ -427,34 +503,44 @@ export const es: Dictionary = {
     cmpOnboarding: "Onboarding dedicado",
     whyProfessional: "Por que Professional",
     whyProfessionalTitle: "La ruta mas rapida a la confianza operativa",
-    whyProfessionalCopy: "Professional combina guia IA, portales, pagos y herramientas de campo en un flujo integrado.",
+    whyProfessionalCopy:
+      "Professional combina guia IA, portales, pagos y herramientas de campo en un flujo integrado.",
     frequentlyAskedQuestions: "Preguntas frecuentes",
     faqCancelQ: "Puedo cancelar en cualquier momento?",
-    faqCancelA: "Si. Puedes cancelar cuando quieras y mantener acceso hasta el final del periodo facturado.",
+    faqCancelA:
+      "Si. Puedes cancelar cuando quieras y mantener acceso hasta el final del periodo facturado.",
     faqTrialQ: "Hay prueba gratis?",
     faqTrialA: "Si. Puedes iniciar con una prueba antes de comprometerte.",
     faqUpgradeQ: "Puedo actualizar despues?",
     faqUpgradeA: "Si. Actualiza cuando tu equipo necesite mas funciones.",
     faqOnboardingQ: "Ayudan con onboarding?",
-    faqOnboardingA: "Si. Damos acompanamiento para que tu equipo salga en vivo rapidamente.",
+    faqOnboardingA:
+      "Si. Damos acompanamiento para que tu equipo salga en vivo rapidamente.",
     readyToSeeLive: "Listo para verlo en vivo?",
-    pricingFinalCtaCopy: "Descubre como ServiceOS soporta tu flujo real desde el primer contacto hasta el pago.",
+    pricingFinalCtaCopy:
+      "Descubre como ServiceOS soporta tu flujo real desde el primer contacto hasta el pago.",
     pricingHighlightConnectedOpsLabel: "Operacion conectada",
-    pricingHighlightConnectedOpsValue: "Gestiona oficina, campo y comunicacion con clientes en un solo lugar.",
+    pricingHighlightConnectedOpsValue:
+      "Gestiona oficina, campo y comunicacion con clientes en un solo lugar.",
     pricingHighlightBuiltGrowthLabel: "Listo para crecer",
-    pricingHighlightBuiltGrowthValue: "Agrega portales, IA y pagos mientras escalas.",
+    pricingHighlightBuiltGrowthValue:
+      "Agrega portales, IA y pagos mientras escalas.",
     pricingHighlightSupportLabel: "Soporte incluido",
-    pricingHighlightSupportValue: "Recibe onboarding guiado y soporte rapido de nuestro equipo.",
+    pricingHighlightSupportValue:
+      "Recibe onboarding guiado y soporte rapido de nuestro equipo.",
     pricingHighlightProfessionalLabel: "Enfoque Professional",
-    pricingHighlightProfessionalValue: "Ideal para equipos que quieren velocidad, visibilidad y control.",
+    pricingHighlightProfessionalValue:
+      "Ideal para equipos que quieren velocidad, visibilidad y control.",
     contactHeroTitle: "Solicita una demo personalizada de ServiceOS",
-    contactHeroCopy: "Cuentanos sobre tu operacion y prepararemos un recorrido enfocado para tu equipo.",
+    contactHeroCopy:
+      "Cuentanos sobre tu operacion y prepararemos un recorrido enfocado para tu equipo.",
     contactWhatNext: "Que sigue",
     contactStep1: "Envia tu solicitud.",
     contactStep2: "Revisamos el perfil de tu negocio.",
     contactStep3: "Te contactamos con un plan de demo personalizado.",
     contactFormTitle: "Formulario de solicitud de demo",
-    contactFormSubtitle: "Todos los campos obligatorios se validan antes de enviar.",
+    contactFormSubtitle:
+      "Todos los campos obligatorios se validan antes de enviar.",
     contactName: "Nombre",
     contactCompany: "Empresa",
     contactEmail: "Correo",
@@ -467,15 +553,19 @@ export const es: Dictionary = {
     contactBusinessCommercial: "Limpieza comercial",
     contactBusinessOther: "Otro",
     contactMessage: "Mensaje",
-    contactMessagePlaceholder: "Comparte tus objetivos, herramientas actuales y prioridades.",
+    contactMessagePlaceholder:
+      "Comparte tus objetivos, herramientas actuales y prioridades.",
     contactRequestDemo: "Solicitar demo",
     contactSubmitting: "Enviando...",
-    exploreBanner: "Explora toda la experiencia de ServiceOS con datos de ejemplo en modo solo lectura. Ninguna accion aqui modifica datos de produccion.",
+    exploreBanner:
+      "Explora toda la experiencia de ServiceOS con datos de ejemplo en modo solo lectura. Ninguna accion aqui modifica datos de produccion.",
     exploreBannerTitle: "Demo de exploracion ServiceOS",
-    exploreIntro: "Visualiza clientes, empleados, trabajos, cotizaciones, facturas, reportes y kilometraje como se ven en produccion.",
+    exploreIntro:
+      "Visualiza clientes, empleados, trabajos, cotizaciones, facturas, reportes y kilometraje como se ven en produccion.",
     exploreReadOnlyMode: "Modo solo lectura",
     exploreReadOnlyDemo: "Demo solo lectura",
-    exploreFooter: "Cargado con clientes, empleados, trabajos completados, trabajos programados, cotizaciones, facturas, fotos, firmas, reportes IA, solicitudes de kilometraje e historial de ingresos.",
+    exploreFooter:
+      "Cargado con clientes, empleados, trabajos completados, trabajos programados, cotizaciones, facturas, fotos, firmas, reportes IA, solicitudes de kilometraje e historial de ingresos.",
     exploreTabDashboard: "Panel Supervisor IA",
     exploreTabCustomers: "Clientes",
     exploreTabEmployees: "Empleados",
@@ -492,9 +582,11 @@ export const es: Dictionary = {
     exploreHistoricalServiceVisits: "Visitas de servicio historicas",
     exploreUpcomingServiceVisits: "Visitas de servicio proximas",
     exploreRevenueHistory: "Historial de ingresos",
-    exploreRevenueHistorySubtitle: "Volumen de facturas pagadas en los ultimos 12 meses.",
+    exploreRevenueHistorySubtitle:
+      "Volumen de facturas pagadas en los ultimos 12 meses.",
     exploreSupervisorSummary: "Resumen del supervisor",
-    exploreSupervisorSummarySubtitle: "Senales operativas reflejadas desde la demo cargada.",
+    exploreSupervisorSummarySubtitle:
+      "Senales operativas reflejadas desde la demo cargada.",
     exploreCollectedRevenue: "Ingresos cobrados de facturas pagadas",
     explorePaidInvoices: "Facturas pagadas",
     exploreCoverage: "Cobertura",
@@ -507,13 +599,17 @@ export const es: Dictionary = {
     exploreFutureServiceCalendar: "Calendario de servicios futuros",
     exploreCustomerSignaturesCaptured: "Firmas de cliente capturadas",
     exploreIncludedInWorkflow: "Incluido en el flujo de demo",
-    exploreCompletedJobsSubtitle: "Evidencia fotografica, firmas y resmenes IA mostrados en modo solo lectura.",
+    exploreCompletedJobsSubtitle:
+      "Evidencia fotografica, firmas y resmenes IA mostrados en modo solo lectura.",
     exploreCustomerSignature: "Firma del cliente",
     exploreAiJobReport: "Reporte IA del trabajo",
-    exploreScheduledJobsSubtitle: "Trabajos proximos cargados en la agenda de demo.",
-    exploreQuotesSubtitle: "Cotizaciones cargadas con montos estimados y estados.",
+    exploreScheduledJobsSubtitle:
+      "Trabajos proximos cargados en la agenda de demo.",
+    exploreQuotesSubtitle:
+      "Cotizaciones cargadas con montos estimados y estados.",
     exploreStandardService: "Servicio estandar",
-    exploreInvoicesSubtitle: "Cobertura del ciclo de facturas: pagadas, pendientes y vencidas.",
+    exploreInvoicesSubtitle:
+      "Cobertura del ciclo de facturas: pagadas, pendientes y vencidas.",
     invoice: "Factura",
     customer: "Cliente",
     amount: "Monto",
@@ -526,15 +622,19 @@ export const es: Dictionary = {
     exploreMileagePending: "Kilometraje pendiente",
     exploreAwaitingApproval: "En espera de aprobacion",
     exploreAiJobReports: "Reportes IA de trabajos",
-    exploreAiJobReportsSubtitle: "Resmenes generados desde trabajos completados de la demo.",
+    exploreAiJobReportsSubtitle:
+      "Resmenes generados desde trabajos completados de la demo.",
     exploreReport: "Reporte",
-    exploreMileageRequestsSubtitle: "Historial de aprobacion en solo lectura para reclamos de kilometraje.",
+    exploreMileageRequestsSubtitle:
+      "Historial de aprobacion en solo lectura para reclamos de kilometraje.",
     miles: "millas",
     sqFt: "pies cuadrados",
     exploreActive: "Activo",
     exploreRating: "Calificacion",
-    exploreCustomersSubtitle: "Cuentas de clientes cargadas con empresa, contacto y detalles de servicio.",
-    exploreEmployeesSubtitle: "Empleados cargados con rol, rendimiento y contexto de carga de trabajo.",
+    exploreCustomersSubtitle:
+      "Cuentas de clientes cargadas con empresa, contacto y detalles de servicio.",
+    exploreEmployeesSubtitle:
+      "Empleados cargados con rol, rendimiento y contexto de carga de trabajo.",
     exploreService: "servicio",
     exploreBeforePhoto: "Foto antes",
     exploreAfterPhoto: "Foto despues",
@@ -556,13 +656,345 @@ export const es: Dictionary = {
     demoVideoTitle: "Demo de producto ServiceOS en 2 minutos",
     demoPageBadge: "Experiencia Demo",
     demoPageTitle: "Mira ServiceOS en accion en menos de 2 minutos",
-    demoPageSubtitle: "Mira el recorrido y luego entra al entorno interactivo de solo lectura para explorar flujos reales.",
-    demoFeatureAiSupervisor: "El Supervisor IA destaca senales de riesgo y acciones recomendadas.",
-    demoFeatureQuotesJobs: "Pasa de cotizacion a trabajo programado y completado en un solo flujo.",
-    demoFeatureProofAndBilling: "Captura fotos/firmas y convierte trabajo completado en registros listos para facturar.",
-    demoFeaturePortals: "Previsualiza experiencias de admin, empleado y cliente con visibilidad por rol.",
+    demoPageSubtitle:
+      "Mira el recorrido y luego entra al entorno interactivo de solo lectura para explorar flujos reales.",
+    demoFeatureAiSupervisor:
+      "El Supervisor IA destaca senales de riesgo y acciones recomendadas.",
+    demoFeatureQuotesJobs:
+      "Pasa de cotizacion a trabajo programado y completado en un solo flujo.",
+    demoFeatureProofAndBilling:
+      "Captura fotos/firmas y convierte trabajo completado en registros listos para facturar.",
+    demoFeaturePortals:
+      "Previsualiza experiencias de admin, empleado y cliente con visibilidad por rol.",
     demoOverview: "Resumen del producto",
     demoOverviewTitle: "Opera con confianza en cada flujo",
-    demoOverviewCopy: "ServiceOS esta disenado para equipos de campo que necesitan velocidad y responsabilidad. La demo muestra como operaciones, comunicacion, documentacion y facturacion se mantienen alineadas del primer lead al pago final.",
+    demoOverviewCopy:
+      "ServiceOS esta disenado para equipos de campo que necesitan velocidad y responsabilidad. La demo muestra como operaciones, comunicacion, documentacion y facturacion se mantienen alineadas del primer lead al pago final.",
+    demoAccountBadge: "Cuenta demo",
+    demoModeBannerMessage:
+      "El modo demo esta activo. Los datos son ficticios, solo de sesion y se reinician automaticamente. Las acciones externas como correos, SMS, invitaciones y pagos reales estan deshabilitadas.",
+    demoResetDemo: "Reiniciar demo",
+    demoTrustEyebrow:
+      "Con la confianza de equipos de limpieza comercial enfocados en crecimiento",
+    demoTrustTitle:
+      "Todo lo que un propietario necesita para escalar ingresos sin perder control operativo",
+    demoTrustBookCall: "Agendar llamada de onboarding",
+    demoTrustMetricTimeToValueLabel: "Hasta el primer trabajo programado",
+    demoTrustMetricTimeToValueValue: "Menos de 10 dias",
+    demoTrustMetricCollectionLabel: "Cobro de facturas mas rapido",
+    demoTrustMetricCollectionValue: "+31%",
+    demoTrustMetricRetentionLabel: "Mejora en retencion de clientes",
+    demoTrustMetricRetentionValue: "+18%",
+    demoTrustBadgeRolePermissions: "Permisos por rol",
+    demoTrustBadgeStripe: "Pagos listos con Stripe",
+    demoTrustBadgeAuditTrail: "Auditoria de fotos y actividad",
+    demoTrustBadgeSupport: "Soporte de onboarding founder",
+    demoConversionTitle: "Listo para ejecutar tu propio flujo?",
+    demoConversionSubtitle:
+      "Lanza un espacio real de ServiceOS con onboarding guiado y portales por rol para tu operacion.",
+    demoConversionNoCard: "No se requiere tarjeta de credito",
+    demoConversionSetUpFast: "Configura en minutos",
+    demoConversionDataMigration:
+      "Integra tu lista actual de clientes en una sola llamada de onboarding",
+    demoConversionWhiteGloveOnboarding:
+      "Implementacion guiada con playbooks para propietario, operaciones y equipo de campo",
+    demoConversionPortalsIncluded: "Incluye portales de cliente y empleado",
+    demoConversionFounderPricing:
+      "Precio Founder Partner disponible para un numero limitado de negocios",
+    demoTestimonialsEyebrow: "Lo que dicen los primeros founder partners",
+    demoTestimonial1Quote:
+      '"Dejamos de perseguir actualizaciones por mensajes. Ahora cada trabajo, foto y factura vive en un solo lugar."',
+    demoTestimonial1Name: "N. Alvarez",
+    demoTestimonial1Role: "Propietario, Peak Facility Care",
+    demoTestimonial2Quote:
+      '"La velocidad de cierre mejoro en la primera semana porque el equipo tenia checklist claro y flujo de evidencia."',
+    demoTestimonial2Name: "K. Monroe",
+    demoTestimonial2Role: "Gerente de operaciones, Harbor Clean Co.",
+    demoTestimonial3Quote:
+      '"Los clientes empezaron a pagar mas rapido cuando vieron evidencia de antes y despues en su portal."',
+    demoTestimonial3Name: "T. Shah",
+    demoTestimonial3Role: "Fundador, FirstLight Commercial",
+    demoCtaBookOnboardingCall: "Hablar con onboarding",
+    demoCtaFounderPricing: "Ver precio Founder Partner",
+    demoConversionFinePrint:
+      "Los cupos Founder Partner incluyen guia de implementacion, soporte de migracion y checklists de lanzamiento por rol.",
+    demoPublicWalkthrough: "Recorrido publico",
+    demoLandingTitle: "Ve ServiceOS en accion",
+    demoLandingSubtitle:
+      "Explora como una empresa de servicios gestiona clientes, estimaciones, empleados, trabajos, facturas y pagos, todo desde una sola plataforma.",
+    demoLandingProofline:
+      "Usa el recorrido guiado para una vista rapida o entra directo a los portales de propietario, empleado y cliente.",
+    demoPortalOwnerTitle: "Demo para propietario",
+    demoPortalOwnerDescription:
+      "Gestiona clientes, estimaciones, agendas, empleados, facturas y rendimiento del negocio.",
+    demoPortalOwnerButton: "Entrar al demo admin",
+    demoPortalEmployeeTitle: "Demo de empleado",
+    demoPortalEmployeeDescription:
+      "Consulta trabajos asignados, registra entrada, sigue listas de verificacion, sube fotos y completa el trabajo.",
+    demoPortalEmployeeButton: "Entrar al demo de empleado",
+    demoPortalCustomerTitle: "Demo de cliente",
+    demoPortalCustomerDescription:
+      "Aprueba estimaciones, sigue el avance del trabajo, solicita servicio y paga facturas.",
+    demoPortalCustomerButton: "Entrar al demo de cliente",
+    demoStartTour: "Iniciar recorrido guiado",
+    demoCtaStartFounderWorkspace: "Iniciar espacio Founder",
+    demoCtaGetTeamOnboarded: "Activar a mi equipo",
+    demoCtaLaunchPortal: "Lanzar portal de clientes",
+    demoLabelCompany: "Empresa",
+    demoLabelOwner: "Propietaria",
+    demoLabelServiceArea: "Area de servicio",
+    demoLabelPlan: "Plan",
+    demoLabelTeamSize: "Tamano del equipo",
+    demoLabelActiveCustomers: "Clientes activos",
+    demoLabelMonthlyRevenue: "Ingresos mensuales",
+    demoLabelCompletionRate: "Tasa de finalizacion",
+    demoLabelPhone: "Telefono",
+    demoLabelEmail: "Correo",
+    demoLabelJobsThisMonth: "Trabajos este mes",
+    demoAdminDashboard: "Panel administrativo",
+    demoAdminConversionPrompt:
+      "Quieres esta visibilidad en tu operacion? Lanza tu espacio Founder Partner e importa tus primeros clientes esta semana.",
+    demoMetricMonthlyRevenue: "Ingresos mensuales",
+    demoMetricOutstandingInvoices: "Facturas pendientes",
+    demoMetricJobsThisWeek: "Trabajos esta semana",
+    demoMetricNewQuoteRequests: "Nuevas solicitudes de cotizacion",
+    demoMetricActiveCustomers: "Clientes activos",
+    demoMetricActiveEmployees: "Empleados activos",
+    demoMetricCompletionRate: "Tasa de finalizacion",
+    demoRevenueLastSixMonths: "Ingresos (ultimos 6 meses)",
+    demoRevenueSubtitle:
+      "Datos de tendencia realistas para la narrativa del demo.",
+    demoMonthJanuary: "Enero",
+    demoMonthFebruary: "Febrero",
+    demoMonthMarch: "Marzo",
+    demoMonthApril: "Abril",
+    demoMonthMay: "Mayo",
+    demoMonthJune: "Junio",
+    demoSafetyControls: "Controles de seguridad",
+    demoSafetyControlsDescription:
+      "Los usuarios demo no pueden enviar facturas reales, correos, SMS, invitaciones de empleados ni notificaciones.",
+    demoDisabledInvoiceReminder:
+      "Enviar recordatorio de factura (deshabilitado en demo)",
+    demoDisabledInviteEmployee:
+      "Invitar nuevo empleado (deshabilitado en demo)",
+    demoDisabledDeleteCustomer:
+      "Eliminar cliente (accion destructiva deshabilitada)",
+    demoUpcomingJobs: "Proximos trabajos",
+    demoTimeToday6: "Hoy, 6:00 PM",
+    demoTimeTomorrow7: "Manana, 7:00 PM",
+    demoTimeWednesday530: "Miercoles, 5:30 PM",
+    demoTimeThursday430: "Jueves, 4:30 PM",
+    demoServiceMedicalOffice: "Limpieza de consultorio medico",
+    demoServiceRecurringOffice: "Limpieza de oficina recurrente",
+    demoServiceWarehouseOffice: "Limpieza de oficina en almacen",
+    demoServiceSchoolCleaning: "Limpieza escolar",
+    demoServiceOfficeCleaning: "Limpieza de oficina",
+    demoServiceOfficeBreakroom: "Limpieza de oficina y sala de descanso",
+    demoServiceDentalOffice: "Limpieza de consultorio dental",
+    demoAssignedTo: "Asignado a",
+    demoLabelValue: "Valor:",
+    demoStatusScheduled: "Programado",
+    demoStatusConfirmed: "Confirmado",
+    demoStatusCompleted: "Completado",
+    demoStatusInProgress: "En progreso",
+    demoStatusReadyToStart: "Listo para iniciar",
+    demoStatusActive: "Activo",
+    demoStatusProspect: "Prospecto",
+    demoStatusAwaitingApproval: "En espera de aprobacion",
+    demoStatusApprovedSessionOnly: "Aprobada (solo en esta sesion)",
+    demoStatusPaid: "Pagada",
+    demoStatusDue: "Por pagar",
+    demoRecentActivity: "Actividad reciente",
+    demoActivityPaidInv1048:
+      "La factura INV-1048 fue pagada por Lakeside Medical Center.",
+    demoActivityMarcusCompleted:
+      "Marcus Reed completo el trabajo de Steel City Logistics.",
+    demoActivityHarborApproved:
+      "Harbor Point Law Group aprobo la estimacion EST-1032.",
+    demoActivityNewNorthshoreRequest:
+      "Nueva solicitud de servicio recibida de Northshore Dental.",
+    demoActivityPhotosGenesis:
+      "Se subieron fotos de antes y despues para Genesis Learning Academy.",
+    demoQuoteApprovedActivity:
+      "Northshore Dental aprobo EST-1036 y se programo un servicio recurrente.",
+    demoInvoicePaidActivity:
+      "INV-1052 marcada como pagada en esta sesion demo.",
+    demoCustomersTitle: "Clientes demo",
+    demoLabelService: "Servicio:",
+    demoLabelFrequency: "Frecuencia:",
+    demoLabelMonthlyValue: "Valor mensual:",
+    demoLabelEstimatedMonthlyValue: "Valor mensual estimado:",
+    demoFrequencyFiveNights: "Cinco noches por semana",
+    demoFrequencyTwicePerWeek: "Dos veces por semana",
+    demoFrequencyThreeTimesPerWeek: "Tres veces por semana",
+    demoFrequencyFiveTimesPerWeek: "Cinco veces por semana",
+    demoQuoteDemonstration: "Demostracion de cotizacion",
+    demoLabelStatus: "Estado:",
+    demoLabelCustomer: "Cliente",
+    demoLabelSquareFootage: "Metraje cuadrado",
+    demoLabelEstimatedMonthlyPrice: "Precio mensual estimado",
+    demoLabelScope: "Alcance",
+    demoFrequencyThreePerWeek: "Tres limpiezas por semana",
+    demoQuoteScopeRestroom: "Saneamiento de banos",
+    demoQuoteScopeWaitingRoom: "Limpieza de sala de espera",
+    demoQuoteScopeTreatmentFloors: "Cuidado de pisos en salas de tratamiento",
+    demoQuoteScopeBreakroom: "Limpieza de sala de descanso",
+    demoQuoteScopeDeepClean: "Limpieza profunda mensual",
+    demoEmployeePortal: "Portal de empleado",
+    demoEmployeeConversionPrompt:
+      "Este es el flujo exacto para tu equipo de campo: checklist en vivo, evidencia fotografica y cierre con notas en un solo recorrido.",
+    demoLabelRole: "Rol",
+    demoLabelJobsToday: "Trabajos hoy",
+    demoLabelHoursThisWeek: "Horas esta semana",
+    demoLabelCompletionScore: "Puntaje de finalizacion",
+    demoTodaysPrimaryJob: "Trabajo principal de hoy",
+    demoLabelTime: "Hora",
+    demoLabelLocation: "Ubicacion",
+    demoLabelTeam: "Equipo",
+    demoInteractiveJobSteps: "Pasos interactivos del trabajo",
+    demoStepClockIn: "1. Registrar entrada",
+    demoStepStartJob: "2. Iniciar trabajo",
+    demoStepCompleteChecklist: "3. Completar lista de verificacion",
+    demoChecklistProgress:
+      "{{completed}}/{{total}} completados. Dos elementos inician sin marcar para que el visitante los complete.",
+    demoStepMarkComplete: "7. Marcar trabajo como completado",
+    demoMarkJobComplete: "Marcar trabajo como completado",
+    demoStepClockOut: "8. Registrar salida",
+    demoJobCompletedSuccess:
+      "Trabajo completado correctamente. Se notifico al cliente y a la oficina.",
+    demoPhotosAndJobNote: "Fotos y nota del trabajo",
+    demoStepBeforePhotos: "4. Fotos de antes",
+    demoStepAfterPhotos: "5. Subir o seleccionar fotos de despues",
+    demoSelectSimulatedAfterPhotos: "Seleccionar fotos simuladas de despues",
+    demoUploadPhoto: "Subir foto",
+    demoNoAfterPhotos: "Aun no se agregaron fotos de despues.",
+    demoStepAddJobNote: "6. Agregar nota del trabajo",
+    demoChecklistTrash: "Vaciar basura y reemplazar bolsas",
+    demoChecklistReception: "Desinfectar superficies de recepcion",
+    demoChecklistRestrooms: "Limpiar y desinfectar banos",
+    demoChecklistVacuum: "Aspirar areas alfombradas",
+    demoChecklistMop: "Trapear pisos duros",
+    demoChecklistTouchpoints:
+      "Desinfectar manijas de puertas y superficies de alto contacto",
+    demoChecklistBreakroom: "Limpiar sala de descanso de empleados",
+    demoChecklistSupplies: "Confirmar niveles de suministros",
+    demoChecklistDoors: "Asegurar puertas designadas",
+    demoChecklistPhotos: "Subir fotos de finalizacion",
+    demoRoleCleaningTech: "Tecnico de limpieza",
+    demoListAnd: "y",
+    demoImageAltBeforeCondition: "Condicion antes",
+    demoImageAltAfterCondition: "Condicion despues",
+    demoJobNotePlaceholder:
+      "Limpieza completada. El jabon del bano del pasillo este esta por agotarse. Fotos adjuntas.",
+    demoCustomerPortal: "Portal de cliente",
+    demoCustomerConversionPrompt:
+      "Esta experiencia del cliente ayuda a retener cuentas y aumentar referidos: evidencia, transparencia y pago en linea facil.",
+    demoLabelNextScheduledService: "Proximo servicio programado",
+    demoLabelCurrentJobStatus: "Estado actual del trabajo",
+    demoLabelApprovedQuotes: "Cotizaciones aprobadas",
+    demoLabelRequestService: "Solicitar servicio",
+    demoAvailable: "Disponible",
+    demoOpenAndPaidInvoices: "Facturas abiertas y pagadas",
+    demoInvoiceServiceJuly: "Servicio de limpieza comercial de julio",
+    demoLabelDueDate: "Fecha de vencimiento:",
+    demoPayInvoice: "Pagar factura",
+    demoPaymentSuccessful: "Pago demo exitoso",
+    demoPaymentSafetyTitle: "Seguridad de pago",
+    demoPaymentSafetyCopy:
+      "Los cargos reales de Stripe estan deshabilitados en este demo. El checkout es simulado y solo para esta sesion.",
+    demoServiceHistoryAndChecklist:
+      "Historial de servicio y lista de verificacion",
+    demoCompletionChecklist: "Lista de verificacion de finalizacion",
+    demoRequestService: "Solicitar servicio",
+    demoBeforeAfterPhotos: "Fotos de antes y despues",
+    demoBefore: "Antes",
+    demoAfter: "Despues",
+    demoSimulatedCheckout: "Checkout simulado",
+    demoPayInvoiceWithNumber: "Pagar {{invoiceNumber}}",
+    demoSimulatedCheckoutCopy:
+      "Esta es una pantalla de pago solo para demo. No se creara ningun cargo real de Stripe.",
+    demoLabelTotal: "Total:",
+    demoCompleteDemoPayment: "Completar pago demo",
+    demoCancel: "Cancelar",
+    demoNextServiceToday6: "Hoy a las 6:00 PM",
+    demoServiceHistory1: "5 de julio de 2026 - Limpieza nocturna completada",
+    demoServiceHistory2:
+      "8 de julio de 2026 - Saneamiento profundo de banos completado",
+    demoServiceHistory3:
+      "10 de julio de 2026 - Reposicion de suministros y cuidado completo de pisos",
+    demoCompletionChecklist1: "Basura retirada y bolsas reemplazadas",
+    demoCompletionChecklist2:
+      "Recepcion y superficies de contacto desinfectadas",
+    demoCompletionChecklist3: "Banos desinfectados",
+    demoCompletionChecklist4: "Pisos aspirados y trapeados",
+    demoGuidedTour: "Recorrido guiado",
+    demoGuidedTourTitle: "Recorrido guiado de ServiceOS",
+    demoGuidedTourSubtitle:
+      "Sigue una historia controlada de 8 pasos desde la primera solicitud del cliente hasta las actualizaciones del panel, sin salir del modo demo.",
+    demoTourSafetyNotice:
+      "Modo demo solo de sesion: no se ejecutan escrituras reales en base de datos, pagos Stripe, correos, SMS ni notificaciones.",
+    demoTourInstructionPrefix: "Que hacer:",
+    demoApproveEstimate: "Aprobar estimacion",
+    demoConfirmSchedule: "Confirmar programacion",
+    demoEstimateApprovedSuccess:
+      "Estimacion aprobada. Se creo un trabajo de servicio recurrente.",
+    demoScheduleConfirmedSuccess:
+      "Trabajo programado. La asignacion ya aparece para el equipo de campo.",
+    demoSimulateJobCompletion: "Simular finalizacion del trabajo",
+    demoPayInvoiceDemo: "Pagar factura (demo)",
+    demoBack: "Atras",
+    demoNext: "Siguiente",
+    demoExitTour: "Salir del recorrido",
+    demoTourCompletionMessage:
+      "Ya viste como ServiceOS lleva a un negocio de servicios desde la primera solicitud hasta el pago final.",
+    demoTourStep1Title: "Paso 1 de 8: Nueva solicitud de cliente",
+    demoTourStep1Body:
+      "Northshore Dental envia una nueva solicitud de limpieza comercial desde el sitio publico.",
+    demoTourStep1Instruction:
+      "Pulsa Siguiente para pasar a la creacion de la estimacion.",
+    demoTourStep2Title: "Paso 2 de 8: Estimacion creada",
+    demoTourStep2Body:
+      "BrightLine crea la EST-1036 con alcance, frecuencia y precio desde un solo flujo.",
+    demoTourStep2Instruction:
+      "Pulsa Siguiente para revisar y aprobar la estimacion.",
+    demoTourStep3Title: "Paso 3 de 8: Estimacion aprobada",
+    demoTourStep3Body:
+      "El cliente aprueba la estimacion y ServiceOS la convierte en un trabajo recurrente.",
+    demoTourStep3Instruction:
+      "Haz clic en Aprobar estimacion y luego pulsa Siguiente.",
+    demoTourStep4Title: "Paso 4 de 8: Trabajo programado",
+    demoTourStep4Body:
+      "ServiceOS programa el trabajo aprobado y sincroniza horario y asignacion para el equipo.",
+    demoTourStep4Instruction:
+      "Haz clic en Confirmar programacion y luego pulsa Siguiente.",
+    demoTourStep5Title: "Paso 5 de 8: El empleado completa el trabajo",
+    demoTourStep5Body:
+      "El equipo asignado registra entrada, sigue la lista de verificacion, agrega fotos y marca el trabajo como completado.",
+    demoTourStep5Instruction:
+      "Haz clic en Simular finalizacion del trabajo y luego pulsa Siguiente.",
+    demoTourStep6Title: "Paso 6 de 8: Factura generada",
+    demoTourStep6Body:
+      "ServiceOS genera INV-1052 automaticamente tras la finalizacion y sincroniza el estado en el portal del cliente.",
+    demoTourStep6Instruction:
+      "Pulsa Siguiente para continuar al pago del cliente.",
+    demoTourStep7Title: "Paso 7 de 8: El cliente paga la factura",
+    demoTourStep7Body:
+      "El cliente revisa evidencia de antes y despues y completa un pago demo en checkout simulado.",
+    demoTourStep7Instruction:
+      "Haz clic en Pagar factura (demo) y luego pulsa Siguiente.",
+    demoTourStep8Title: "Paso 8 de 8: Actualizacion del panel",
+    demoTourStep8Body:
+      "Los paneles del propietario se actualizan con estado de cotizacion, trabajo y pago para actuar al instante.",
+    demoTourStep8Instruction:
+      "Revisa las tarjetas de estado actualizadas y luego Reiniciar demo o Salir del recorrido.",
+    demoDashboardQuoteStatusUpdated:
+      "Estado de cotizacion actualizado: aprobada",
+    demoDashboardQuoteStatusPending:
+      "Estado de cotizacion pendiente en esta sesion",
+    demoDashboardJobStatusUpdated: "Estado de trabajo actualizado: completado",
+    demoDashboardJobStatusPending: "Estado de trabajo pendiente en esta sesion",
+    demoDashboardInvoiceStatusUpdated: "Estado de factura actualizado: pagada",
+    demoDashboardInvoiceStatusPending:
+      "Estado de factura pendiente en esta sesion",
   },
 };

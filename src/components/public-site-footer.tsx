@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 export function PublicSiteFooter() {
   const { t } = useI18n();
@@ -21,7 +21,7 @@ export function PublicSiteFooter() {
           <Link href="/pricing" className="hover:text-blue-700">
             {t("public.navPricing")}
           </Link>
-          <Link href="/explore" className="hover:text-blue-700">
+          <Link href="/demo" className="hover:text-blue-700">
             {t("public.navExploreDemo")}
           </Link>
           <Link href="/contact" className="hover:text-blue-700">

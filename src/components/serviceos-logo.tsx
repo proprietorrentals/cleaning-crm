@@ -60,14 +60,20 @@ export function ServiceOSIcon({
   priority?: boolean;
 }) {
   return (
-    <Image
-      src={SERVICEOS_ICON_SRC}
-      alt="ServiceOS icon"
-      width={size}
-      height={size}
-      className={`h-auto w-auto shrink-0 rounded-2xl object-contain ${className}`}
-      priority={priority}
-    />
+    <span
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      <Image
+        src={SERVICEOS_ICON_SRC}
+        alt="ServiceOS icon"
+        width={size}
+        height={size}
+        className="h-full w-full object-contain"
+        priority={priority}
+      />
+    </span>
   );
 }
 
@@ -86,15 +92,24 @@ export function ServiceOSWordmark({
 }) {
   const tokens = getSizeTokens(size);
   const titleColor = surface === "dark" ? "text-white" : "text-slate-900";
-  const subtitleColor = surface === "dark" ? "text-slate-300" : "text-slate-600";
+  const subtitleColor =
+    surface === "dark" ? "text-slate-300" : "text-slate-600";
   const taglineColor = surface === "dark" ? "text-slate-300" : "text-slate-500";
   const showSecondary = size !== "compact-sidebar";
 
   return (
     <div className={`min-w-0 ${className}`}>
-      <p className={`${tokens.title} whitespace-nowrap font-bold leading-none ${titleColor}`}>ServiceOS</p>
-      {showSecondary && subtitle ? <p className={`${tokens.subtitle} ${subtitleColor}`}>{subtitle}</p> : null}
-      {showSecondary && showTagline ? <p className={`${tokens.tagline} ${taglineColor}`}>Operate with Confidence.</p> : null}
+      <p className={`${tokens.title} font-bold leading-none ${titleColor}`}>
+        ServiceOS
+      </p>
+      {showSecondary && subtitle ? (
+        <p className={`${tokens.subtitle} ${subtitleColor}`}>{subtitle}</p>
+      ) : null}
+      {showSecondary && showTagline ? (
+        <p className={`${tokens.tagline} ${taglineColor}`}>
+          Operate with Confidence.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -119,16 +134,29 @@ export function ServiceOSLogo({
   const tokens = getSizeTokens(size);
   const resolvedIcon = tokens.icon;
   const normalizedSubtitle = subtitle?.trim();
-  const subtitleText = size !== "compact-sidebar" && normalizedSubtitle && normalizedSubtitle !== "Operate with Confidence." ? normalizedSubtitle : undefined;
+  const subtitleText =
+    size !== "compact-sidebar" &&
+    normalizedSubtitle &&
+    normalizedSubtitle !== "Operate with Confidence."
+      ? normalizedSubtitle
+      : undefined;
   const shouldShowTagline = size !== "compact-sidebar" ? showTagline : false;
 
   if (variant === "icon-only") {
-    return <ServiceOSIcon size={resolvedIcon} className={className} priority={priority} />;
+    return (
+      <ServiceOSIcon
+        size={resolvedIcon}
+        className={className}
+        priority={priority}
+      />
+    );
   }
 
   if (variant === "stacked") {
     return (
-      <div className={`flex flex-col items-center text-center ${tokens.stackGap} ${className}`}>
+      <div
+        className={`inline-flex max-w-full flex-col items-center justify-center text-center ${tokens.stackGap} ${className}`}
+      >
         <ServiceOSIcon size={resolvedIcon} priority={priority} />
         <ServiceOSWordmark
           surface={surface}
@@ -141,7 +169,9 @@ export function ServiceOSLogo({
   }
 
   return (
-    <div className={`flex w-full max-w-full items-center ${tokens.gap} ${className}`}>
+    <div
+      className={`inline-flex max-w-full items-center justify-center ${tokens.gap} ${className}`}
+    >
       <ServiceOSIcon size={resolvedIcon} priority={priority} />
       <ServiceOSWordmark
         surface={surface}

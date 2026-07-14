@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Employee profile demo placeholder">
+  <rect width="800" height="800" fill="#e0f2fe"/>
+  <circle cx="400" cy="310" r="170" fill="#7dd3fc"/>
+  <rect x="170" y="520" width="460" height="180" rx="90" fill="#38bdf8"/>
+  <text x="200" y="760" font-family="Segoe UI, sans-serif" font-size="48" fill="#075985">Employee</text>
+</svg>

@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import type { Language } from "@/lib/i18n/types";
 
 export function LanguageSelector() {
   const { language, setLanguage, t } = useI18n();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -17,6 +19,7 @@ export function LanguageSelector() {
     if (nextLanguage === language) return;
     setSaving(true);
     await setLanguage(nextLanguage);
+    router.refresh();
     setSaving(false);
   };
 
@@ -31,7 +34,9 @@ export function LanguageSelector() {
           aria-label={t("common.language")}
         >
           <span>{t("common.language")}</span>
-          <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] sm:text-xs">{label}</span>
+          <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] sm:text-xs">
+            {label}
+          </span>
         </button>
 
         {open ? (

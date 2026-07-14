@@ -1,10 +1,10 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
-import { ServiceOSLogo } from "@/components/serviceos-logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
+import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup";
 
@@ -14,7 +14,6 @@ export default function CustomerAuthPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
   const [companyCode, setCompanyCode] = useState("");
@@ -50,12 +49,12 @@ export default function CustomerAuthPage() {
           console.error("Login error:", error);
           console.error("Error status:", error.status);
           console.error("Error code:", error.code);
-          
+
           let errorMsg = error.message;
           if (error.message.includes("invalid")) {
             errorMsg += " - Email or password may be incorrect";
           }
-          
+
           setMessage(`❌ Login failed: ${errorMsg}`);
           setLoading(false);
           return;
@@ -91,16 +90,17 @@ export default function CustomerAuthPage() {
         }
 
         // 2. Create auth user.
-        const { data: authData, error: signupError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              company_code: companyCode,
-              contact_name: contactName,
+        const { data: authData, error: signupError } =
+          await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                company_code: companyCode,
+                contact_name: contactName,
+              },
             },
-          },
-        });
+          });
 
         if (signupError) {
           setMessage(`❌ Signup failed: ${signupError.message}`);
@@ -124,7 +124,9 @@ export default function CustomerAuthPage() {
         });
 
         if (insertError) {
-          setMessage(`❌ Failed to create customer profile: ${insertError.message}`);
+          setMessage(
+            `❌ Failed to create customer profile: ${insertError.message}`,
+          );
           setLoading(false);
           return;
         }
@@ -134,7 +136,9 @@ export default function CustomerAuthPage() {
       }
     } catch (error) {
       console.error("Auth error:", error);
-      setMessage(`❌ An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setMessage(
+        `❌ An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -182,10 +186,14 @@ export default function CustomerAuthPage() {
               {mode === "signup" && (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    <label
+                      htmlFor="companyCode"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
                       Company Code *
                     </label>
                     <input
+                      id="companyCode"
                       type="text"
                       value={companyCode}
                       onChange={(e) => setCompanyCode(e.target.value)}
@@ -193,14 +201,20 @@ export default function CustomerAuthPage() {
                       placeholder="my-company"
                       required
                     />
-                    <p className="mt-1 text-xs text-slate-500">Ask your administrator for your company code.</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Ask your administrator for your company code.
+                    </p>
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    <label
+                      htmlFor="contactName"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
                       Contact Name *
                     </label>
                     <input
+                      id="contactName"
                       type="text"
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
@@ -211,10 +225,14 @@ export default function CustomerAuthPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    <label
+                      htmlFor="phone"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
                       Phone (optional)
                     </label>
                     <input
+                      id="phone"
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -226,10 +244,14 @@ export default function CustomerAuthPage() {
               )}
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="customerEmail"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
                   Email Address
                 </label>
                 <input
+                  id="customerEmail"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -240,10 +262,14 @@ export default function CustomerAuthPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="customerPassword"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
                   Password
                 </label>
                 <input
+                  id="customerPassword"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -258,7 +284,11 @@ export default function CustomerAuthPage() {
                 disabled={loading}
                 className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
               >
-                {loading ? "Processing..." : mode === "login" ? "Sign In" : "Create Account"}
+                {loading
+                  ? "Processing..."
+                  : mode === "login"
+                    ? "Sign In"
+                    : "Create Account"}
               </button>
             </form>
 
@@ -283,6 +313,12 @@ export default function CustomerAuthPage() {
             </div>
 
             <div className="mt-4">
+              <Link
+                href="/demo"
+                className="mb-2 block text-center text-sm font-medium text-blue-600 transition hover:text-blue-700"
+              >
+                Explore Interactive Demo
+              </Link>
               <Link
                 href="/"
                 className="block text-center text-xs text-slate-500 hover:text-slate-700 transition"

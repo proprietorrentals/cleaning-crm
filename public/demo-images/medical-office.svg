@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-label="Medical office demo placeholder">
+  <rect width="1200" height="800" fill="#dbeafe"/>
+  <rect x="120" y="120" width="960" height="560" rx="28" fill="#eff6ff"/>
+  <rect x="200" y="200" width="280" height="360" rx="20" fill="#bfdbfe"/>
+  <rect x="540" y="200" width="460" height="70" rx="12" fill="#93c5fd"/>
+  <rect x="540" y="300" width="380" height="50" rx="10" fill="#bfdbfe"/>
+  <rect x="540" y="380" width="320" height="50" rx="10" fill="#bfdbfe"/>
+  <text x="540" y="500" font-family="Segoe UI, sans-serif" font-size="38" fill="#1d4ed8">Medical Office</text>
+</svg>

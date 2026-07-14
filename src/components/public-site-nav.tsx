@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 type PublicSiteNavProps = {
   active?: "home" | "pricing" | "contact";
 };
 
 function linkClass(isActive: boolean) {
-  return isActive
-    ? "text-blue-700"
-    : "text-slate-700 hover:text-blue-700";
+  return isActive ? "text-blue-700" : "text-slate-700 hover:text-blue-700";
 }
 
 export function PublicSiteNav({ active }: PublicSiteNavProps) {
@@ -19,9 +17,15 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-blue-100/70 bg-white/85 backdrop-blur">
-      <nav aria-label="Primary" className="mx-auto w-full max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
+      <nav
+        aria-label="Primary"
+        className="mx-auto w-full max-w-6xl px-4 py-3 sm:px-6 lg:px-8"
+      >
         <div className="flex items-center justify-between">
-          <Link href="/" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+          <Link
+            href="/"
+            className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
             <ServiceOSLogo variant="horizontal" showTagline />
           </Link>
           <Link
@@ -54,7 +58,7 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
             </Link>
           </li>
           <li>
-            <Link href="/explore" className="hover:text-blue-700">
+            <Link href="/demo" className="hover:text-blue-700">
               {t("public.navExploreDemo")}
             </Link>
           </li>
@@ -72,12 +76,18 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
             </Link>
           </li>
           <li>
-            <Link href="/#features" className="text-slate-700 hover:text-blue-700">
+            <Link
+              href="/#features"
+              className="text-slate-700 hover:text-blue-700"
+            >
               {t("public.navFeatures")}
             </Link>
           </li>
           <li>
-            <Link href="/#ai-supervisor" className="text-slate-700 hover:text-blue-700">
+            <Link
+              href="/#ai-supervisor"
+              className="text-slate-700 hover:text-blue-700"
+            >
               {t("public.navAiSupervisor")}
             </Link>
           </li>
@@ -87,7 +97,7 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
             </Link>
           </li>
           <li>
-            <Link href="/explore" className="text-slate-700 hover:text-blue-700">
+            <Link href="/demo" className="text-slate-700 hover:text-blue-700">
               {t("public.navExploreDemo")}
             </Link>
           </li>

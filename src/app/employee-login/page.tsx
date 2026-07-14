@@ -1,10 +1,10 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
-import { ServiceOSLogo } from "@/components/serviceos-logo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { type FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { ServiceOSLogo } from "@/components/serviceos-logo";
+import { createClient } from "@/lib/supabase/client";
 
 export default function EmployeeLoginPage() {
   return (
@@ -21,7 +21,9 @@ function EmployeeLoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(searchParams.get("reason"));
+  const [message, setMessage] = useState<string | null>(
+    searchParams.get("reason"),
+  );
 
   useEffect(() => {
     const checkSession = async () => {
@@ -52,7 +54,10 @@ function EmployeeLoginContent() {
     setLoading(true);
     setMessage(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) {
       setMessage(`Login failed: ${error.message}`);
@@ -78,7 +83,9 @@ function EmployeeLoginContent() {
 
     if (employeeError || !employee?.is_active) {
       await supabase.auth.signOut();
-      setMessage("This account is not an active employee profile. Contact an administrator.");
+      setMessage(
+        "This account is not an active employee profile. Contact an administrator.",
+      );
       setLoading(false);
       return;
     }
@@ -94,14 +101,24 @@ function EmployeeLoginContent() {
           <div className="mx-auto flex justify-center">
             <ServiceOSLogo variant="stacked" size="mobile" />
           </div>
-          <h1 className="mt-4 text-2xl font-semibold text-slate-900">Employee Portal</h1>
-          <p className="mt-2 text-sm text-slate-500">Sign in to view your assigned jobs and schedule.</p>
+          <h1 className="mt-4 text-2xl font-semibold text-slate-900">
+            Employee Portal
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Sign in to view your assigned jobs and schedule.
+          </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Work email</label>
+            <label
+              htmlFor="employeeEmail"
+              className="mb-1.5 block text-sm font-medium text-slate-700"
+            >
+              Work email
+            </label>
             <input
+              id="employeeEmail"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -112,8 +129,14 @@ function EmployeeLoginContent() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+            <label
+              htmlFor="employeePassword"
+              className="mb-1.5 block text-sm font-medium text-slate-700"
+            >
+              Password
+            </label>
             <input
+              id="employeePassword"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -133,14 +156,31 @@ function EmployeeLoginContent() {
         </form>
 
         {message ? (
-          <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{message}</p>
+          <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {message}
+          </p>
         ) : null}
 
         <p className="mt-5 text-center text-xs text-slate-500">
-          Need account access? Ask an administrator to link your employee record to your auth user.
+          Need account access? Ask an administrator to link your employee record
+          to your auth user.
+        </p>
+        <p className="mt-3 text-center text-sm text-slate-600">
+          <Link
+            href="/demo"
+            className="font-medium text-blue-600 hover:text-blue-700"
+          >
+            Explore Interactive Demo
+          </Link>
         </p>
         <p className="mt-3 text-center text-sm text-slate-500">
-          Admin sign-in: <Link href="/login" className="font-medium text-blue-600 hover:text-blue-700">Main CRM login</Link>
+          Admin sign-in:{" "}
+          <Link
+            href="/login"
+            className="font-medium text-blue-600 hover:text-blue-700"
+          >
+            Main CRM login
+          </Link>
         </p>
       </div>
     </div>
