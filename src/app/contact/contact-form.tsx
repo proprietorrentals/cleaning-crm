@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { submitDemoRequest } from "@/app/contact/actions";
+import { submitContactForm } from "@/app/contact/contact-actions";
 import { contactInitialState } from "@/app/contact/form-state";
 import { useI18n } from "@/components/i18n-provider";
 import { trackAnalyticsEvent } from "@/lib/analytics";
@@ -10,7 +10,7 @@ import { trackAnalyticsEvent } from "@/lib/analytics";
 export function ContactForm() {
   const { t, language } = useI18n();
   const searchParams = useSearchParams();
-  const [state, formAction, pending] = useActionState(submitDemoRequest, contactInitialState);
+  const [state, formAction, pending] = useActionState(submitContactForm, contactInitialState);
   const formRef = useRef<HTMLFormElement>(null);
 
   const leadSource = useMemo(() => {

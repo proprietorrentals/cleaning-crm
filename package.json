@@ -17,7 +17,8 @@
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "stripe": "^16.9.0"
+    "stripe": "^16.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",

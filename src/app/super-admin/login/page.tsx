@@ -22,7 +22,7 @@ export default function SuperAdminLoginPage() {
         .select("id")
         .eq("auth_user_id", data.session.user.id)
         .maybeSingle();
-      if (sa) router.replace("/super-admin/dashboard");
+      if (sa) router.replace("/super-admin");
     };
     checkExisting();
   }, [supabase, router]);
@@ -51,7 +51,7 @@ export default function SuperAdminLoginPage() {
         return;
       }
 
-      router.replace("/super-admin/dashboard");
+      router.replace("/super-admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
