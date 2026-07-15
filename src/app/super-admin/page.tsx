@@ -30,6 +30,13 @@ function asCount(count: number | null | undefined) {
 export default async function SuperAdminPortalPage() {
   const access = await requireSuperAdminAccess();
   const shouldDenyAccess = Boolean(access.user && access.rpcError == null && access.rpcResult === false);
+  const rpcAuthorizationLabel = access.rpcError
+    ? "error"
+    : access.rpcResult === true
+      ? "true"
+      : access.rpcResult === false
+        ? "false"
+        : "null";
 
   console.info("SuperAdminPortalPage auth state", {
     userPresent: Boolean(access.user),
@@ -48,6 +55,8 @@ export default async function SuperAdminPortalPage() {
       return (
         <main className="min-h-screen bg-slate-950 text-white">
           <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">SUPER ADMIN BUILD 7814E7E</p>
+            <p className="mb-4 text-xs text-cyan-300">RPC authorization: {rpcAuthorizationLabel}</p>
             <h1 className="text-3xl font-semibold tracking-tight">Super Admin access error</h1>
             <pre className="mt-4 whitespace-pre-wrap rounded-2xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-200">
               {JSON.stringify(
@@ -70,6 +79,8 @@ export default async function SuperAdminPortalPage() {
     return (
       <main className="min-h-screen bg-slate-950 text-white">
         <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">SUPER ADMIN BUILD 7814E7E</p>
+          <p className="mb-4 text-xs text-cyan-300">RPC authorization: {rpcAuthorizationLabel}</p>
           <h1 className="text-3xl font-semibold tracking-tight">Super Admin unavailable</h1>
           <p className="mt-3 text-sm text-slate-400">The platform could not verify Super Admin access. Check server logs.</p>
         </div>
@@ -194,15 +205,16 @@ export default async function SuperAdminPortalPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 rounded-2xl border border-amber-800 bg-amber-950/40 px-4 py-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">SUPER ADMIN BUILD 7814E7E</p>
+          <p className="mt-1 text-xs text-cyan-300">RPC authorization: {rpcAuthorizationLabel}</p>
+        </div>
         <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-cyan-300">ServiceOS platform</p>
             <h1 className="text-3xl font-semibold tracking-tight">Super Admin Portal</h1>
             <p className="mt-1 text-sm text-slate-400">Authenticated as {access.user?.email ?? "-"}</p>
             <p className="mt-1 text-xs text-slate-500">Project: {access.supabaseProjectHostname}</p>
-            <p className="mt-1 text-xs text-amber-300">
-              RPC authorization: {access.rpcError ? "error" : access.rpcResult === true ? "true" : access.rpcResult === false ? "false" : "null"}
-            </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Link
