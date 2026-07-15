@@ -24,6 +24,35 @@ as $$
   );
 $$;
 
+create or replace function public.can_manage_sales_leads_for_tenant(
+  target_tenant_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.tenant_admins ta
+    where ta.auth_user_id = auth.uid()
+      and ta.tenant_id = target_tenant_id
+  )
+  or exists (
+    select 1
+    from public.employees e
+    where e.auth_user_id = auth.uid()
+      and e.is_active = true
+      and e.tenant_id = target_tenant_id
+      and lower(coalesce(e.role, '')) in ('supervisor', 'manager')
+  );
+$$;
+
+grant execute
+on function public.can_manage_sales_leads_for_tenant(uuid)
+to authenticated;
+
 create table if not exists public.sales_leads (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -183,26 +212,22 @@ drop policy if exists "Sales leads manage by tenant sales users" on public.sales
 create policy "Sales leads manage by tenant sales users" on public.sales_leads
   for all
   using (
-    public.can_manage_sales_leads()
-    and tenant_id = coalesce(public.current_employee_tenant_id(), public.current_tenant_id())
+    public.can_manage_sales_leads_for_tenant(tenant_id)
   )
   with check (
-    public.can_manage_sales_leads()
-    and tenant_id = coalesce(public.current_employee_tenant_id(), public.current_tenant_id())
+    public.can_manage_sales_leads_for_tenant(tenant_id)
   );
 
 drop policy if exists "Sales lead status history read by tenant sales users" on public.sales_lead_status_history;
 create policy "Sales lead status history read by tenant sales users" on public.sales_lead_status_history
   for select
   using (
-    public.can_manage_sales_leads()
-    and tenant_id = coalesce(public.current_employee_tenant_id(), public.current_tenant_id())
+    public.can_manage_sales_leads_for_tenant(tenant_id)
   );
 
 drop policy if exists "Sales lead status history insert by tenant sales users" on public.sales_lead_status_history;
 create policy "Sales lead status history insert by tenant sales users" on public.sales_lead_status_history
   for insert
   with check (
-    public.can_manage_sales_leads()
-    and tenant_id = coalesce(public.current_employee_tenant_id(), public.current_tenant_id())
+    public.can_manage_sales_leads_for_tenant(tenant_id)
   );
