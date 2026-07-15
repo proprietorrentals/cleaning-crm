@@ -38,6 +38,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublicRoute =
     pathname === "/login" ||
+    pathname === "/super-admin/login" ||
     pathname === "/forgot-password" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api");
@@ -47,6 +48,11 @@ export async function middleware(request: NextRequest) {
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectTo", pathname);
     const redirectResponse = NextResponse.redirect(redirectUrl);
+    console.info("middleware redirect", {
+      currentPath: pathname,
+      redirectDestination: "/login",
+      reason: "unauthenticated-non-public-route",
+    });
     if (pathname === "/super-admin") {
       redirectResponse.headers.set("X-ServiceOS-Super-Admin-Build", "7814e7e");
     }
@@ -57,6 +63,11 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = request.nextUrl.searchParams.get("redirectTo") ?? "/";
     redirectUrl.searchParams.delete("redirectTo");
+    console.info("middleware redirect", {
+      currentPath: pathname,
+      redirectDestination: redirectUrl.pathname,
+      reason: "authenticated-user-at-generic-login",
+    });
     return NextResponse.redirect(redirectUrl);
   }
 

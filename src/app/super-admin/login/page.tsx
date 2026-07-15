@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
@@ -12,26 +12,6 @@ export default function SuperAdminLoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const checkExisting = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) return;
-      const { data: isSuperAdmin, error } = await supabase.rpc("is_super_admin");
-      if (error) {
-        console.error("super-admin login RPC error:", {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
-        return;
-      }
-
-      if (isSuperAdmin === true) router.replace("/super-admin");
-    };
-    checkExisting();
-  }, [supabase, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +43,21 @@ export default function SuperAdminLoginPage() {
       }
 
       if (isSuperAdmin !== true) {
+        console.info("super-admin login no redirect", {
+          currentPath: "/super-admin/login",
+          redirectDestination: null,
+          reason: "successful-login-but-rpc-false",
+        });
         await supabase.auth.signOut();
         setError("Access denied. Super admin account required.");
         return;
       }
 
+      console.info("super-admin login redirect", {
+        currentPath: "/super-admin/login",
+        redirectDestination: "/super-admin",
+        reason: "successful-login-and-rpc-true",
+      });
       router.replace("/super-admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

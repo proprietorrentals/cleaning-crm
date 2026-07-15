@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -39,16 +38,15 @@ export default async function SuperAdminPortalPage() {
         : "null";
 
   console.info("SuperAdminPortalPage auth state", {
+    currentPath: "/super-admin",
+    redirectDestination: shouldDenyAccess ? null : null,
+    reason: access.rpcError ? "rpc-error" : shouldDenyAccess ? "rpc-false-render-access-denied" : "render-dashboard",
     userPresent: Boolean(access.user),
     rpcDataValue: access.rpcResult,
     rpcDataType: typeof access.rpcResult,
     rpcError: access.rpcError,
     finalDenyBoolean: shouldDenyAccess,
   });
-
-  if (access.needsAuth) {
-    redirect("/super-admin/login");
-  }
 
   if (access.rpcError) {
     if (process.env.NODE_ENV !== "production") {
@@ -89,7 +87,16 @@ export default async function SuperAdminPortalPage() {
   }
 
   if (shouldDenyAccess) {
-    redirect("/super-admin/login?reason=Access+denied");
+    return (
+      <main className="min-h-screen bg-slate-950 text-white">
+        <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">SUPER ADMIN BUILD 7814E7E</p>
+          <p className="mb-4 text-xs text-cyan-300">RPC authorization: {rpcAuthorizationLabel}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Access denied</h1>
+          <p className="mt-3 text-sm text-slate-400">Your authenticated account does not have Super Admin access.</p>
+        </div>
+      </main>
+    );
   }
 
   const supabase = await createServerSupabaseClient();

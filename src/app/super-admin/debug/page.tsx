@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 function maskUserId(userId: string | null | undefined) {
@@ -10,9 +9,12 @@ function maskUserId(userId: string | null | undefined) {
 export default async function SuperAdminDebugPage() {
   const access = await requireSuperAdminAccess();
 
-  if (access.needsAuth) {
-    redirect("/super-admin/login");
-  }
+  console.info("super-admin debug render", {
+    currentPath: "/super-admin/debug",
+    redirectDestination: null,
+    reason: access.needsAuth ? "middleware-should-have-handled-unauthenticated-user" : "render-debug-page",
+    userPresent: Boolean(access.user),
+  });
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
