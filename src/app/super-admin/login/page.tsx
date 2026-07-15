@@ -17,12 +17,18 @@ export default function SuperAdminLoginPage() {
     const checkExisting = async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session?.user) return;
-      const { data: sa } = await supabase
-        .from("super_admins")
-        .select("id")
-        .eq("auth_user_id", data.session.user.id)
-        .maybeSingle();
-      if (sa) router.replace("/super-admin");
+      const { data: isSuperAdmin, error } = await supabase.rpc("is_super_admin");
+      if (error) {
+        console.error("super-admin login RPC error:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        return;
+      }
+
+      if (isSuperAdmin === true) router.replace("/super-admin");
     };
     checkExisting();
   }, [supabase, router]);
@@ -39,13 +45,24 @@ export default function SuperAdminLoginPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError("Authentication failed."); return; }
 
-      const { data: sa } = await supabase
-        .from("super_admins")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
+      const { data: isSuperAdmin, error: rpcError } = await supabase.rpc("is_super_admin");
 
-      if (!sa) {
+      if (rpcError) {
+        console.error("super-admin login RPC error:", {
+          code: rpcError.code,
+          message: rpcError.message,
+          details: rpcError.details,
+          hint: rpcError.hint,
+        });
+        setError(
+          process.env.NODE_ENV === "development"
+            ? `${rpcError.message}${rpcError.code ? ` (${rpcError.code})` : ""}`
+            : "Unable to verify Super Admin access.",
+        );
+        return;
+      }
+
+      if (isSuperAdmin !== true) {
         await supabase.auth.signOut();
         setError("Access denied. Super admin account required.");
         return;

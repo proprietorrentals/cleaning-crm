@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type FeatureFlag = {
@@ -24,25 +25,52 @@ function asCount(count: number | null | undefined) {
 }
 
 export default async function SuperAdminPortalPage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const access = await requireSuperAdminAccess();
 
-  if (!user) {
+  if (access.needsAuth) {
     redirect("/super-admin/login");
   }
 
-  const { data: superAdmin } = await supabase
-    .from("super_admins")
-    .select("id,email")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
+  if (access.rpcError) {
+    if (process.env.NODE_ENV !== "production") {
+      return (
+        <main className="min-h-screen bg-slate-950 text-white">
+          <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+            <h1 className="text-3xl font-semibold tracking-tight">Super Admin access error</h1>
+            <pre className="mt-4 whitespace-pre-wrap rounded-2xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-200">
+              {JSON.stringify(
+                {
+                  projectHostname: access.supabaseProjectHostname,
+                  authUserId: access.user?.id ?? null,
+                  authUserEmail: access.user?.email ?? null,
+                  rpcResult: access.rpcResult,
+                  rpcError: access.rpcError,
+                  matchingSuperAdminRow: access.matchingSuperAdminRow,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </div>
+        </main>
+      );
+    }
 
-  if (!superAdmin) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white">
+        <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-semibold tracking-tight">Super Admin unavailable</h1>
+          <p className="mt-3 text-sm text-slate-400">The platform could not verify Super Admin access. Check server logs.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (access.denied) {
     redirect("/super-admin/login?reason=Access+denied");
   }
 
+  const supabase = await createServerSupabaseClient();
   const today = new Date();
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -122,8 +150,8 @@ export default async function SuperAdminPortalPage() {
   const systemHealthItems = [
     {
       name: "Auth check",
-      status: superAdmin ? "healthy" : "failing",
-      detail: superAdmin ? "Super Admin session verified" : "Missing Super Admin session",
+      status: access.user ? "healthy" : "failing",
+      detail: access.user ? "Super Admin session verified" : "Missing Super Admin session",
     },
     {
       name: "Database",
@@ -159,7 +187,8 @@ export default async function SuperAdminPortalPage() {
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-cyan-300">ServiceOS platform</p>
             <h1 className="text-3xl font-semibold tracking-tight">Super Admin Portal</h1>
-            <p className="mt-1 text-sm text-slate-400">Authenticated as {superAdmin.email}</p>
+            <p className="mt-1 text-sm text-slate-400">Authenticated as {access.user?.email ?? "-"}</p>
+            <p className="mt-1 text-xs text-slate-500">Project: {access.supabaseProjectHostname}</p>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Link
