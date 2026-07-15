@@ -45,7 +45,6 @@ export default async function SuperAdminPortalPage() {
                   authUserEmail: access.user?.email ?? null,
                   rpcResult: access.rpcResult,
                   rpcError: access.rpcError,
-                  matchingSuperAdminRow: access.matchingSuperAdminRow,
                 },
                 null,
                 2,

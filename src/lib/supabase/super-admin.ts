@@ -14,12 +14,6 @@ export type SuperAdminAccess = {
   userError: SerializedSupabaseError | null;
   rpcResult: boolean | null;
   rpcError: SerializedSupabaseError | null;
-  matchingSuperAdminRow: {
-    id: string;
-    email: string;
-    auth_user_id: string;
-  } | null;
-  matchingSuperAdminRowError: SerializedSupabaseError | null;
 };
 
 export type SuperAdminAccessResolution = SuperAdminAccess & {
@@ -65,23 +59,7 @@ export async function requireSuperAdminAccess(): Promise<SuperAdminAccessResolut
 
   const rpcResult = user ? await supabase.rpc("is_super_admin") : { data: null, error: null };
 
-  const directRowResult = user
-    ? await supabase
-        .from("super_admins")
-        .select("id,email,auth_user_id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle()
-    : { data: null, error: null };
-
   const rpcError = serializeError(rpcResult.error);
-  const matchingSuperAdminRowError = serializeError(directRowResult.error);
-  const matchingSuperAdminRow = directRowResult.data
-    ? {
-        id: directRowResult.data.id,
-        email: directRowResult.data.email,
-        auth_user_id: directRowResult.data.auth_user_id,
-      }
-    : null;
 
   const resolved: SuperAdminAccessResolution = {
     supabaseProjectHostname,
@@ -89,8 +67,6 @@ export async function requireSuperAdminAccess(): Promise<SuperAdminAccessResolut
     userError: serializeError(userError),
     rpcResult: rpcResult.data ?? null,
     rpcError,
-    matchingSuperAdminRow,
-    matchingSuperAdminRowError,
     canAccess: Boolean(user && rpcResult.error == null && rpcResult.data === true),
     denied: Boolean(user && rpcResult.error == null && rpcResult.data === false),
     needsAuth: !user,
@@ -102,8 +78,6 @@ export async function requireSuperAdminAccess(): Promise<SuperAdminAccessResolut
       authUserId: user?.id ?? null,
       authUserEmail: user?.email ?? null,
       rpcError,
-      matchingSuperAdminRow,
-      matchingSuperAdminRowError,
     });
   }
 

@@ -41,23 +41,6 @@ export default async function SuperAdminDebugPage() {
               {access.rpcError ? JSON.stringify(access.rpcError, null, 2) : "none"}
             </pre>
           </article>
-
-          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Matching super_admins row</p>
-            <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-200">
-              {access.matchingSuperAdminRow
-                ? JSON.stringify(
-                    {
-                      id: maskUserId(access.matchingSuperAdminRow.id),
-                      email: access.matchingSuperAdminRow.email,
-                      auth_user_id: maskUserId(access.matchingSuperAdminRow.auth_user_id),
-                    },
-                    null,
-                    2,
-                  )
-                : "none"}
-            </pre>
-          </article>
         </section>
       </div>
     </main>
