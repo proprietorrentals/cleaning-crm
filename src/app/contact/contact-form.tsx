@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { contactInitialState, submitDemoRequest } from "@/app/contact/actions";
+import { submitDemoRequest } from "@/app/contact/actions";
+import { contactInitialState } from "@/app/contact/form-state";
 import { useI18n } from "@/components/i18n-provider";
 import { trackAnalyticsEvent } from "@/lib/analytics";
 

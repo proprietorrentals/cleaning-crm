@@ -2,17 +2,7 @@
 
 import { capturePublicSalesLead, parseLeadSource } from "@/lib/sales-leads";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-
-export type ContactActionState = {
-  success: boolean;
-  message: string;
-  fieldErrors?: Record<string, string>;
-};
-
-const initialState: ContactActionState = {
-  success: false,
-  message: "",
-};
+import type { ContactActionState } from "@/app/contact/form-state";
 
 function validateEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -141,5 +131,3 @@ export async function submitDemoRequest(
     };
   }
 }
-
-export const contactInitialState = initialState;
