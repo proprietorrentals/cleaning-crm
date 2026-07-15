@@ -75,7 +75,7 @@ export default function SignUpPage() {
       }
     }
 
-    trackAnalyticsEvent("lead_form_submitted", { source: "free_trial" });
+    trackAnalyticsEvent("free_trial_clicked", { source: "signup_form_submitted" });
 
     setMessage("Check your email for the confirmation link.");
     setLoading(false);

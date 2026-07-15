@@ -32,10 +32,6 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/super-admin") {
-    response.headers.set("X-ServiceOS-Super-Admin-Build", "7814e7e");
-  }
-
   const isPublicRoute =
     pathname === "/login" ||
     pathname === "/super-admin/login" ||
@@ -47,27 +43,13 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectTo", pathname);
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    console.info("middleware redirect", {
-      currentPath: pathname,
-      redirectDestination: "/login",
-      reason: "unauthenticated-non-public-route",
-    });
-    if (pathname === "/super-admin") {
-      redirectResponse.headers.set("X-ServiceOS-Super-Admin-Build", "7814e7e");
-    }
-    return redirectResponse;
+    return NextResponse.redirect(redirectUrl);
   }
 
   if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = request.nextUrl.searchParams.get("redirectTo") ?? "/";
     redirectUrl.searchParams.delete("redirectTo");
-    console.info("middleware redirect", {
-      currentPath: pathname,
-      redirectDestination: redirectUrl.pathname,
-      reason: "authenticated-user-at-generic-login",
-    });
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { PublicSiteFooter } from "@/components/public-site-footer";
 import { PublicSiteNav } from "@/components/public-site-nav";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 import {
   FOUNDING_PARTNER_PRICE,
   FOUNDING_PARTNER_PRO_PRICE,
@@ -24,6 +26,10 @@ function tick(value: string, includedLabel: string) {
 
 export function PricingPageContent() {
   const { t, locale } = useI18n();
+  useEffect(() => {
+    trackAnalyticsEvent("pricing_viewed", { source: "pricing_page" });
+  }, []);
+
   const foundingProPrice = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
@@ -238,18 +244,21 @@ export function PricingPageContent() {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/contact?source=demo_request"
+                  onClick={() => trackAnalyticsEvent("book_demo_clicked", { source: "pricing_hero" })}
                   className="inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
                 >
                   {t("public.bookDemo")}
                 </Link>
                 <Link
                   href="/signup?source=free_trial"
+                  onClick={() => trackAnalyticsEvent("free_trial_clicked", { source: "pricing_hero" })}
                   className="inline-flex items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                 >
                   {t("public.startFreeTrial")}
                 </Link>
                 <Link
                   href="/demo"
+                  onClick={() => trackAnalyticsEvent("interactive_demo_opened", { source: "pricing_hero" })}
                   className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                 >
                   Explore Interactive Demo
@@ -328,6 +337,15 @@ export function PricingPageContent() {
               <div className="mt-8 flex flex-col gap-3">
                 <Link
                   href={plan.ctaHref}
+                  onClick={() => {
+                    if (plan.ctaHref.startsWith("/signup")) {
+                      trackAnalyticsEvent("free_trial_clicked", { source: `pricing_plan_${plan.name.toLowerCase()}` });
+                    }
+
+                    if (plan.ctaHref.startsWith("/contact")) {
+                      trackAnalyticsEvent("book_demo_clicked", { source: `pricing_plan_${plan.name.toLowerCase()}` });
+                    }
+                  }}
                   className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${plan.highlighted ? "bg-blue-700 hover:bg-blue-800" : plan.name === t("public.pricingEnterpriseName") ? "bg-slate-950 hover:bg-slate-800" : "bg-slate-800 hover:bg-slate-900"}`}
                 >
                   {plan.cta}
@@ -335,6 +353,7 @@ export function PricingPageContent() {
                 {plan.ctaSecondary ? (
                   <Link
                     href={plan.ctaSecondaryHref}
+                    onClick={() => trackAnalyticsEvent("free_trial_clicked", { source: `pricing_plan_secondary_${plan.name.toLowerCase()}` })}
                     className="inline-flex items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                   >
                     {plan.ctaSecondary}

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Manrope, Sora } from "next/font/google";
 import { cookies } from "next/headers";
+import { GoogleAnalytics } from "@/components/google-analytics";
 import { I18nProvider } from "@/components/i18n-provider";
 import { LanguageSelector } from "@/components/language-selector";
 import { PwaRegister } from "@/components/pwa-register";
@@ -55,6 +57,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
   const cookieStore = await cookies();
   const initialLanguage: Language =
     cookieStore.get("serviceos_lang")?.value === "es" ? "es" : "en";
@@ -65,8 +68,10 @@ export default async function RootLayout({
         className={`min-h-full flex flex-col ${manrope.variable} ${sora.variable}`}
       >
         <I18nProvider initialLanguage={initialLanguage}>
+          <GoogleAnalytics measurementId={gaMeasurementId} />
           <PwaRegister />
           {children}
+          <Analytics />
           <LanguageSelector />
         </I18nProvider>
       </body>

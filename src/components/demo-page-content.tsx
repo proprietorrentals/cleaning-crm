@@ -71,7 +71,7 @@ export function DemoPageContent() {
               <Link
                 href="/signup?source=free_trial"
                 onClick={() =>
-                  trackAnalyticsEvent("start_trial_clicked", {
+                  trackAnalyticsEvent("free_trial_clicked", {
                     source: "demo_page_cta",
                   })
                 }

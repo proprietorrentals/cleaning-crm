@@ -28,12 +28,6 @@ export default function SuperAdminLoginPage() {
       const { data: isSuperAdmin, error: rpcError } = await supabase.rpc("is_super_admin");
 
       if (rpcError) {
-        console.error("super-admin login RPC error:", {
-          code: rpcError.code,
-          message: rpcError.message,
-          details: rpcError.details,
-          hint: rpcError.hint,
-        });
         setError(
           process.env.NODE_ENV === "development"
             ? `${rpcError.message}${rpcError.code ? ` (${rpcError.code})` : ""}`
@@ -43,21 +37,11 @@ export default function SuperAdminLoginPage() {
       }
 
       if (isSuperAdmin !== true) {
-        console.info("super-admin login no redirect", {
-          currentPath: "/super-admin/login",
-          redirectDestination: null,
-          reason: "successful-login-but-rpc-false",
-        });
         await supabase.auth.signOut();
         setError("Access denied. Super admin account required.");
         return;
       }
 
-      console.info("super-admin login redirect", {
-        currentPath: "/super-admin/login",
-        redirectDestination: "/super-admin",
-        reason: "successful-login-and-rpc-true",
-      });
       router.replace("/super-admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

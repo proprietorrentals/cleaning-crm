@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DemoVideoModal } from "@/components/demo-video-modal";
 import { useI18n } from "@/components/i18n-provider";
 import { PublicSiteFooter } from "@/components/public-site-footer";
@@ -17,6 +17,10 @@ export function PublicHomepage() {
   const { t } = useI18n();
   const { formatNumber } = useLocaleFormat();
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+
+  useEffect(() => {
+    trackAnalyticsEvent("homepage_viewed", { source: "public_homepage" });
+  }, []);
 
   const featureCards = [
     {
@@ -387,7 +391,7 @@ export function PublicHomepage() {
             <Link
               href="/signup?source=free_trial"
               onClick={() =>
-                trackAnalyticsEvent("start_trial_clicked", {
+                  trackAnalyticsEvent("free_trial_clicked", {
                   source: "homepage_final_cta",
                 })
               }

@@ -49,7 +49,7 @@ export function ContactForm() {
       return;
     }
 
-    trackAnalyticsEvent("lead_form_submitted", { source: leadSource });
+    trackAnalyticsEvent("contact_form_submitted", { source: leadSource });
   }, [leadSource, state.success]);
 
   return (

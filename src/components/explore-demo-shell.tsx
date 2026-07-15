@@ -404,7 +404,7 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/signup?source=free_trial"
-                onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_banner" })}
+                onClick={() => trackAnalyticsEvent("free_trial_clicked", { source: "explore_banner" })}
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
               >
                 {t("public.startFreeTrial")}
@@ -436,7 +436,7 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/signup?source=free_trial"
-                onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_header" })}
+                onClick={() => trackAnalyticsEvent("free_trial_clicked", { source: "explore_header" })}
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
                 {t("public.startFreeTrial")}
