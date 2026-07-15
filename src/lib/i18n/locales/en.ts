@@ -24,6 +24,7 @@ export const en: Dictionary = {
     employees: "Employees",
     invoices: "Invoices",
     schedule: "Schedule",
+    leads: "Sales Pipeline",
     websiteBuilder: "Website Builder",
     operationsCenter: "Operations Center",
     tasks: "Tasks",
@@ -184,10 +185,14 @@ export const en: Dictionary = {
     alertMileageAwaitingTitle: "Mileage awaiting approval",
     alertMileageAwaitingDescription:
       "Mileage requests are pending supervisor review.",
+    alertNewLeadsTitle: "New inbound leads",
+    alertNewLeadsDescription:
+      "Fresh website inquiries are waiting for first-response outreach.",
     alertOverdueInvoicesTitle: "Overdue invoices",
     alertOverdueInvoicesDescription:
       "Open invoices are past due and need collection actions.",
     quickNewQuote: "New Quote",
+    quickReviewLeads: "Review Leads",
     quickScheduleJob: "Schedule Job",
     quickAssignEmployee: "Assign Employee",
     quickReviewMileage: "Review Mileage",

@@ -1,13 +1,23 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { contactInitialState, submitDemoRequest } from "@/app/contact/actions";
 import { useI18n } from "@/components/i18n-provider";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 
 export function ContactForm() {
   const { t, language } = useI18n();
+  const searchParams = useSearchParams();
   const [state, formAction, pending] = useActionState(submitDemoRequest, contactInitialState);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const leadSource = useMemo(() => {
+    const raw = searchParams.get("source")?.trim().toLowerCase();
+    if (raw === "demo_request") return "demo_request";
+    if (raw === "founding_partner") return "founding_partner";
+    return "website_contact";
+  }, [searchParams]);
 
   const businessTypes = [
     t("public.contactBusinessResidential"),
@@ -25,9 +35,30 @@ export function ContactForm() {
     }
   }, [state.success]);
 
+  useEffect(() => {
+    if (!state.success) return;
+
+    if (leadSource === "demo_request") {
+      trackAnalyticsEvent("demo_request_submitted", { source: leadSource });
+      return;
+    }
+
+    if (leadSource === "founding_partner") {
+      trackAnalyticsEvent("founding_partner_application_submitted", { source: leadSource });
+      return;
+    }
+
+    trackAnalyticsEvent("lead_form_submitted", { source: leadSource });
+  }, [leadSource, state.success]);
+
   return (
     <form ref={formRef} action={formAction} className="space-y-5" noValidate>
       <input type="hidden" name="language" value={language} />
+      <input type="hidden" name="leadSource" value={leadSource} />
+      <div className="hidden" aria-hidden="true">
+        <label htmlFor="website">Website</label>
+        <input id="website" name="website" type="text" autoComplete="off" tabIndex={-1} />
+      </div>
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">

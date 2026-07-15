@@ -1,5 +1,6 @@
 "use server";
 
+import { capturePublicSalesLead, parseLeadSource } from "@/lib/sales-leads";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export type ContactActionState = {
@@ -65,6 +66,8 @@ export async function submitDemoRequest(
   const employeeCount = trimValue(formData.get("employeeCount"));
   const businessType = trimValue(formData.get("businessType"));
   const message = trimValue(formData.get("message"));
+  const leadSource = parseLeadSource(trimValue(formData.get("leadSource")));
+  const website = trimValue(formData.get("website"));
 
   const fieldErrors: Record<string, string> = {};
 
@@ -92,6 +95,21 @@ export async function submitDemoRequest(
   }
 
   try {
+    await capturePublicSalesLead({
+      source: leadSource,
+      contactName: name,
+      companyName: company,
+      email,
+      phone,
+      employeeCount,
+      businessType,
+      currentSoftware: "",
+      message,
+      foundingPartnerInterest: leadSource === "founding_partner",
+      honeypot: website,
+    });
+
+    // Keep legacy demo request intake so existing workflows remain intact.
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.from("demo_requests").insert({
       name,
@@ -101,15 +119,11 @@ export async function submitDemoRequest(
       employee_count: employeeCount,
       business_type: businessType,
       message,
-      source_page: "/contact",
+      source_page: `/contact?leadSource=${leadSource}`,
     });
 
     if (error) {
-      console.error("submitDemoRequest insert error:", error.message);
-      return {
-        success: false,
-        message: copy.submitError,
-      };
+      console.warn("submitDemoRequest legacy demo_requests insert warning:", error.message);
     }
 
     return {
@@ -120,7 +134,10 @@ export async function submitDemoRequest(
     console.error("submitDemoRequest unexpected error:", error);
     return {
       success: false,
-      message: copy.serverError,
+      message:
+        process.env.NODE_ENV === "development" && error instanceof Error
+          ? `${copy.serverError} (${error.message})`
+          : copy.serverError,
     };
   }
 }

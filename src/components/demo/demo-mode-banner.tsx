@@ -44,7 +44,7 @@ export function DemoModeBanner() {
             {t("public.demoResetDemo")}
           </button>
           <Link
-            href="/signup"
+            href="/signup?source=free_trial"
             className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
           >
             {t("public.startFreeTrial")}

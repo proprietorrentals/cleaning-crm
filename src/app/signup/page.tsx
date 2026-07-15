@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,9 +23,25 @@ export default function SignUpPage() {
     setLoading(true);
     setMessage(null);
 
+    const formData = new FormData(event.currentTarget as HTMLFormElement);
+    const website = (formData.get("website") as string | null)?.trim() ?? "";
+
+    const parsedFullName = fullName.trim();
+    if (!parsedFullName) {
+      setMessage("Please enter your full name.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: parsedFullName,
+          company_name: companyName.trim() || null,
+        },
+      },
     });
 
     if (error) {
@@ -30,6 +49,33 @@ export default function SignUpPage() {
       setLoading(false);
       return;
     }
+
+    try {
+      const response = await fetch("/api/public-leads/free-trial", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: parsedFullName,
+          company: companyName.trim(),
+          email: email.trim(),
+          message: "Free trial signup submitted from /signup.",
+          website,
+        }),
+      });
+
+      if (!response.ok && process.env.NODE_ENV === "development") {
+        const leadErr = await response.json();
+        console.warn("free trial lead capture warning:", leadErr?.error ?? "unknown error");
+      }
+    } catch (leadError) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("free trial lead capture unexpected warning:", leadError);
+      }
+    }
+
+    trackAnalyticsEvent("lead_form_submitted", { source: "free_trial" });
 
     setMessage("Check your email for the confirmation link.");
     setLoading(false);
@@ -51,6 +97,34 @@ export default function SignUpPage() {
         </div>
 
         <form className="space-y-4" onSubmit={handleSignUp}>
+          <input type="text" name="website" className="hidden" tabIndex={-1} autoComplete="off" />
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Full Name
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+              placeholder="Jordan Smith"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Company <span className="text-slate-400">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={companyName}
+              onChange={(event) => setCompanyName(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"
+              placeholder="Northwind Services"
+            />
+          </div>
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Email

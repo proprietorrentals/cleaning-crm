@@ -403,14 +403,14 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
             <p>{t("public.exploreBanner")}</p>
             <div className="flex flex-wrap gap-2">
               <Link
-                href="/signup"
+                href="/signup?source=free_trial"
                 onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_banner" })}
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
               >
                 {t("public.startFreeTrial")}
               </Link>
               <Link
-                href="/contact"
+                href="/contact?source=demo_request"
                 onClick={() => trackAnalyticsEvent("book_demo_clicked", { source: "explore_banner" })}
                 className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-white px-4 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
               >
@@ -435,14 +435,14 @@ export function ExploreDemoShell({ data }: ExploreDemoShellProps) {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/signup"
+                href="/signup?source=free_trial"
                 onClick={() => trackAnalyticsEvent("start_trial_clicked", { source: "explore_header" })}
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
                 {t("public.startFreeTrial")}
               </Link>
               <Link
-                href="/contact"
+                href="/contact?source=demo_request"
                 onClick={() => trackAnalyticsEvent("book_demo_clicked", { source: "explore_header" })}
                 className="inline-flex items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
               >

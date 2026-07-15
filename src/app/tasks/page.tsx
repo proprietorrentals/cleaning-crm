@@ -71,6 +71,7 @@ const navItems = [
   { label: "Employees", href: "/employees" },
   { label: "Invoices", href: "/invoices" },
   { label: "Schedule", href: "/schedule" },
+  { label: "Leads", href: "/leads" },
   { label: "Website Builder", href: "/website-builder" },
   { label: "Operations Center", href: "/operations-center" },
   { label: "Tasks", href: "/tasks", active: true },
@@ -119,6 +120,7 @@ function navLabel(label: string, t: (key: string) => string) {
   if (label === "Employees") return t("nav.employees");
   if (label === "Invoices") return t("nav.invoices");
   if (label === "Schedule") return t("nav.schedule");
+  if (label === "Leads") return t("nav.leads");
   if (label === "Website Builder") return t("nav.websiteBuilder");
   if (label === "Operations Center") return t("nav.operationsCenter");
   if (label === "Tasks") return t("nav.tasks");

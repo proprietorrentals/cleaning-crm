@@ -24,6 +24,7 @@ export const es: Dictionary = {
     employees: "Empleados",
     invoices: "Facturas",
     schedule: "Calendario",
+    leads: "Pipeline de Ventas",
     websiteBuilder: "Constructor Web",
     operationsCenter: "Centro de Operaciones",
     tasks: "Tareas",
@@ -188,10 +189,14 @@ export const es: Dictionary = {
     alertMileageAwaitingTitle: "Kilometraje pendiente de aprobacion",
     alertMileageAwaitingDescription:
       "Las solicitudes de kilometraje estan pendientes de revision del supervisor.",
+    alertNewLeadsTitle: "Nuevos leads entrantes",
+    alertNewLeadsDescription:
+      "Nuevas consultas del sitio web esperan primer seguimiento comercial.",
     alertOverdueInvoicesTitle: "Facturas vencidas",
     alertOverdueInvoicesDescription:
       "Las facturas abiertas estan vencidas y requieren accion de cobro.",
     quickNewQuote: "Nueva cotizacion",
+    quickReviewLeads: "Revisar leads",
     quickScheduleJob: "Programar trabajo",
     quickAssignEmployee: "Asignar empleado",
     quickReviewMileage: "Revisar kilometraje",

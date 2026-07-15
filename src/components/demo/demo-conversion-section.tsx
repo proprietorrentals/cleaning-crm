@@ -119,13 +119,13 @@ export function DemoConversionSection() {
 
       <div className="mt-7 flex flex-wrap gap-3">
         <Link
-          href="/signup?source=demo-conversion"
+          href="/signup?source=free_trial"
           className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
         >
           {t("public.startFreeTrial")}
         </Link>
         <Link
-          href="/contact"
+          href="/contact?source=demo_request"
           className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-slate-950/25 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-950/40"
         >
           {t("public.demoCtaBookOnboardingCall")}

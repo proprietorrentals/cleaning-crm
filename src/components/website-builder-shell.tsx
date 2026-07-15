@@ -98,6 +98,7 @@ const sidebarItems = [
   { label: "Employees", href: "/employees", icon: "◍" },
   { label: "Invoices", href: "/invoices", icon: "◐" },
   { label: "Schedule", href: "/schedule", icon: "◕" },
+  { label: "Leads", href: "/leads", icon: "◎" },
   { label: "Website Builder", href: "/website-builder", icon: "✦", active: true },
   { label: "Reports", href: "/reports", icon: "◑" },
   { label: "Settings", href: "/settings", icon: "⚙" },

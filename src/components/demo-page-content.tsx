@@ -69,7 +69,7 @@ export function DemoPageContent() {
                 {t("public.exploreInteractiveDemo")}
               </Link>
               <Link
-                href="/signup"
+                href="/signup?source=free_trial"
                 onClick={() =>
                   trackAnalyticsEvent("start_trial_clicked", {
                     source: "demo_page_cta",
@@ -80,7 +80,7 @@ export function DemoPageContent() {
                 {t("public.startFreeTrial")}
               </Link>
               <Link
-                href="/contact"
+                href="/contact?source=demo_request"
                 onClick={() =>
                   trackAnalyticsEvent("book_demo_clicked", {
                     source: "demo_page_cta",

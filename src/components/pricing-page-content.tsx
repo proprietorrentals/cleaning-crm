@@ -237,13 +237,13 @@ export function PricingPageContent() {
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/contact"
+                  href="/contact?source=demo_request"
                   className="inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
                 >
                   {t("public.bookDemo")}
                 </Link>
                 <Link
-                  href="/signup"
+                  href="/signup?source=free_trial"
                   className="inline-flex items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                 >
                   {t("public.startFreeTrial")}
@@ -428,13 +428,13 @@ export function PricingPageContent() {
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/contact"
+              href="/contact?source=founding_partner"
               className="inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               {t("public.foundingPartnerPrimaryCta")}
             </Link>
             <Link
-              href="/contact"
+              href="/contact?source=founding_partner"
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
             >
               {t("public.foundingPartnerSecondaryCta")}
@@ -513,13 +513,13 @@ export function PricingPageContent() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/contact"
+                href="/contact?source=demo_request"
                 className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
               >
                 {t("public.bookDemo")}
               </Link>
               <Link
-                href="/signup"
+                href="/signup?source=free_trial"
                 className="inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
               >
                 {t("public.startFreeTrial")}
@@ -569,13 +569,13 @@ export function PricingPageContent() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/contact"
+                href="/contact?source=demo_request"
                 className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
               >
                 {t("public.bookDemo")}
               </Link>
               <Link
-                href="/signup"
+                href="/signup?source=free_trial"
                 className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
               >
                 {t("public.startFreeTrial")}

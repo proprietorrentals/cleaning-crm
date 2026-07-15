@@ -385,7 +385,7 @@ export function PublicHomepage() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
-              href="/signup"
+              href="/signup?source=free_trial"
               onClick={() =>
                 trackAnalyticsEvent("start_trial_clicked", {
                   source: "homepage_final_cta",

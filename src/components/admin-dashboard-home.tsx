@@ -163,6 +163,7 @@ const navigationItems = [
   { labelKey: "nav.employees", href: "/employees", icon: "◍" },
   { labelKey: "nav.invoices", href: "/invoices", icon: "◐" },
   { labelKey: "nav.schedule", href: "/schedule", icon: "◕" },
+  { labelKey: "nav.leads", href: "/leads", icon: "◎" },
   { labelKey: "nav.websiteBuilder", href: "/website-builder", icon: "✦" },
   { labelKey: "nav.operationsCenter", href: "/operations-center", icon: "◉" },
   { labelKey: "nav.tasks", href: "/tasks", icon: "☑" },
@@ -172,6 +173,7 @@ const navigationItems = [
 
 const QUICK_ACTIONS = [
   { labelKey: "dashboard.quickNewQuote", href: "/quotes" },
+  { labelKey: "dashboard.quickReviewLeads", href: "/leads" },
   { labelKey: "dashboard.quickScheduleJob", href: "/schedule" },
   { labelKey: "dashboard.quickAssignEmployee", href: "/employees" },
   { labelKey: "dashboard.quickReviewMileage", href: "/reports" },
@@ -638,6 +640,7 @@ function TrendSparkline({
 export function AdminDashboardHome() {
   const supabase = useMemo(() => createClient(), []);
   const { t, locale, isReady } = useI18n();
+  const [newLeadCount, setNewLeadCount] = useState(0);
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
     error: null,
@@ -713,6 +716,7 @@ export function AdminDashboardHome() {
           photosResponse,
           lateAlertsResponse,
           customersResponse,
+          newLeadsResponse,
         ] = await Promise.all([
           supabase.auth.getUser(),
           supabase
@@ -750,6 +754,10 @@ export function AdminDashboardHome() {
             .order("minutes_late", { ascending: false })
             .limit(200),
           supabase.from("customers").select("id,created_at").order("created_at", { ascending: false }).limit(800),
+          supabase
+            .from("sales_leads")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "new"),
         ]);
 
         const user = authResponse.data.user;
@@ -766,6 +774,8 @@ export function AdminDashboardHome() {
         const photos = (photosResponse.data ?? []) as JobPhotoRecord[];
         const lateAlerts = (lateAlertsResponse.data ?? []) as LateAlertRecord[];
         const customers = (customersResponse.data ?? []) as CustomerRecord[];
+        const unreadLeadCount = newLeadsResponse.count ?? 0;
+        setNewLeadCount(unreadLeadCount);
 
         const openDrivingEmployees = new Set(
           openTimeEntries.filter((entry) => !entry.job_id).map((entry) => entry.employee_id),
@@ -895,6 +905,14 @@ export function AdminDashboardHome() {
         );
 
         const alerts: AiAlert[] = [
+          {
+            id: "new-leads",
+            title: t("dashboard.alertNewLeadsTitle"),
+            description: t("dashboard.alertNewLeadsDescription"),
+            count: unreadLeadCount,
+            severity: "medium",
+            href: "/leads",
+          },
           {
             id: "late-employees",
             title: t("dashboard.alertLateEmployeesTitle"),
@@ -1147,7 +1165,12 @@ export function AdminDashboardHome() {
                 }`}
               >
                 <span>{item.icon}</span>
-                {t(item.labelKey)}
+                <span className="flex-1">{t(item.labelKey)}</span>
+                {item.href === "/leads" && newLeadCount > 0 ? (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.active ? "bg-white text-slate-900" : "bg-blue-600 text-white"}`}>
+                    {newLeadCount}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </nav>
