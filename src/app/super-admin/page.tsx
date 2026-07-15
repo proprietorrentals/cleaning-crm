@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type FeatureFlag = {
   key: string;
   description: string | null;
@@ -26,6 +29,15 @@ function asCount(count: number | null | undefined) {
 
 export default async function SuperAdminPortalPage() {
   const access = await requireSuperAdminAccess();
+  const shouldDenyAccess = Boolean(access.user && access.rpcError == null && access.rpcResult === false);
+
+  console.info("SuperAdminPortalPage auth state", {
+    userPresent: Boolean(access.user),
+    rpcDataValue: access.rpcResult,
+    rpcDataType: typeof access.rpcResult,
+    rpcError: access.rpcError,
+    finalDenyBoolean: shouldDenyAccess,
+  });
 
   if (access.needsAuth) {
     redirect("/super-admin/login");
@@ -65,7 +77,7 @@ export default async function SuperAdminPortalPage() {
     );
   }
 
-  if (access.denied) {
+  if (shouldDenyAccess) {
     redirect("/super-admin/login?reason=Access+denied");
   }
 
@@ -188,6 +200,9 @@ export default async function SuperAdminPortalPage() {
             <h1 className="text-3xl font-semibold tracking-tight">Super Admin Portal</h1>
             <p className="mt-1 text-sm text-slate-400">Authenticated as {access.user?.email ?? "-"}</p>
             <p className="mt-1 text-xs text-slate-500">Project: {access.supabaseProjectHostname}</p>
+            <p className="mt-1 text-xs text-amber-300">
+              RPC authorization: {access.rpcError ? "error" : access.rpcResult === true ? "true" : access.rpcResult === false ? "false" : "null"}
+            </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Link
