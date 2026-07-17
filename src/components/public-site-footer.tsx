@@ -21,6 +21,9 @@ export function PublicSiteFooter() {
           <Link href="/pricing" className="hover:text-blue-700">
             {t("public.navPricing")}
           </Link>
+          <Link href="/blog" className="hover:text-blue-700">
+            {t("public.navBlog")}
+          </Link>
           <Link href="/demo" className="hover:text-blue-700">
             {t("public.navExploreDemo")}
           </Link>

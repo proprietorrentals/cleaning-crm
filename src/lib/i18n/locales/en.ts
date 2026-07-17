@@ -304,6 +304,7 @@ export const en: Dictionary = {
     navFeatures: "Features",
     navAiSupervisor: "AI Supervisor",
     navPricing: "Pricing",
+    navBlog: "Blog",
     navExploreDemo: "Explore Demo",
     navContact: "Contact",
     navLogin: "Login",

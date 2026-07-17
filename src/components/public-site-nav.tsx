@@ -5,7 +5,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
 
 type PublicSiteNavProps = {
-  active?: "home" | "pricing" | "contact";
+  active?: "home" | "pricing" | "contact" | "blog";
 };
 
 function linkClass(isActive: boolean) {
@@ -58,6 +58,11 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
             </Link>
           </li>
           <li>
+            <Link href="/blog" className={linkClass(active === "blog")}>
+              {t("public.navBlog")}
+            </Link>
+          </li>
+          <li>
             <Link href="/demo" className="hover:text-blue-700">
               {t("public.navExploreDemo")}
             </Link>
@@ -94,6 +99,11 @@ export function PublicSiteNav({ active }: PublicSiteNavProps) {
           <li>
             <Link href="/pricing" className={linkClass(active === "pricing")}>
               {t("public.navPricing")}
+            </Link>
+          </li>
+          <li>
+            <Link href="/blog" className={linkClass(active === "blog")}>
+              {t("public.navBlog")}
             </Link>
           </li>
           <li>
