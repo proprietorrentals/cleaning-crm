@@ -109,3 +109,11 @@ export function getBlogLandingData() {
     articles,
   };
 }
+
+export function getAllBlogArticles() {
+  return BLOG_ARTICLES;
+}
+
+export function getBlogArticleBySlug(slug: string) {
+  return BLOG_ARTICLES.find((article) => article.slug === slug) ?? null;
+}

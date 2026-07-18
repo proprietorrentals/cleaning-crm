@@ -82,7 +82,7 @@ export function BlogPageContent() {
                 <span>{featured.readTimeMinutes} min read</span>
               </div>
               <Link
-                href="#"
+                href={`/blog/${featured.slug}`}
                 className="mt-6 inline-flex items-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Read featured article
@@ -135,7 +135,7 @@ export function BlogPageContent() {
                   <span>{article.readTimeMinutes} min read</span>
                 </div>
                 <Link
-                  href="#"
+                  href={`/blog/${article.slug}`}
                   className="mt-4 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-800"
                 >
                   Read article

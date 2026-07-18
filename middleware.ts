@@ -1,9 +1,9 @@
 import "@/lib/globals-polyfill";
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -31,11 +31,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
+  const isBlogRoute = pathname === "/blog" || pathname.startsWith("/blog/");
 
   const isPublicRoute =
     pathname === "/login" ||
     pathname === "/super-admin/login" ||
     pathname === "/forgot-password" ||
+    isBlogRoute ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api");
 
@@ -48,7 +50,8 @@ export async function middleware(request: NextRequest) {
 
   if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = request.nextUrl.searchParams.get("redirectTo") ?? "/";
+    redirectUrl.pathname =
+      request.nextUrl.searchParams.get("redirectTo") ?? "/";
     redirectUrl.searchParams.delete("redirectTo");
     return NextResponse.redirect(redirectUrl);
   }
@@ -57,5 +60,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
