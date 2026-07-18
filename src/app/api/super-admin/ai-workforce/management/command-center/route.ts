@@ -25,30 +25,38 @@ const briefSchema = z.object({
 
 type EmployeeRef = Array<{ slug: string; name: string }> | null;
 
+type EmployeeRow = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
 type GoalRow = {
   id: string;
+  employee_id: string;
   title: string;
   status: string;
   priority: string;
   due_date: string;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
-  employee: EmployeeRef;
 };
 
 type AssignmentRow = {
   id: string;
+  employee_id: string;
   title: string;
   status: string;
   priority: string;
   due_date: string;
   approval_required: boolean;
   assigned_at: string;
+  submitted_at: string | null;
   completed_at: string | null;
   approved_at: string | null;
   updated_at: string;
   goal_id: string | null;
-  employee: EmployeeRef;
 };
 
 type ProgressRow = {
@@ -62,9 +70,9 @@ type ProgressRow = {
 
 type SavedContentRow = {
   id: string;
+  employee_id: string;
   title: string;
   created_at: string;
-  employee: EmployeeRef;
 };
 
 type SummaryRow = {
@@ -93,7 +101,9 @@ type EmployeeScorecard = {
   employeeSlug: string;
   employeeName: string;
   goalsCompleted: number;
+  goalsCompletedThisWeek: number;
   tasksCompleted: number;
+  tasksCompletedThisWeek: number;
   approvalRate: number;
   averageCompletionHours: number;
   currentWorkload: number;
@@ -240,6 +250,13 @@ function generateExecutiveBrief(input: {
 
 async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   const supabase = await createServerSupabaseClient();
+  const activeEmployeeConfigs = AI_EMPLOYEES.filter(
+    (employee) => employee.status === "active",
+  );
+  const activeEmployeeSlugs = activeEmployeeConfigs.map(
+    (employee) => employee.slug,
+  );
+
   const weekStart = weekStartInput ?? startOfWeekIso();
   const weekEnd = endOfWeekIso(weekStart);
   const previousWeekStart = startOfWeekIso(
@@ -253,6 +270,7 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   await ensureRecurringAssignments(supabase, userId, weekStart);
 
   const [
+    employeesResult,
     goalsResult,
     tasksResult,
     progressResult,
@@ -261,16 +279,20 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
     handoffsResult,
   ] = await Promise.all([
     supabase
+      .from("ai_employees")
+      .select("id,slug,name")
+      .in("slug", activeEmployeeSlugs),
+    supabase
       .from("ai_weekly_goals")
       .select(
-        "id,title,status,priority,due_date,created_at,updated_at,employee:ai_employees(slug,name)",
+        "id,employee_id,title,status,priority,due_date,completed_at,created_at,updated_at",
       )
       .eq("super_admin_user_id", userId)
       .order("due_date", { ascending: true }),
     supabase
       .from("ai_assignments")
       .select(
-        "id,title,status,priority,due_date,approval_required,assigned_at,completed_at,approved_at,updated_at,goal_id,employee:ai_employees(slug,name)",
+        "id,employee_id,title,status,priority,due_date,approval_required,assigned_at,submitted_at,completed_at,approved_at,updated_at,goal_id",
       )
       .eq("super_admin_user_id", userId)
       .order("due_date", { ascending: true }),
@@ -282,7 +304,7 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
       .limit(400),
     supabase
       .from("ai_saved_content")
-      .select("id,title,created_at,employee:ai_employees(slug,name)")
+      .select("id,employee_id,title,created_at")
       .eq("super_admin_user_id", userId)
       .order("created_at", { ascending: false })
       .limit(200),
@@ -303,6 +325,7 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   ]);
 
   if (
+    employeesResult.error ||
     goalsResult.error ||
     tasksResult.error ||
     progressResult.error ||
@@ -313,12 +336,17 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
     return { error: true as const };
   }
 
+  const employeeRows = (employeesResult.data ?? []) as EmployeeRow[];
   const goals = (goalsResult.data ?? []) as GoalRow[];
   const tasks = (tasksResult.data ?? []) as AssignmentRow[];
   const progressUpdates = (progressResult.data ?? []) as ProgressRow[];
   const savedContent = (savedContentResult.data ?? []) as SavedContentRow[];
   const summaries = (summariesResult.data ?? []) as SummaryRow[];
   const handoffs = (handoffsResult.data ?? []) as HandoffRow[];
+
+  const employeeBySlug = new Map(employeeRows.map((row) => [row.slug, row]));
+  const employeeById = new Map(employeeRows.map((row) => [row.id, row]));
+  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
 
   const openTaskStatuses = new Set([
     "assigned",
@@ -328,9 +356,7 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
     "blocked",
   ]);
 
-  const activeEmployees = AI_EMPLOYEES.filter(
-    (employee) => employee.status === "active",
-  );
+  const activeEmployees = activeEmployeeConfigs;
 
   const todayTasks = tasks.filter(
     (task) => task.due_date === today && openTaskStatuses.has(task.status),
@@ -387,37 +413,45 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   ).length;
   const blockedGoals = goals.filter((goal) => goal.status === "blocked").length;
 
-  const latestActivityByEmployee = new Map<string, string>();
+  const latestActivityByEmployeeId = new Map<string, string>();
+
+  const pushLatestActivity = (
+    employeeId: string | null,
+    iso: string | null,
+  ) => {
+    if (!employeeId || !iso) return;
+    const current = latestActivityByEmployeeId.get(employeeId);
+    if (!current || current < iso) {
+      latestActivityByEmployeeId.set(employeeId, iso);
+    }
+  };
 
   for (const item of tasks) {
-    const slug = item.employee?.[0]?.slug;
-    if (!slug) continue;
-    const existing = latestActivityByEmployee.get(slug);
-    if (!existing || existing < item.updated_at) {
-      latestActivityByEmployee.set(slug, item.updated_at);
-    }
+    pushLatestActivity(item.employee_id, item.updated_at);
+    pushLatestActivity(item.employee_id, item.submitted_at);
+    pushLatestActivity(item.employee_id, item.approved_at);
+    pushLatestActivity(item.employee_id, item.completed_at);
   }
 
   for (const item of goals) {
-    const slug = item.employee?.[0]?.slug;
-    if (!slug) continue;
-    const existing = latestActivityByEmployee.get(slug);
-    if (!existing || existing < item.updated_at) {
-      latestActivityByEmployee.set(slug, item.updated_at);
-    }
+    pushLatestActivity(item.employee_id, item.updated_at);
+    pushLatestActivity(item.employee_id, item.completed_at);
+  }
+
+  for (const item of progressUpdates) {
+    const goal = goalById.get(item.goal_id);
+    pushLatestActivity(goal?.employee_id ?? null, item.created_at);
   }
 
   for (const item of savedContent) {
-    const slug = item.employee?.[0]?.slug;
-    if (!slug) continue;
-    const existing = latestActivityByEmployee.get(slug);
-    if (!existing || existing < item.created_at) {
-      latestActivityByEmployee.set(slug, item.created_at);
-    }
+    pushLatestActivity(item.employee_id, item.created_at);
   }
 
   const activeInLast3Days = activeEmployees.filter((employee) => {
-    const iso = latestActivityByEmployee.get(employee.slug);
+    const employeeRow = employeeBySlug.get(employee.slug);
+    const iso = employeeRow
+      ? latestActivityByEmployeeId.get(employeeRow.id)
+      : undefined;
     if (!iso) return false;
     return new Date(iso).getTime() >= Date.now() - 3 * 24 * 3600 * 1000;
   }).length;
@@ -442,29 +476,51 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
 
   const employeeScorecards: EmployeeScorecard[] = activeEmployees.map(
     (employee) => {
-      const employeeGoals = goals.filter(
-        (goal) => goal.employee?.[0]?.slug === employee.slug,
-      );
-      const employeeTasks = tasks.filter(
-        (task) => task.employee?.[0]?.slug === employee.slug,
-      );
+      const employeeRow = employeeBySlug.get(employee.slug);
+      const employeeGoals = employeeRow
+        ? goals.filter((goal) => goal.employee_id === employeeRow.id)
+        : [];
+      const employeeTasks = employeeRow
+        ? tasks.filter((task) => task.employee_id === employeeRow.id)
+        : [];
 
       const goalsCompleted = employeeGoals.filter(
         (goal) => goal.status === "completed",
       ).length;
+      const goalsCompletedThisWeek = employeeGoals.filter(
+        (goal) =>
+          goal.status === "completed" &&
+          Boolean(goal.completed_at) &&
+          (goal.completed_at ?? "") >= `${weekStart}T00:00:00.000Z` &&
+          (goal.completed_at ?? "") <= `${weekEnd}T23:59:59.999Z`,
+      ).length;
+
       const tasksCompleted = employeeTasks.filter(
         (task) => task.status === "completed",
       ).length;
+      const tasksCompletedThisWeek = employeeTasks.filter(
+        (task) =>
+          task.status === "completed" &&
+          Boolean(task.completed_at) &&
+          (task.completed_at ?? "") >= `${weekStart}T00:00:00.000Z` &&
+          (task.completed_at ?? "") <= `${weekEnd}T23:59:59.999Z`,
+      ).length;
 
-      const approvalReady = employeeTasks.filter(
+      const submittedForApproval = employeeTasks.filter(
         (task) =>
           task.approval_required &&
-          ["approved", "completed", "rejected"].includes(task.status),
+          (Boolean(task.submitted_at) ||
+            ["awaiting_approval", "approved", "completed", "rejected"].includes(
+              task.status,
+            )),
       );
-      const approvedItems = approvalReady.filter((task) =>
+      const approvedItems = submittedForApproval.filter((task) =>
         ["approved", "completed"].includes(task.status),
       ).length;
-      const approvalRate = toPercent(approvedItems, approvalReady.length);
+      const approvalRate = toPercent(
+        approvedItems,
+        submittedForApproval.length,
+      );
 
       const completionDurations = employeeTasks
         .filter((task) => task.status === "completed" && task.completed_at)
@@ -485,15 +541,18 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
       const currentWorkload = employeeTasks.filter((task) =>
         openTaskStatuses.has(task.status),
       ).length;
+
+      const goalWorkThisWeek = employeeGoals.filter(
+        (goal) => goal.due_date >= weekStart && goal.due_date <= weekEnd,
+      ).length;
       const employeeDueThisWeek = employeeTasks.filter(
         (task) => task.due_date >= weekStart && task.due_date <= weekEnd,
       );
-      const employeeCompletedThisWeek = employeeDueThisWeek.filter(
-        (task) => task.status === "completed",
-      ).length;
+      const employeeCompletedThisWeek =
+        goalsCompletedThisWeek + tasksCompletedThisWeek;
       const weeklyEmployeeProductivity = toPercent(
         employeeCompletedThisWeek,
-        employeeDueThisWeek.length,
+        employeeDueThisWeek.length + goalWorkThisWeek,
       );
 
       const qualityScore = clamp(
@@ -502,7 +561,7 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
         100,
       );
 
-      const previousWeekCompleted = employeeTasks.filter(
+      const previousWeekCompletedTasks = employeeTasks.filter(
         (task) =>
           task.status === "completed" &&
           Boolean(task.completed_at) &&
@@ -510,17 +569,32 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
           (task.completed_at ?? "") <= `${previousWeekEnd}T23:59:59.999Z`,
       ).length;
 
+      const previousWeekCompletedGoals = employeeGoals.filter(
+        (goal) =>
+          goal.status === "completed" &&
+          Boolean(goal.completed_at) &&
+          (goal.completed_at ?? "") >= `${previousWeekStart}T00:00:00.000Z` &&
+          (goal.completed_at ?? "") <= `${previousWeekEnd}T23:59:59.999Z`,
+      ).length;
+
+      const previousWeekCompleted =
+        previousWeekCompletedTasks + previousWeekCompletedGoals;
+
       return {
         employeeSlug: employee.slug,
         employeeName: employee.name,
         goalsCompleted,
+        goalsCompletedThisWeek,
         tasksCompleted,
+        tasksCompletedThisWeek,
         approvalRate,
         averageCompletionHours,
         currentWorkload,
         weeklyProductivity: weeklyEmployeeProductivity,
         qualityScore,
-        lastActivity: latestActivityByEmployee.get(employee.slug) ?? null,
+        lastActivity: employeeRow
+          ? (latestActivityByEmployeeId.get(employeeRow.id) ?? null)
+          : null,
         trend: trendLabel(employeeCompletedThisWeek, previousWeekCompleted),
       };
     },
@@ -533,12 +607,13 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   }> = [];
 
   for (const scorecard of employeeScorecards) {
-    const employeeTasks = tasks.filter(
-      (task) => task.employee?.[0]?.slug === scorecard.employeeSlug,
-    );
-    const employeeGoals = goals.filter(
-      (goal) => goal.employee?.[0]?.slug === scorecard.employeeSlug,
-    );
+    const employeeRow = employeeBySlug.get(scorecard.employeeSlug);
+    const employeeTasks = employeeRow
+      ? tasks.filter((task) => task.employee_id === employeeRow.id)
+      : [];
+    const employeeGoals = employeeRow
+      ? goals.filter((goal) => goal.employee_id === employeeRow.id)
+      : [];
 
     const employeeOverdueTasks = employeeTasks.filter(
       (task) => openTaskStatuses.has(task.status) && task.due_date < today,
@@ -617,7 +692,8 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   const timeline: TimelineItem[] = [];
 
   for (const task of tasks) {
-    const employeeName = task.employee?.[0]?.name ?? "AI employee";
+    const employeeName =
+      employeeById.get(task.employee_id)?.name ?? "AI employee";
     if (task.completed_at) {
       timeline.push({
         id: `task-completed-${task.id}`,
@@ -647,7 +723,8 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   }
 
   for (const goal of goals) {
-    const employeeName = goal.employee?.[0]?.name ?? "AI employee";
+    const employeeName =
+      employeeById.get(goal.employee_id)?.name ?? "AI employee";
     timeline.push({
       id: `goal-created-${goal.id}`,
       timestamp: goal.created_at,
@@ -657,7 +734,8 @@ async function buildCommandCenterData(userId: string, weekStartInput?: string) {
   }
 
   for (const content of savedContent) {
-    const employeeName = content.employee?.[0]?.name ?? "AI employee";
+    const employeeName =
+      employeeById.get(content.employee_id)?.name ?? "AI employee";
     timeline.push({
       id: `content-${content.id}`,
       timestamp: content.created_at,

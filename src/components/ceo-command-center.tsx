@@ -8,7 +8,9 @@ type Scorecard = {
   employeeSlug: string;
   employeeName: string;
   goalsCompleted: number;
+  goalsCompletedThisWeek: number;
   tasksCompleted: number;
+  tasksCompletedThisWeek: number;
   approvalRate: number;
   averageCompletionHours: number;
   currentWorkload: number;
@@ -677,8 +679,14 @@ export function CeoCommandCenter() {
                       </Link>
                     </div>
                     <div className="mt-3 grid gap-1 text-xs text-slate-300">
-                      <p>Goals Completed: {card.goalsCompleted}</p>
-                      <p>Tasks Completed: {card.tasksCompleted}</p>
+                      <p>Goals Completed (All Time): {card.goalsCompleted}</p>
+                      <p>
+                        Goals Completed This Week: {card.goalsCompletedThisWeek}
+                      </p>
+                      <p>Tasks Completed (All Time): {card.tasksCompleted}</p>
+                      <p>
+                        Tasks Completed This Week: {card.tasksCompletedThisWeek}
+                      </p>
                       <p>Approval Rate: {card.approvalRate}%</p>
                       <p>
                         Average Completion Time: {card.averageCompletionHours}h
