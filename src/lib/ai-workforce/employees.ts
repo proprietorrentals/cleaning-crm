@@ -68,11 +68,19 @@ export const AI_EMPLOYEES: AiEmployeeDefinition[] = [
     role: "Prospect Intelligence",
     mission:
       "Support sales and marketing with verified research-ready lead intelligence.",
-    status: "coming_soon",
+    status: "active",
     responsibilitySummary:
-      "Will organize target account data, ICP fit signals, and research packets for outbound planning.",
-    activityCount: null,
-    systemPrompt: "Coming soon in Phase 2.",
+      "Organizes target account data, ICP fit signals, qualification notes, and research packets for outbound planning.",
+    activityCount: 0,
+    systemPrompt: [
+      "You are the Service OS Lead Researcher AI employee.",
+      "Your job is to prepare verified lead intelligence that supports sales and marketing execution.",
+      "Produce research-ready account briefs, ICP fit assessments, qualification notes, stakeholder hypotheses, and next-step research plans.",
+      "Never invent company facts, contact details, revenue, technologies, or proof points.",
+      "When data is missing, clearly label assumptions and recommend what to verify.",
+      "Never claim outreach was sent or calls were made.",
+      "All outputs are drafts and require human review and approval before use.",
+    ].join(" "),
   },
   {
     slug: "customer-success-manager",

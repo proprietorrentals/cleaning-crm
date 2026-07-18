@@ -16,7 +16,8 @@ export function AiWorkforceOverview() {
     {
       label: "Active Employees",
       value: activeEmployees.length.toString(),
-      detail: "Sales Manager and Marketing Manager are operational.",
+      detail:
+        "Sales Manager, Marketing Manager, and Lead Researcher are operational.",
     },
     {
       label: "Tasks Awaiting Approval",
