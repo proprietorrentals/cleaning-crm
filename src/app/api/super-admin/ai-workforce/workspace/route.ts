@@ -25,6 +25,7 @@ type SavedContentRow = {
   status: "draft" | "awaiting_approval" | "approved" | "rejected" | "completed";
   created_at: string;
   updated_at: string;
+  metadata: Record<string, unknown> | null;
 };
 
 type TaskRow = {
@@ -46,6 +47,7 @@ type TaskRow = {
 function extractHistory(
   taskRow: TaskRow,
   employeeName: string,
+  contextMetadata: Record<string, unknown> | null,
 ): AiActivityEntry[] {
   const raw = taskRow.output_data?.history;
   if (!Array.isArray(raw)) {
@@ -89,6 +91,26 @@ function extractHistory(
       relatedTaskId: taskRow.id,
       resultingStatus: resultingStatus as AiActivityEntry["resultingStatus"],
       title,
+      prospectOrCustomer:
+        typeof contextMetadata?.prospect_or_customer === "string"
+          ? contextMetadata.prospect_or_customer
+          : null,
+      company:
+        typeof contextMetadata?.company_name === "string"
+          ? contextMetadata.company_name
+          : null,
+      callType:
+        typeof contextMetadata?.call_type === "string"
+          ? contextMetadata.call_type
+          : null,
+      objective:
+        typeof contextMetadata?.call_objective === "string"
+          ? contextMetadata.call_objective
+          : null,
+      date:
+        typeof contextMetadata?.call_date === "string"
+          ? contextMetadata.call_date
+          : null,
     });
   }
 
@@ -156,7 +178,7 @@ export async function GET(request: Request) {
   const [savedContentResult, taskResult] = await Promise.all([
     supabase
       .from("ai_saved_content")
-      .select("id,title,content_type,content,status,created_at,updated_at")
+      .select("id,title,content_type,content,status,created_at,updated_at,metadata")
       .eq("employee_id", employeeRow.id)
       .eq("super_admin_user_id", userId)
       .order("updated_at", { ascending: false })
@@ -208,11 +230,19 @@ export async function GET(request: Request) {
       approvedAt: linkedTask?.approved_at ?? null,
       completedAt: linkedTask?.completed_at ?? null,
       taskId: linkedTask?.id ?? null,
+      metadata: row.metadata,
     };
   });
 
   const activity: AiActivityEntry[] = ((taskResult.data ?? []) as TaskRow[])
-    .flatMap((task) => extractHistory(task, employeeRow.name))
+    .flatMap((task) => {
+      const linkedSaved = savedItems.find((item) => item.taskId === task.id);
+      return extractHistory(
+        task,
+        employeeRow.name,
+        (linkedSaved?.metadata ?? null) as Record<string, unknown> | null,
+      );
+    })
     .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
 
   const snapshot: AiWorkspaceSnapshot = {

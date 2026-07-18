@@ -27,6 +27,11 @@ export type AiActivityEntry = {
   relatedTaskId: string | null;
   resultingStatus: ApprovalStatus;
   title: string;
+  prospectOrCustomer?: string | null;
+  company?: string | null;
+  callType?: string | null;
+  objective?: string | null;
+  date?: string | null;
 };
 
 export type AiWorkspaceSavedItem = {
@@ -41,6 +46,7 @@ export type AiWorkspaceSavedItem = {
   approvedAt: string | null;
   completedAt: string | null;
   taskId: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type AiWorkspaceSnapshot = {

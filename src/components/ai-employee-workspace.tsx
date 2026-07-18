@@ -28,6 +28,12 @@ type WorkspaceMessage = {
   title?: string;
 };
 
+type ScriptSection = {
+  id: string;
+  title: string;
+  content: string;
+};
+
 type AiGenerateResponse = {
   content: string;
   provider: string;
@@ -73,6 +79,10 @@ function timestampLabel(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
+function metadataLabel(value: string | null | undefined) {
+  return value && value.trim().length > 0 ? value : "Not provided";
+}
+
 function activityLabel(action: AiActivityEntry["action"]) {
   if (action === "generated") return "Generated draft";
   if (action === "saved_as_draft") return "Saved as draft";
@@ -90,6 +100,40 @@ function upsertSavedItem(
   return [nextItem, ...withoutItem].sort(
     (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt),
   );
+}
+
+function parseScriptSections(content: string): ScriptSection[] {
+  const sections: ScriptSection[] = [];
+  let currentTitle = "";
+  let currentContent: string[] = [];
+
+  const pushSection = () => {
+    const body = currentContent.join("\n").trim();
+    if (!currentTitle || !body) return;
+
+    sections.push({
+      id: crypto.randomUUID(),
+      title: currentTitle,
+      content: body,
+    });
+  };
+
+  for (const line of content.split("\n")) {
+    const headingMatch = line.match(/^#{1,3}\s+(.*)$/);
+    if (headingMatch) {
+      pushSection();
+      currentTitle = headingMatch[1].trim();
+      currentContent = [];
+      continue;
+    }
+
+    if (currentTitle) {
+      currentContent.push(line);
+    }
+  }
+
+  pushSection();
+  return sections;
 }
 
 export function AiEmployeeWorkspace({
@@ -128,6 +172,11 @@ export function AiEmployeeWorkspace({
       .reverse()
       .find((message) => message.role === "assistant");
   }, [messages]);
+
+  const latestAssistantSections = useMemo(() => {
+    if (!latestAssistantMessage) return [];
+    return parseScriptSections(latestAssistantMessage.content);
+  }, [latestAssistantMessage]);
 
   const loadWorkspace = useCallback(
     async (showLoading = true) => {
@@ -346,6 +395,15 @@ export function AiEmployeeWorkspace({
     }
   };
 
+  const copySectionContent = async (section: ScriptSection) => {
+    try {
+      await navigator.clipboard.writeText(`${section.title}\n\n${section.content}`);
+      setSuccess(`Copied ${section.title}.`);
+    } catch {
+      setError("Copy failed. Please copy the section manually.");
+    }
+  };
+
   const downloadLatestMarkdown = () => {
     if (!latestAssistantMessage) return;
 
@@ -551,6 +609,37 @@ export function AiEmployeeWorkspace({
                           <p className="whitespace-pre-wrap text-sm text-slate-200">
                             {message.content}
                           </p>
+                          {message.role === "assistant" &&
+                          latestAssistantMessage?.id === message.id &&
+                          latestAssistantSections.length > 0 ? (
+                            <div className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-900 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                                Script sections
+                              </p>
+                              {latestAssistantSections.map((section) => (
+                                <article
+                                  key={section.id}
+                                  className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h3 className="text-sm font-semibold text-white">
+                                      {section.title}
+                                    </h3>
+                                    <button
+                                      type="button"
+                                      onClick={() => void copySectionContent(section)}
+                                      className="rounded-lg border border-slate-700 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                                    >
+                                      Copy section
+                                    </button>
+                                  </div>
+                                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">
+                                    {section.content}
+                                  </p>
+                                </article>
+                              ))}
+                            </div>
+                          ) : null}
                         </article>
                       ))
                     )}
@@ -698,13 +787,24 @@ export function AiEmployeeWorkspace({
                           Employee: {item.employee}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          Resulting status: {badgeLabel(item.resultingStatus)}
+                          Status: {badgeLabel(item.resultingStatus)}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
                           Related content: {item.title}
                         </p>
+                        {(item.prospectOrCustomer || item.company || item.callType || item.objective || item.date) ? (
+                          <div className="mt-2 grid gap-1 text-xs text-slate-400">
+                            <p>
+                              Prospect or customer: {metadataLabel(item.prospectOrCustomer)}
+                            </p>
+                            <p>Company: {metadataLabel(item.company)}</p>
+                            <p>Call type: {metadataLabel(item.callType)}</p>
+                            <p>Objective: {metadataLabel(item.objective)}</p>
+                            <p>Date: {metadataLabel(item.date)}</p>
+                          </div>
+                        ) : null}
                         <p className="mt-1 text-xs text-slate-500">
-                          {timestampLabel(item.timestamp)}
+                          Date: {timestampLabel(item.timestamp)}
                         </p>
                       </article>
                     ))
