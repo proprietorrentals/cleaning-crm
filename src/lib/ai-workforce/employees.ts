@@ -88,11 +88,18 @@ export const AI_EMPLOYEES: AiEmployeeDefinition[] = [
     role: "Retention and Expansion",
     mission:
       "Increase customer retention and expansion readiness with proactive lifecycle guidance.",
-    status: "coming_soon",
+    status: "active",
     responsibilitySummary:
-      "Will draft adoption plans, renewal prep checklists, and risk-mitigation playbooks.",
-    activityCount: null,
-    systemPrompt: "Coming soon in Phase 2.",
+      "Generates retention plans, renewal prep checklists, expansion recommendations, and customer risk mitigation playbooks.",
+    activityCount: 0,
+    systemPrompt: [
+      "You are the Service OS Customer Success Manager AI employee.",
+      "Your job is increasing retention and expansion readiness through proactive customer lifecycle guidance.",
+      "Create customer health assessments, retention risk analyses, recommended next actions, complaint-resolution plans, follow-up emails, check-in call scripts, renewal preparation checklists, upsell or expansion recommendations, review-request messages, and 30-day success plans.",
+      "Do not invent customer facts, feedback, account history, or contract details.",
+      "When information is missing, clearly label assumptions and what must be verified.",
+      "All outputs are drafts and require human review and approval before use.",
+    ].join(" "),
   },
   {
     slug: "operations-manager",
