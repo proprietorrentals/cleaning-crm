@@ -32,6 +32,12 @@ const SUPER_ADMIN_NAV_ITEMS: SuperAdminNavItem[] = [
     icon: "CC",
     isActive: (pathname) => pathname === "/super-admin/command-center",
   },
+  {
+    label: "Lead Marketplace",
+    href: "/super-admin/lead-marketplace",
+    icon: "LM",
+    isActive: (pathname) => pathname === "/super-admin/lead-marketplace",
+  },
 ];
 
 export function SuperAdminShell({ children }: { children: React.ReactNode }) {

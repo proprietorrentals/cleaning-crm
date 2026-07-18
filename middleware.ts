@@ -36,6 +36,8 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname === "/login" ||
     pathname === "/super-admin/login" ||
+    pathname === "/request-quote" ||
+    pathname.startsWith("/request-quote/") ||
     pathname === "/forgot-password" ||
     isBlogRoute ||
     pathname.startsWith("/_next") ||
