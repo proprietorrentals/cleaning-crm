@@ -346,6 +346,28 @@ export function AiEmployeeWorkspace({
     }
   };
 
+  const exportLatestContent = () => {
+    if (!latestAssistantMessage) return;
+
+    try {
+      const fileName = `${employee.slug}-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+      const blob = new Blob([latestAssistantMessage.content], {
+        type: "text/plain;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setSuccess("Exported latest content.");
+    } catch {
+      setError("Export failed. Please copy content manually.");
+    }
+  };
+
   const toggleExpanded = (id: string) => {
     setExpandedContent((current) => ({
       ...current,
@@ -720,6 +742,16 @@ export function AiEmployeeWorkspace({
                   className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Copy Content
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportLatestContent()}
+                  disabled={
+                    !latestAssistantMessage || isSubmitting || isMutatingStatus
+                  }
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Export Content
                 </button>
               </div>
             </article>
