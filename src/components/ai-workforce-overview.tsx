@@ -1,10 +1,68 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { AI_EMPLOYEES } from "@/lib/ai-workforce/employees";
+import type { AiDashboardMetrics } from "@/lib/ai-workforce/management-types";
 
 const SUMMARY_CARD_CLASS =
   "rounded-2xl border border-slate-800 bg-slate-900 p-5";
 
+type GoalSummary = {
+  id: string;
+  employeeName: string;
+  title: string;
+  status: string;
+  dueDate: string;
+};
+
+type TaskSummary = {
+  id: string;
+  employeeName: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+};
+
+type HandoffSummary = {
+  id: string;
+  fromEmployeeName: string;
+  toEmployeeName: string;
+  status: string;
+  summary: string;
+};
+
+type MetricsResponse = { success: true; metrics: AiDashboardMetrics };
+type GoalsResponse = { success: true; goals: GoalSummary[] };
+type TasksResponse = { success: true; tasks: TaskSummary[] };
+type HandoffsResponse = { success: true; handoffs: HandoffSummary[] };
+
+function titleCase(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function startOfWeekIso() {
+  const date = new Date();
+  const day = date.getUTCDay();
+  const diff = (day + 6) % 7;
+  const monday = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  monday.setUTCDate(monday.getUTCDate() - diff);
+  return monday.toISOString().slice(0, 10);
+}
+
 export function AiWorkforceOverview() {
+  const [metrics, setMetrics] = useState<AiDashboardMetrics | null>(null);
+  const [goals, setGoals] = useState<GoalSummary[]>([]);
+  const [tasks, setTasks] = useState<TaskSummary[]>([]);
+  const [handoffs, setHandoffs] = useState<HandoffSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const activeEmployees = AI_EMPLOYEES.filter(
     (employee) => employee.status === "active",
   );
@@ -12,29 +70,95 @@ export function AiWorkforceOverview() {
     (employee) => employee.status === "coming_soon",
   );
 
+  const weekStart = useMemo(() => startOfWeekIso(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [metricsRes, goalsRes, tasksRes, handoffsRes] = await Promise.all(
+          [
+            fetch(
+              `/api/super-admin/ai-workforce/management/dashboard?weekStart=${weekStart}`,
+            ),
+            fetch(
+              `/api/super-admin/ai-workforce/management/goals?weekStartDate=${weekStart}`,
+            ),
+            fetch(
+              `/api/super-admin/ai-workforce/management/tasks?dueDateStart=${weekStart}`,
+            ),
+            fetch("/api/super-admin/ai-workforce/management/handoffs"),
+          ],
+        );
+
+        const metricsBody = (await metricsRes
+          .json()
+          .catch(() => null)) as MetricsResponse | null;
+        const goalsBody = (await goalsRes
+          .json()
+          .catch(() => null)) as GoalsResponse | null;
+        const tasksBody = (await tasksRes
+          .json()
+          .catch(() => null)) as TasksResponse | null;
+        const handoffsBody = (await handoffsRes
+          .json()
+          .catch(() => null)) as HandoffsResponse | null;
+
+        if (cancelled) return;
+
+        if (metricsRes.ok && metricsBody?.success) {
+          setMetrics(metricsBody.metrics);
+        }
+
+        if (goalsRes.ok && goalsBody?.success) {
+          setGoals((goalsBody.goals ?? []).slice(0, 6));
+        }
+
+        if (tasksRes.ok && tasksBody?.success) {
+          setTasks((tasksBody.tasks ?? []).slice(0, 8));
+        }
+
+        if (handoffsRes.ok && handoffsBody?.success) {
+          setHandoffs((handoffsBody.handoffs ?? []).slice(0, 6));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [weekStart]);
+
   const summaryCards = [
     {
       label: "Active Employees",
-      value: activeEmployees.length.toString(),
+      value: (
+        metrics?.totalActiveEmployees ?? activeEmployees.length
+      ).toString(),
       detail:
         "Sales Manager, Marketing Manager, Lead Researcher, Operations Manager, Customer Success Manager, and Voice Representative are operational.",
     },
     {
       label: "Tasks Awaiting Approval",
-      value: "0",
+      value: (metrics?.awaitingApproval ?? 0).toString(),
       detail: "All AI output requires human review before use.",
     },
     {
-      label: "Completed Tasks",
-      value: "0",
-      detail: "Completion is tracked after human decision and execution.",
+      label: "Completed This Week",
+      value: (metrics?.completedThisWeek ?? 0).toString(),
+      detail: "Completed task count for the current week window.",
     },
     {
-      label: "Total AI Activity",
-      value: activeEmployees
-        .reduce((sum, employee) => sum + (employee.activityCount ?? 0), 0)
-        .toString(),
-      detail: "Phase 1 starts with controlled internal usage.",
+      label: "Weekly Completion",
+      value: `${metrics?.weeklyCompletionPercentage ?? 0}%`,
+      detail: "Completion rate for in-scope assignments this week.",
     },
   ];
 
@@ -66,6 +190,135 @@ export function AiWorkforceOverview() {
               <p className="mt-1 text-xs text-slate-500">{card.detail}</p>
             </article>
           ))}
+        </section>
+
+        <section className="mb-8 grid gap-4 xl:grid-cols-3">
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Weekly Goals In Progress
+            </p>
+            <p className="mt-2 text-3xl font-bold text-cyan-300">
+              {metrics?.goalsInProgress ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Active and blocked goals currently in execution.
+            </p>
+          </article>
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Tasks Due This Week
+            </p>
+            <p className="mt-2 text-3xl font-bold text-cyan-300">
+              {metrics?.tasksDueThisWeek ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Includes one-time and recurring assignments.
+            </p>
+          </article>
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Overdue Tasks
+            </p>
+            <p className="mt-2 text-3xl font-bold text-rose-300">
+              {metrics?.overdueTasks ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Assigned work that has passed due date and remains open.
+            </p>
+          </article>
+        </section>
+
+        <section className="mb-8 grid gap-4 xl:grid-cols-3">
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
+              Current Week Goals
+            </h2>
+            <div className="mt-3 space-y-2">
+              {goals.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  {loading ? "Loading goals..." : "No goals for this week yet."}
+                </p>
+              ) : (
+                goals.map((goal) => (
+                  <article
+                    key={goal.id}
+                    className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                  >
+                    <p className="text-sm font-semibold text-slate-100">
+                      {goal.title}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {goal.employeeName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {titleCase(goal.status)} | Due {goal.dueDate}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
+              Upcoming Assignments
+            </h2>
+            <div className="mt-3 space-y-2">
+              {tasks.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  {loading ? "Loading assignments..." : "No assignments found."}
+                </p>
+              ) : (
+                tasks.map((task) => (
+                  <article
+                    key={task.id}
+                    className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                  >
+                    <p className="text-sm font-semibold text-slate-100">
+                      {task.title}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {task.employeeName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {titleCase(task.status)} | {titleCase(task.priority)} |
+                      Due {task.dueDate}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
+              Active Handoffs
+            </h2>
+            <div className="mt-3 space-y-2">
+              {handoffs.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  {loading ? "Loading handoffs..." : "No handoffs in progress."}
+                </p>
+              ) : (
+                handoffs.map((handoff) => (
+                  <article
+                    key={handoff.id}
+                    className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                  >
+                    <p className="text-sm font-semibold text-slate-100">
+                      {handoff.fromEmployeeName} to {handoff.toEmployeeName}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+                      {handoff.summary}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {titleCase(handoff.status)}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
+          </article>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -133,8 +386,9 @@ export function AiWorkforceOverview() {
         </section>
 
         <p className="mt-8 text-xs text-slate-500">
-          Phase 1 coverage: {activeEmployees.length} active employees,{" "}
-          {comingSoonEmployees.length} planned employees.
+          Phase 2 coverage: {activeEmployees.length} active employees,{" "}
+          {comingSoonEmployees.length} planned employees, plus weekly goals,
+          recurring tasks, and handoff visibility.
         </p>
       </div>
     </main>

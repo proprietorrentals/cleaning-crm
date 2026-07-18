@@ -1,17 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  AiEmployeeDefinition,
-  AiEmployeeSlug,
-} from "@/lib/ai-workforce/employees";
+import type { AiEmployeeDefinition } from "@/lib/ai-workforce/employees";
 import type {
   AiActivityEntry,
   AiWorkspaceSavedItem,
   ApprovalStatus,
 } from "@/lib/ai-workforce/workspace-types";
 
-type WorkspaceTab = "chat" | "tasks" | "saved" | "activity";
+type WorkspaceTab = "chat" | "goals" | "tasks" | "saved" | "activity";
 
 type ContextField = {
   key: string;
@@ -52,8 +49,34 @@ type SnapshotResponse = {
   activity: AiActivityEntry[];
 };
 
+type GoalItem = {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: "not_started" | "in_progress" | "blocked" | "completed";
+  priority: "low" | "medium" | "high" | "urgent";
+};
+
+type AssignmentItem = {
+  id: string;
+  title: string;
+  dueDate: string;
+  status:
+    | "assigned"
+    | "in_progress"
+    | "awaiting_approval"
+    | "approved"
+    | "rejected"
+    | "completed"
+    | "blocked";
+  priority: "low" | "medium" | "high" | "urgent";
+  instructions: string;
+};
+
 const TABS: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "chat", label: "Chat" },
+  { id: "goals", label: "Goals" },
   { id: "tasks", label: "Tasks" },
   { id: "saved", label: "Saved Content" },
   { id: "activity", label: "Activity" },
@@ -72,6 +95,23 @@ function badgeLabel(status: ApprovalStatus) {
   if (status === "awaiting_approval") return "Awaiting Approval";
   if (status === "approved") return "Approved";
   if (status === "rejected") return "Rejected";
+  return "Completed";
+}
+
+function goalStatusLabel(status: GoalItem["status"]) {
+  if (status === "not_started") return "Not Started";
+  if (status === "in_progress") return "In Progress";
+  if (status === "blocked") return "Blocked";
+  return "Completed";
+}
+
+function assignmentStatusLabel(status: AssignmentItem["status"]) {
+  if (status === "assigned") return "Assigned";
+  if (status === "in_progress") return "In Progress";
+  if (status === "awaiting_approval") return "Awaiting Approval";
+  if (status === "approved") return "Approved";
+  if (status === "rejected") return "Rejected";
+  if (status === "blocked") return "Blocked";
   return "Completed";
 }
 
@@ -158,11 +198,12 @@ export function AiEmployeeWorkspace({
   const [context, setContext] = useState<Record<string, string>>({});
   const [savedItems, setSavedItems] = useState<AiWorkspaceSavedItem[]>([]);
   const [activity, setActivity] = useState<AiActivityEntry[]>([]);
+  const [goals, setGoals] = useState<GoalItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const [isLoadingManagement, setIsLoadingManagement] = useState(true);
   const [expandedContent, setExpandedContent] = useState<
     Record<string, boolean>
   >({});
-
-  const effectiveSlug: AiEmployeeSlug = employee.slug;
 
   const latestSavedItem = useMemo(() => savedItems[0] ?? null, [savedItems]);
 
@@ -238,6 +279,47 @@ export function AiEmployeeWorkspace({
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  const loadManagement = useCallback(async () => {
+    setIsLoadingManagement(true);
+
+    try {
+      const [goalsResponse, tasksResponse] = await Promise.all([
+        fetch(
+          `/api/super-admin/ai-workforce/management/goals?employeeSlug=${encodeURIComponent(employee.slug)}`,
+        ),
+        fetch(
+          `/api/super-admin/ai-workforce/management/tasks?employeeSlug=${encodeURIComponent(employee.slug)}`,
+        ),
+      ]);
+
+      const goalsBody = (await goalsResponse.json().catch(() => null)) as
+        | { success: true; goals: GoalItem[] }
+        | { success: false; message: string }
+        | null;
+
+      const tasksBody = (await tasksResponse.json().catch(() => null)) as
+        | { success: true; tasks: AssignmentItem[] }
+        | { success: false; message: string }
+        | null;
+
+      if (goalsResponse.ok && goalsBody && goalsBody.success) {
+        setGoals(goalsBody.goals);
+      }
+
+      if (tasksResponse.ok && tasksBody && tasksBody.success) {
+        setAssignments(tasksBody.tasks);
+      }
+    } catch {
+      setError("Unable to load management views.");
+    } finally {
+      setIsLoadingManagement(false);
+    }
+  }, [employee.slug]);
+
+  useEffect(() => {
+    void loadManagement();
+  }, [loadManagement]);
 
   const sendPrompt = async (draftPrompt: string) => {
     const promptValue = draftPrompt.trim();
@@ -397,7 +479,9 @@ export function AiEmployeeWorkspace({
 
   const copySectionContent = async (section: ScriptSection) => {
     try {
-      await navigator.clipboard.writeText(`${section.title}\n\n${section.content}`);
+      await navigator.clipboard.writeText(
+        `${section.title}\n\n${section.content}`,
+      );
       setSuccess(`Copied ${section.title}.`);
     } catch {
       setError("Copy failed. Please copy the section manually.");
@@ -627,7 +711,9 @@ export function AiEmployeeWorkspace({
                                     </h3>
                                     <button
                                       type="button"
-                                      onClick={() => void copySectionContent(section)}
+                                      onClick={() =>
+                                        void copySectionContent(section)
+                                      }
                                       className="rounded-lg border border-slate-700 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
                                     >
                                       Copy section
@@ -675,14 +761,59 @@ export function AiEmployeeWorkspace({
                 </div>
               ) : null}
 
-              {activeTab === "tasks" ? (
+              {activeTab === "goals" ? (
                 <div className="space-y-3">
-                  {savedItems.length === 0 ? (
+                  {isLoadingManagement ? (
                     <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
-                      No tasks yet. Generate content in Chat first.
+                      Loading weekly goals...
+                    </p>
+                  ) : goals.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
+                      No goals yet for this employee.
                     </p>
                   ) : (
-                    savedItems.map((item) => {
+                    goals.map((goal) => (
+                      <article
+                        key={goal.id}
+                        className="rounded-lg border border-slate-800 bg-slate-900 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {goal.title}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Due date: {goal.dueDate}
+                            </p>
+                          </div>
+                          <span className="inline-flex rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                            {goal.priority}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300">
+                          {goal.description || "No description provided."}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Status: {goalStatusLabel(goal.status)}
+                        </p>
+                      </article>
+                    ))
+                  )}
+                </div>
+              ) : null}
+
+              {activeTab === "tasks" ? (
+                <div className="space-y-3">
+                  {isLoadingManagement ? (
+                    <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
+                      Loading assignments...
+                    </p>
+                  ) : assignments.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
+                      No assignments yet.
+                    </p>
+                  ) : (
+                    assignments.map((item) => {
                       const isExpanded = Boolean(expandedContent[item.id]);
                       return (
                         <article
@@ -695,21 +826,19 @@ export function AiEmployeeWorkspace({
                                 {item.title}
                               </p>
                               <p className="mt-1 text-xs text-slate-400">
-                                Employee: {effectiveSlug} | Type:{" "}
-                                {item.contentType}
+                                Due date: {item.dueDate} | Priority:{" "}
+                                {item.priority}
                               </p>
                             </div>
-                            <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${badgeClassName(item.status)}`}
-                            >
-                              {badgeLabel(item.status)}
+                            <span className="inline-flex rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                              {assignmentStatusLabel(item.status)}
                             </span>
                           </div>
 
                           <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">
                             {isExpanded
-                              ? item.content
-                              : `${item.content.slice(0, 220)}...`}
+                              ? item.instructions
+                              : `${item.instructions.slice(0, 220)}...`}
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
@@ -792,10 +921,15 @@ export function AiEmployeeWorkspace({
                         <p className="mt-1 text-xs text-slate-400">
                           Related content: {item.title}
                         </p>
-                        {(item.prospectOrCustomer || item.company || item.callType || item.objective || item.date) ? (
+                        {item.prospectOrCustomer ||
+                        item.company ||
+                        item.callType ||
+                        item.objective ||
+                        item.date ? (
                           <div className="mt-2 grid gap-1 text-xs text-slate-400">
                             <p>
-                              Prospect or customer: {metadataLabel(item.prospectOrCustomer)}
+                              Prospect or customer:{" "}
+                              {metadataLabel(item.prospectOrCustomer)}
                             </p>
                             <p>Company: {metadataLabel(item.company)}</p>
                             <p>Call type: {metadataLabel(item.callType)}</p>

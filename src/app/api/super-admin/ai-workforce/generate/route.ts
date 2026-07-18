@@ -223,7 +223,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = requestSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -239,7 +239,10 @@ export async function POST(request: Request) {
 
     if (!configEmployee || !employeeRow || errorMessage) {
       return Response.json(
-        { success: false, message: errorMessage ?? "Unable to resolve AI employee." },
+        {
+          success: false,
+          message: errorMessage ?? "Unable to resolve AI employee.",
+        },
         { status: 503 },
       );
     }

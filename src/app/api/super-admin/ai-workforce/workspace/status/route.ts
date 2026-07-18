@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { AI_WORKFORCE_STATUSES } from "@/lib/ai-workforce/workspace-types";
 import { resolveAiEmployee } from "@/lib/ai-workforce/resolve-employee";
+import { AI_WORKFORCE_STATUSES } from "@/lib/ai-workforce/workspace-types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -53,7 +53,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsedBody = bodySchema.safeParse(body);
 
   if (!parsedBody.success) {
