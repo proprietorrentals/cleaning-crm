@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AI_EMPLOYEES } from "@/lib/ai-workforce/employees";
 import type { AiDashboardMetrics } from "@/lib/ai-workforce/management-types";
 
@@ -38,6 +38,22 @@ type GoalsResponse = { success: true; goals: GoalSummary[] };
 type TasksResponse = { success: true; tasks: TaskSummary[] };
 type HandoffsResponse = { success: true; handoffs: HandoffSummary[] };
 
+type GlobalGoalDraft = {
+  employeeSlug: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: "low" | "medium" | "high" | "urgent";
+};
+
+type GlobalTaskDraft = {
+  employeeSlug: string;
+  title: string;
+  instructions: string;
+  dueDate: string;
+  priority: "low" | "medium" | "high" | "urgent";
+};
+
 function titleCase(value: string) {
   return value
     .split("_")
@@ -56,12 +72,22 @@ function startOfWeekIso() {
   return monday.toISOString().slice(0, 10);
 }
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function AiWorkforceOverview() {
   const [metrics, setMetrics] = useState<AiDashboardMetrics | null>(null);
   const [goals, setGoals] = useState<GoalSummary[]>([]);
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [handoffs, setHandoffs] = useState<HandoffSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCreatingGoal, setIsCreatingGoal] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [showGoalComposer, setShowGoalComposer] = useState(false);
+  const [showTaskComposer, setShowTaskComposer] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const activeEmployees = AI_EMPLOYEES.filter(
     (employee) => employee.status === "active",
@@ -72,69 +98,182 @@ export function AiWorkforceOverview() {
 
   const weekStart = useMemo(() => startOfWeekIso(), []);
 
-  useEffect(() => {
-    let cancelled = false;
+  const [goalDraft, setGoalDraft] = useState<GlobalGoalDraft>({
+    employeeSlug: activeEmployees[0]?.slug ?? "sales-manager",
+    title: "",
+    description: "",
+    dueDate: todayIso(),
+    priority: "medium",
+  });
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [metricsRes, goalsRes, tasksRes, handoffsRes] = await Promise.all(
-          [
-            fetch(
-              `/api/super-admin/ai-workforce/management/dashboard?weekStart=${weekStart}`,
-            ),
-            fetch(
-              `/api/super-admin/ai-workforce/management/goals?weekStartDate=${weekStart}`,
-            ),
-            fetch(
-              `/api/super-admin/ai-workforce/management/tasks?dueDateStart=${weekStart}`,
-            ),
-            fetch("/api/super-admin/ai-workforce/management/handoffs"),
-          ],
-        );
+  const [taskDraft, setTaskDraft] = useState<GlobalTaskDraft>({
+    employeeSlug: activeEmployees[0]?.slug ?? "sales-manager",
+    title: "",
+    instructions: "",
+    dueDate: todayIso(),
+    priority: "medium",
+  });
 
-        const metricsBody = (await metricsRes
-          .json()
-          .catch(() => null)) as MetricsResponse | null;
-        const goalsBody = (await goalsRes
-          .json()
-          .catch(() => null)) as GoalsResponse | null;
-        const tasksBody = (await tasksRes
-          .json()
-          .catch(() => null)) as TasksResponse | null;
-        const handoffsBody = (await handoffsRes
-          .json()
-          .catch(() => null)) as HandoffsResponse | null;
+  const loadOverviewData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [metricsRes, goalsRes, tasksRes, handoffsRes] = await Promise.all([
+        fetch(
+          `/api/super-admin/ai-workforce/management/dashboard?weekStart=${weekStart}`,
+        ),
+        fetch(
+          `/api/super-admin/ai-workforce/management/goals?weekStartDate=${weekStart}`,
+        ),
+        fetch(
+          `/api/super-admin/ai-workforce/management/tasks?dueDateStart=${weekStart}`,
+        ),
+        fetch("/api/super-admin/ai-workforce/management/handoffs"),
+      ]);
 
-        if (cancelled) return;
+      const metricsBody = (await metricsRes
+        .json()
+        .catch(() => null)) as MetricsResponse | null;
+      const goalsBody = (await goalsRes
+        .json()
+        .catch(() => null)) as GoalsResponse | null;
+      const tasksBody = (await tasksRes
+        .json()
+        .catch(() => null)) as TasksResponse | null;
+      const handoffsBody = (await handoffsRes
+        .json()
+        .catch(() => null)) as HandoffsResponse | null;
 
-        if (metricsRes.ok && metricsBody?.success) {
-          setMetrics(metricsBody.metrics);
-        }
-
-        if (goalsRes.ok && goalsBody?.success) {
-          setGoals((goalsBody.goals ?? []).slice(0, 6));
-        }
-
-        if (tasksRes.ok && tasksBody?.success) {
-          setTasks((tasksBody.tasks ?? []).slice(0, 8));
-        }
-
-        if (handoffsRes.ok && handoffsBody?.success) {
-          setHandoffs((handoffsBody.handoffs ?? []).slice(0, 6));
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (metricsRes.ok && metricsBody?.success) {
+        setMetrics(metricsBody.metrics);
       }
-    };
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
+      if (goalsRes.ok && goalsBody?.success) {
+        setGoals((goalsBody.goals ?? []).slice(0, 6));
+      }
+
+      if (tasksRes.ok && tasksBody?.success) {
+        setTasks((tasksBody.tasks ?? []).slice(0, 8));
+      }
+
+      if (handoffsRes.ok && handoffsBody?.success) {
+        setHandoffs((handoffsBody.handoffs ?? []).slice(0, 6));
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [weekStart]);
+
+  useEffect(() => {
+    void loadOverviewData();
+  }, [loadOverviewData]);
+
+  const createGlobalGoal = async () => {
+    if (!goalDraft.title.trim() || !goalDraft.dueDate || isCreatingGoal) {
+      return;
+    }
+
+    setIsCreatingGoal(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/goals",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeSlug: goalDraft.employeeSlug,
+            title: goalDraft.title.trim(),
+            description: goalDraft.description.trim(),
+            dueDate: goalDraft.dueDate,
+            priority: goalDraft.priority,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setActionError(
+          body && "message" in body ? body.message : "Unable to create goal.",
+        );
+        return;
+      }
+
+      setGoalDraft((current) => ({
+        ...current,
+        title: "",
+        description: "",
+        dueDate: todayIso(),
+        priority: "medium",
+      }));
+      setShowGoalComposer(false);
+      setActionSuccess("Goal created.");
+      await loadOverviewData();
+    } catch {
+      setActionError("Unable to create goal.");
+    } finally {
+      setIsCreatingGoal(false);
+    }
+  };
+
+  const createGlobalTask = async () => {
+    if (!taskDraft.title.trim() || !taskDraft.dueDate || isCreatingTask) {
+      return;
+    }
+
+    setIsCreatingTask(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/tasks",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeSlug: taskDraft.employeeSlug,
+            title: taskDraft.title.trim(),
+            instructions: taskDraft.instructions.trim(),
+            dueDate: taskDraft.dueDate,
+            priority: taskDraft.priority,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setActionError(
+          body && "message" in body ? body.message : "Unable to assign task.",
+        );
+        return;
+      }
+
+      setTaskDraft((current) => ({
+        ...current,
+        title: "",
+        instructions: "",
+        dueDate: todayIso(),
+        priority: "medium",
+      }));
+      setShowTaskComposer(false);
+      setActionSuccess("Task assigned.");
+      await loadOverviewData();
+    } catch {
+      setActionError("Unable to assign task.");
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
 
   const summaryCards = [
     {
@@ -226,6 +365,251 @@ export function AiWorkforceOverview() {
               Assigned work that has passed due date and remains open.
             </p>
           </article>
+        </section>
+
+        <section className="mb-8 space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
+                Management Actions
+              </h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Create goals and assign tasks across all active AI employees.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowGoalComposer((current) => !current)}
+                className="rounded-lg border border-cyan-800 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40"
+              >
+                + Create Goal
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTaskComposer((current) => !current)}
+                className="rounded-lg border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-950/30"
+              >
+                + Assign Task
+              </button>
+            </div>
+          </div>
+
+          {actionSuccess ? (
+            <p className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-300">
+              {actionSuccess}
+            </p>
+          ) : null}
+
+          {actionError ? (
+            <p className="rounded-lg border border-rose-800 bg-rose-950/30 px-3 py-2 text-xs text-rose-300">
+              {actionError}
+            </p>
+          ) : null}
+
+          {showGoalComposer ? (
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                Create Goal
+              </h3>
+              <label className="text-xs text-slate-400">
+                Employee
+                <select
+                  value={goalDraft.employeeSlug}
+                  onChange={(event) =>
+                    setGoalDraft((current) => ({
+                      ...current,
+                      employeeSlug: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  {activeEmployees.map((employee) => (
+                    <option key={employee.slug} value={employee.slug}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                value={goalDraft.title}
+                onChange={(event) =>
+                  setGoalDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Goal title"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+              />
+              <textarea
+                value={goalDraft.description}
+                onChange={(event) =>
+                  setGoalDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Goal description"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-xs text-slate-400">
+                  Due date
+                  <input
+                    type="date"
+                    value={goalDraft.dueDate}
+                    onChange={(event) =>
+                      setGoalDraft((current) => ({
+                        ...current,
+                        dueDate: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="text-xs text-slate-400">
+                  Priority
+                  <select
+                    value={goalDraft.priority}
+                    onChange={(event) =>
+                      setGoalDraft((current) => ({
+                        ...current,
+                        priority: event.target
+                          .value as GlobalGoalDraft["priority"],
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void createGlobalGoal()}
+                  disabled={isCreatingGoal || !goalDraft.title.trim()}
+                  className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+                >
+                  {isCreatingGoal ? "Creating..." : "Create Goal"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowGoalComposer(false)}
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {showTaskComposer ? (
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                Assign Task
+              </h3>
+              <label className="text-xs text-slate-400">
+                Employee
+                <select
+                  value={taskDraft.employeeSlug}
+                  onChange={(event) =>
+                    setTaskDraft((current) => ({
+                      ...current,
+                      employeeSlug: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  {activeEmployees.map((employee) => (
+                    <option key={employee.slug} value={employee.slug}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                value={taskDraft.title}
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Task title"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+              />
+              <textarea
+                value={taskDraft.instructions}
+                onChange={(event) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    instructions: event.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Task instructions"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-xs text-slate-400">
+                  Due date
+                  <input
+                    type="date"
+                    value={taskDraft.dueDate}
+                    onChange={(event) =>
+                      setTaskDraft((current) => ({
+                        ...current,
+                        dueDate: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="text-xs text-slate-400">
+                  Priority
+                  <select
+                    value={taskDraft.priority}
+                    onChange={(event) =>
+                      setTaskDraft((current) => ({
+                        ...current,
+                        priority: event.target
+                          .value as GlobalTaskDraft["priority"],
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void createGlobalTask()}
+                  disabled={isCreatingTask || !taskDraft.title.trim()}
+                  className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
+                >
+                  {isCreatingTask ? "Assigning..." : "Assign Task"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTaskComposer(false)}
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="mb-8 grid gap-4 xl:grid-cols-3">

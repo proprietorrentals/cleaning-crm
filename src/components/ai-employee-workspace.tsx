@@ -74,6 +74,20 @@ type AssignmentItem = {
   instructions: string;
 };
 
+type GoalDraft = {
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: "low" | "medium" | "high" | "urgent";
+};
+
+type TaskDraft = {
+  title: string;
+  instructions: string;
+  dueDate: string;
+  priority: "low" | "medium" | "high" | "urgent";
+};
+
 const TABS: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "chat", label: "Chat" },
   { id: "goals", label: "Goals" },
@@ -176,6 +190,10 @@ function parseScriptSections(content: string): ScriptSection[] {
   return sections;
 }
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function AiEmployeeWorkspace({
   employee,
   quickActions,
@@ -201,6 +219,22 @@ export function AiEmployeeWorkspace({
   const [goals, setGoals] = useState<GoalItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [isLoadingManagement, setIsLoadingManagement] = useState(true);
+  const [showGoalComposer, setShowGoalComposer] = useState(false);
+  const [showTaskComposer, setShowTaskComposer] = useState(false);
+  const [isCreatingGoal, setIsCreatingGoal] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [goalDraft, setGoalDraft] = useState<GoalDraft>({
+    title: "",
+    description: "",
+    dueDate: todayIso(),
+    priority: "medium",
+  });
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>({
+    title: "",
+    instructions: "",
+    dueDate: todayIso(),
+    priority: "medium",
+  });
   const [expandedContent, setExpandedContent] = useState<
     Record<string, boolean>
   >({});
@@ -570,6 +604,112 @@ export function AiEmployeeWorkspace({
     }));
   };
 
+  const createGoal = async () => {
+    if (!goalDraft.title.trim() || !goalDraft.dueDate || isCreatingGoal) {
+      return;
+    }
+
+    setIsCreatingGoal(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/goals",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeSlug: employee.slug,
+            title: goalDraft.title.trim(),
+            description: goalDraft.description.trim(),
+            dueDate: goalDraft.dueDate,
+            priority: goalDraft.priority,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body ? body.message : "Unable to create goal.",
+        );
+        return;
+      }
+
+      setGoalDraft({
+        title: "",
+        description: "",
+        dueDate: todayIso(),
+        priority: "medium",
+      });
+      setShowGoalComposer(false);
+      setSuccess("Goal created.");
+      await loadManagement();
+    } catch {
+      setError("Unable to create goal.");
+    } finally {
+      setIsCreatingGoal(false);
+    }
+  };
+
+  const createTask = async () => {
+    if (!taskDraft.title.trim() || !taskDraft.dueDate || isCreatingTask) {
+      return;
+    }
+
+    setIsCreatingTask(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/tasks",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeSlug: employee.slug,
+            title: taskDraft.title.trim(),
+            instructions: taskDraft.instructions.trim(),
+            dueDate: taskDraft.dueDate,
+            priority: taskDraft.priority,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body ? body.message : "Unable to create task.",
+        );
+        return;
+      }
+
+      setTaskDraft({
+        title: "",
+        instructions: "",
+        dueDate: todayIso(),
+        priority: "medium",
+      });
+      setShowTaskComposer(false);
+      setSuccess("Task assigned.");
+      await loadManagement();
+    } catch {
+      setError("Unable to create task.");
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
+
   const controlsDisabled = !latestSavedItem || isMutatingStatus || isSubmitting;
 
   return (
@@ -763,6 +903,99 @@ export function AiEmployeeWorkspace({
 
               {activeTab === "goals" ? (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">
+                      Weekly goals
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoalComposer((current) => !current)}
+                      className="rounded-lg border border-cyan-800 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40"
+                    >
+                      + Create Goal
+                    </button>
+                  </div>
+
+                  {showGoalComposer ? (
+                    <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
+                      <input
+                        value={goalDraft.title}
+                        onChange={(event) =>
+                          setGoalDraft((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                        placeholder="Goal title"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
+                      />
+                      <textarea
+                        value={goalDraft.description}
+                        onChange={(event) =>
+                          setGoalDraft((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        rows={3}
+                        placeholder="Goal description"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
+                      />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs text-slate-400">
+                          Due date
+                          <input
+                            type="date"
+                            value={goalDraft.dueDate}
+                            onChange={(event) =>
+                              setGoalDraft((current) => ({
+                                ...current,
+                                dueDate: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-400">
+                          Priority
+                          <select
+                            value={goalDraft.priority}
+                            onChange={(event) =>
+                              setGoalDraft((current) => ({
+                                ...current,
+                                priority: event.target
+                                  .value as GoalDraft["priority"],
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void createGoal()}
+                          disabled={isCreatingGoal || !goalDraft.title.trim()}
+                          className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+                        >
+                          {isCreatingGoal ? "Creating..." : "Create Goal"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowGoalComposer(false)}
+                          className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {isLoadingManagement ? (
                     <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
                       Loading weekly goals...
@@ -804,6 +1037,99 @@ export function AiEmployeeWorkspace({
 
               {activeTab === "tasks" ? (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">
+                      Assignment queue
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskComposer((current) => !current)}
+                      className="rounded-lg border border-cyan-800 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40"
+                    >
+                      + Create Task
+                    </button>
+                  </div>
+
+                  {showTaskComposer ? (
+                    <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
+                      <input
+                        value={taskDraft.title}
+                        onChange={(event) =>
+                          setTaskDraft((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                        placeholder="Task title"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
+                      />
+                      <textarea
+                        value={taskDraft.instructions}
+                        onChange={(event) =>
+                          setTaskDraft((current) => ({
+                            ...current,
+                            instructions: event.target.value,
+                          }))
+                        }
+                        rows={3}
+                        placeholder="Task instructions"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
+                      />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs text-slate-400">
+                          Due date
+                          <input
+                            type="date"
+                            value={taskDraft.dueDate}
+                            onChange={(event) =>
+                              setTaskDraft((current) => ({
+                                ...current,
+                                dueDate: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-400">
+                          Priority
+                          <select
+                            value={taskDraft.priority}
+                            onChange={(event) =>
+                              setTaskDraft((current) => ({
+                                ...current,
+                                priority: event.target
+                                  .value as TaskDraft["priority"],
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void createTask()}
+                          disabled={isCreatingTask || !taskDraft.title.trim()}
+                          className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+                        >
+                          {isCreatingTask ? "Creating..." : "Create Task"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowTaskComposer(false)}
+                          className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {isLoadingManagement ? (
                     <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
                       Loading assignments...
