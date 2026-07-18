@@ -346,13 +346,14 @@ export function AiEmployeeWorkspace({
     }
   };
 
-  const exportLatestContent = () => {
+  const downloadLatestMarkdown = () => {
     if (!latestAssistantMessage) return;
 
     try {
-      const fileName = `${employee.slug}-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
-      const blob = new Blob([latestAssistantMessage.content], {
-        type: "text/plain;charset=utf-8",
+      const fileName = `${employee.slug}-${new Date().toISOString().replace(/[:.]/g, "-")}.md`;
+      const markdown = `# ${latestAssistantMessage.title ?? `${employee.name} Response`}\n\n${latestAssistantMessage.content}\n`;
+      const blob = new Blob([markdown], {
+        type: "text/markdown;charset=utf-8",
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -362,9 +363,61 @@ export function AiEmployeeWorkspace({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      setSuccess("Exported latest content.");
+      setSuccess("Downloaded latest content as Markdown.");
     } catch {
-      setError("Export failed. Please copy content manually.");
+      setError("Markdown download failed. Please copy content manually.");
+    }
+  };
+
+  const downloadLatestPdf = async () => {
+    if (!latestAssistantMessage) return;
+
+    try {
+      const { Document, Page, StyleSheet, Text, pdf } = await import(
+        "@react-pdf/renderer"
+      );
+
+      const styles = StyleSheet.create({
+        page: {
+          padding: 32,
+          fontSize: 11,
+          lineHeight: 1.45,
+        },
+        title: {
+          fontSize: 16,
+          marginBottom: 12,
+        },
+        body: {
+          fontSize: 11,
+          lineHeight: 1.45,
+        },
+      });
+
+      const title = latestAssistantMessage.title ?? `${employee.name} Response`;
+      const contentLines = latestAssistantMessage.content.split("\n");
+
+      const pdfDocument = (
+        <Document>
+          <Page size="A4" style={styles.page}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.body}>{contentLines.join("\n")}</Text>
+          </Page>
+        </Document>
+      );
+
+      const blob = await pdf(pdfDocument).toBlob();
+      const fileName = `${employee.slug}-${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setSuccess("Downloaded latest content as PDF.");
+    } catch {
+      setError("PDF download failed. Please download Markdown instead.");
     }
   };
 
@@ -741,17 +794,27 @@ export function AiEmployeeWorkspace({
                   }
                   className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Copy Content
+                  Copy Response
                 </button>
                 <button
                   type="button"
-                  onClick={() => exportLatestContent()}
+                  onClick={() => downloadLatestMarkdown()}
                   disabled={
                     !latestAssistantMessage || isSubmitting || isMutatingStatus
                   }
                   className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Export Content
+                  Download Markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void downloadLatestPdf()}
+                  disabled={
+                    !latestAssistantMessage || isSubmitting || isMutatingStatus
+                  }
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Download PDF
                 </button>
               </div>
             </article>

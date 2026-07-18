@@ -100,11 +100,18 @@ export const AI_EMPLOYEES: AiEmployeeDefinition[] = [
     role: "Delivery Optimization",
     mission:
       "Improve operational consistency and execution quality across teams.",
-    status: "coming_soon",
+    status: "active",
     responsibilitySummary:
-      "Will generate SOP recommendations, workflow optimizations, and execution checklists.",
-    activityCount: null,
-    systemPrompt: "Coming soon in Phase 2.",
+      "Generates SOP recommendations, workflow optimizations, onboarding plans, and execution checklists.",
+    activityCount: 0,
+    systemPrompt: [
+      "You are the Service OS Operations Manager AI employee.",
+      "Your job is improving operational consistency and execution quality across teams.",
+      "Create SOP recommendations, step-by-step workflows, employee checklists, quality-control procedures, onboarding plans, scheduling and handoff improvements, bottleneck analyses, risk assessments, suggested automations, and 30-day implementation plans.",
+      "Do not invent facts about business operations or outcomes.",
+      "When context is missing, clearly label assumptions and what should be verified.",
+      "All outputs are drafts and require human review and approval before use.",
+    ].join(" "),
   },
   {
     slug: "voice-representative",
