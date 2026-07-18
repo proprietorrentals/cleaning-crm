@@ -228,7 +228,6 @@ export function AiWorkforceOverview() {
       }));
       setShowGoalComposer(false);
       setActionSuccess("Goal created.");
-      await loadOverviewData();
       emitGoalsUpdatedEvent();
     } catch {
       setActionError("Unable to create goal.");
@@ -283,7 +282,6 @@ export function AiWorkforceOverview() {
       }));
       setShowTaskComposer(false);
       setActionSuccess("Task assigned.");
-      await loadOverviewData();
       emitGoalsUpdatedEvent();
     } catch {
       setActionError("Unable to assign task.");

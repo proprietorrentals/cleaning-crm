@@ -96,6 +96,25 @@ type AssignmentItem = {
     | "blocked";
   priority: "low" | "medium" | "high" | "urgent";
   instructions: string;
+  approvalRequired: boolean;
+};
+
+type AssignmentAction =
+  | "start"
+  | "submit"
+  | "approve"
+  | "reject"
+  | "complete"
+  | "reassign";
+
+type GoalProgressionPayload = {
+  goalId: string;
+  progressPercent: number;
+  completedTaskCount: number;
+  totalTaskCount: number;
+  status: GoalItem["status"];
+  suggestedCompletion: boolean;
+  updated: boolean;
 };
 
 type GoalDraft = {
@@ -240,6 +259,24 @@ function emitGoalsUpdatedEvent() {
   window.dispatchEvent(new Event("ai-workforce-goals-updated"));
 }
 
+function assignmentStatusForAction(action: AssignmentAction) {
+  if (action === "start") return "in_progress";
+  if (action === "submit") return "awaiting_approval";
+  if (action === "approve") return "approved";
+  if (action === "reject") return "rejected";
+  if (action === "complete") return "completed";
+  return "assigned";
+}
+
+function assignmentActionLabel(action: AssignmentAction) {
+  if (action === "start") return "Task started.";
+  if (action === "submit") return "Task submitted for approval.";
+  if (action === "approve") return "Task approved.";
+  if (action === "reject") return "Task rejected.";
+  if (action === "complete") return "Task completed.";
+  return "Task reassigned.";
+}
+
 export function AiEmployeeWorkspace({
   employee,
   quickActions,
@@ -293,6 +330,9 @@ export function AiEmployeeWorkspace({
   const [markingCompleteGoalId, setMarkingCompleteGoalId] = useState<
     string | null
   >(null);
+  const [taskMutationById, setTaskMutationById] = useState<
+    Record<string, boolean>
+  >({});
   const [goalProgressDraft, setGoalProgressDraft] = useState<GoalProgressDraft>(
     {
       status: "not_started",
@@ -426,6 +466,124 @@ export function AiEmployeeWorkspace({
   useEffect(() => {
     void loadManagement();
   }, [loadManagement]);
+
+  useEffect(() => {
+    const onGoalsUpdated = () => {
+      void loadManagement();
+    };
+
+    window.addEventListener("ai-workforce-goals-updated", onGoalsUpdated);
+    return () => {
+      window.removeEventListener("ai-workforce-goals-updated", onGoalsUpdated);
+    };
+  }, [loadManagement]);
+
+  const applyGoalProgression = useCallback(
+    (payload: GoalProgressionPayload) => {
+      setGoals((current) =>
+        current.map((goal) => {
+          if (goal.id !== payload.goalId) {
+            return goal;
+          }
+
+          return {
+            ...goal,
+            status: payload.status,
+            progressPercent: payload.progressPercent,
+            relatedTaskCompletedCount: payload.completedTaskCount,
+            relatedTaskTotalCount: payload.totalTaskCount,
+            suggestedCompletion: payload.suggestedCompletion,
+            latestProgressUpdate:
+              "Progress automatically synced from assignment status changes.",
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const runAssignmentAction = async (
+    assignment: AssignmentItem,
+    action: AssignmentAction,
+  ) => {
+    if (taskMutationById[assignment.id]) {
+      return;
+    }
+
+    setTaskMutationById((current) => ({ ...current, [assignment.id]: true }));
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const payload: {
+        id: string;
+        action: AssignmentAction;
+        feedback?: string;
+      } = {
+        id: assignment.id,
+        action,
+      };
+
+      if (action === "reject") {
+        payload.feedback = "Rejected by Super Admin.";
+      }
+
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/tasks/actions",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | {
+            success: true;
+            goalProgression: GoalProgressionPayload | null;
+          }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body
+            ? body.message
+            : "Unable to update assignment.",
+        );
+        return;
+      }
+
+      setAssignments((current) =>
+        current.map((item) => {
+          if (item.id !== assignment.id) {
+            return item;
+          }
+
+          return {
+            ...item,
+            status: assignmentStatusForAction(action),
+          };
+        }),
+      );
+
+      if (body.goalProgression) {
+        applyGoalProgression(body.goalProgression);
+      }
+
+      setSuccess(assignmentActionLabel(action));
+      emitGoalsUpdatedEvent();
+    } catch {
+      setError("Unable to update assignment.");
+    } finally {
+      setTaskMutationById((current) => {
+        const next = { ...current };
+        delete next[assignment.id];
+        return next;
+      });
+    }
+  };
 
   const sendPrompt = async (draftPrompt: string) => {
     const promptValue = draftPrompt.trim();
@@ -742,7 +900,6 @@ export function AiEmployeeWorkspace({
 
       setActiveGoalProgressId(null);
       setSuccess("Goal progress updated.");
-      await loadManagement();
       emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to update goal.");
@@ -797,7 +954,6 @@ export function AiEmployeeWorkspace({
 
       setActiveGoalEditId(null);
       setSuccess("Goal updated.");
-      await loadManagement();
       emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to edit goal.");
@@ -843,7 +999,6 @@ export function AiEmployeeWorkspace({
       }
 
       setSuccess("Goal marked complete.");
-      await loadManagement();
       emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to complete goal.");
@@ -899,7 +1054,6 @@ export function AiEmployeeWorkspace({
       });
       setShowGoalComposer(false);
       setSuccess("Goal created.");
-      await loadManagement();
       emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to create goal.");
@@ -953,7 +1107,6 @@ export function AiEmployeeWorkspace({
       });
       setShowTaskComposer(false);
       setSuccess("Task assigned.");
-      await loadManagement();
       emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to create task.");
@@ -1731,6 +1884,26 @@ export function AiEmployeeWorkspace({
                   ) : (
                     assignments.map((item) => {
                       const isExpanded = Boolean(expandedContent[item.id]);
+                      const isMutatingAssignment = Boolean(
+                        taskMutationById[item.id],
+                      );
+                      const canStart = item.status === "assigned";
+                      const canSubmit = item.status === "in_progress";
+                      const canApprove = item.status === "awaiting_approval";
+                      const canReject =
+                        item.status === "awaiting_approval" ||
+                        item.status === "in_progress" ||
+                        item.status === "approved";
+                      const canComplete =
+                        item.status === "approved" ||
+                        (!item.approvalRequired &&
+                          (item.status === "in_progress" ||
+                            item.status === "assigned"));
+                      const canReassign =
+                        item.status === "rejected" ||
+                        item.status === "completed" ||
+                        item.status === "blocked";
+
                       return (
                         <article
                           key={item.id}
@@ -1764,6 +1937,94 @@ export function AiEmployeeWorkspace({
                             >
                               {isExpanded ? "Show less" : "View full content"}
                             </button>
+
+                            {canStart ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "start")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-cyan-800 px-2 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40 disabled:opacity-60"
+                              >
+                                {isMutatingAssignment ? "Updating..." : "Start"}
+                              </button>
+                            ) : null}
+
+                            {canSubmit ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "submit")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-amber-800 px-2 py-1 text-xs font-semibold text-amber-300 transition hover:bg-amber-950/40 disabled:opacity-60"
+                              >
+                                {isMutatingAssignment
+                                  ? "Updating..."
+                                  : "Submit for Approval"}
+                              </button>
+                            ) : null}
+
+                            {canApprove ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "approve")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-emerald-800 px-2 py-1 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-950/40 disabled:opacity-60"
+                              >
+                                {isMutatingAssignment
+                                  ? "Updating..."
+                                  : "Approve"}
+                              </button>
+                            ) : null}
+
+                            {canComplete ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "complete")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-cyan-700 px-2 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40 disabled:opacity-60"
+                              >
+                                {isMutatingAssignment
+                                  ? "Updating..."
+                                  : "Complete"}
+                              </button>
+                            ) : null}
+
+                            {canReject ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "reject")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-rose-800 px-2 py-1 text-xs font-semibold text-rose-300 transition hover:bg-rose-950/40 disabled:opacity-60"
+                              >
+                                {isMutatingAssignment
+                                  ? "Updating..."
+                                  : "Reject"}
+                              </button>
+                            ) : null}
+
+                            {canReassign ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void runAssignmentAction(item, "reassign")
+                                }
+                                disabled={isMutatingAssignment}
+                                className="rounded-lg border border-slate-600 px-2 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white disabled:opacity-60"
+                              >
+                                {isMutatingAssignment
+                                  ? "Updating..."
+                                  : "Reopen"}
+                              </button>
+                            ) : null}
                           </div>
                         </article>
                       );
