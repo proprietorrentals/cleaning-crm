@@ -76,6 +76,10 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function emitGoalsUpdatedEvent() {
+  window.dispatchEvent(new Event("ai-workforce-goals-updated"));
+}
+
 export function AiWorkforceOverview() {
   const [metrics, setMetrics] = useState<AiDashboardMetrics | null>(null);
   const [goals, setGoals] = useState<GoalSummary[]>([]);
@@ -167,6 +171,17 @@ export function AiWorkforceOverview() {
     void loadOverviewData();
   }, [loadOverviewData]);
 
+  useEffect(() => {
+    const onGoalsUpdated = () => {
+      void loadOverviewData();
+    };
+
+    window.addEventListener("ai-workforce-goals-updated", onGoalsUpdated);
+    return () => {
+      window.removeEventListener("ai-workforce-goals-updated", onGoalsUpdated);
+    };
+  }, [loadOverviewData]);
+
   const createGlobalGoal = async () => {
     if (!goalDraft.title.trim() || !goalDraft.dueDate || isCreatingGoal) {
       return;
@@ -214,6 +229,7 @@ export function AiWorkforceOverview() {
       setShowGoalComposer(false);
       setActionSuccess("Goal created.");
       await loadOverviewData();
+      emitGoalsUpdatedEvent();
     } catch {
       setActionError("Unable to create goal.");
     } finally {
@@ -268,6 +284,7 @@ export function AiWorkforceOverview() {
       setShowTaskComposer(false);
       setActionSuccess("Task assigned.");
       await loadOverviewData();
+      emitGoalsUpdatedEvent();
     } catch {
       setActionError("Unable to assign task.");
     } finally {

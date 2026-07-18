@@ -43,6 +43,25 @@ export type AiWeeklyGoal = {
   successMetric: string;
   notes: string;
   progressPercent: number;
+  completedAt: string | null;
+  latestProgressUpdate: string;
+  lastProgressUpdatedAt: string | null;
+  relatedTaskCompletedCount: number;
+  relatedTaskTotalCount: number;
+  suggestedCompletion: boolean;
+  progressHistory: AiGoalProgressUpdate[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiGoalProgressUpdate = {
+  id: string;
+  goalId: string;
+  status: AiGoalStatus;
+  progressPercent: number;
+  workCompleted: string;
+  blockerNotes: string;
+  nextAction: string;
   createdAt: string;
   updatedAt: string;
 };

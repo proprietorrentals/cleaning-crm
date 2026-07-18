@@ -26,9 +26,28 @@ const createGoalSchema = z.object({
   notes: z.string().max(4000).default(""),
 });
 
-const updateGoalSchema = createGoalSchema.partial().extend({
+const updateGoalSchema = z.object({
   id: z.string().uuid(),
+  title: z.string().min(3).max(200).optional(),
+  description: z.string().max(4000).optional(),
+  weekStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  priority: z.enum(AI_GOAL_PRIORITIES).optional(),
+  status: z.enum(AI_GOAL_STATUSES).optional(),
+  successMetric: z.string().max(500).optional(),
+  notes: z.string().max(4000).optional(),
   progressPercent: z.number().int().min(0).max(100).optional(),
+  workCompleted: z.string().max(8000).optional(),
+  blockerNotes: z.string().max(4000).optional(),
+  nextAction: z.string().max(2000).optional(),
+  markComplete: z.boolean().optional(),
+  recordHistory: z.boolean().optional(),
 });
 
 type GoalRow = {
@@ -42,10 +61,42 @@ type GoalRow = {
   success_metric: string;
   notes: string;
   progress_percent: number;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
   employee: Array<{ slug: string; name: string }> | null;
 };
+
+type GoalProgressRow = {
+  id: string;
+  goal_id: string;
+  status: (typeof AI_GOAL_STATUSES)[number];
+  progress_percent: number;
+  work_completed: string;
+  blocker_notes: string;
+  next_action: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AssignmentGoalRow = {
+  goal_id: string | null;
+  status: string;
+};
+
+function toHistoryItem(row: GoalProgressRow) {
+  return {
+    id: row.id,
+    goalId: row.goal_id,
+    status: row.status,
+    progressPercent: row.progress_percent,
+    workCompleted: row.work_completed,
+    blockerNotes: row.blocker_notes,
+    nextAction: row.next_action,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 export async function GET(request: NextRequest) {
   const access = await ensureAccessAndUser();
@@ -79,7 +130,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("ai_weekly_goals")
     .select(
-      "id,title,description,week_start_date,due_date,priority,status,success_metric,notes,progress_percent,created_at,updated_at,employee:ai_employees(slug,name)",
+      "id,title,description,week_start_date,due_date,priority,status,success_metric,notes,progress_percent,completed_at,created_at,updated_at,employee:ai_employees(slug,name)",
     )
     .eq("super_admin_user_id", userId)
     .order("due_date", { ascending: true });
@@ -97,24 +148,98 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const rows = (data ?? []) as GoalRow[];
+  const goalIds = rows.map((row) => row.id);
+
+  const taskCountByGoalId = new Map<
+    string,
+    { total: number; completed: number }
+  >();
+  const historyByGoalId = new Map<string, ReturnType<typeof toHistoryItem>[]>();
+
+  if (goalIds.length > 0) {
+    const [assignmentsResult, historyResult] = await Promise.all([
+      supabase
+        .from("ai_assignments")
+        .select("goal_id,status")
+        .eq("super_admin_user_id", userId)
+        .in("goal_id", goalIds),
+      supabase
+        .from("ai_goal_progress_updates")
+        .select(
+          "id,goal_id,status,progress_percent,work_completed,blocker_notes,next_action,created_at,updated_at",
+        )
+        .eq("super_admin_user_id", userId)
+        .in("goal_id", goalIds)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (assignmentsResult.error || historyResult.error) {
+      return NextResponse.json(
+        { success: false, message: "Unable to load goals." },
+        { status: 500 },
+      );
+    }
+
+    for (const assignment of (assignmentsResult.data ??
+      []) as AssignmentGoalRow[]) {
+      if (!assignment.goal_id) continue;
+      const current = taskCountByGoalId.get(assignment.goal_id) ?? {
+        total: 0,
+        completed: 0,
+      };
+      current.total += 1;
+      if (assignment.status === "completed") {
+        current.completed += 1;
+      }
+      taskCountByGoalId.set(assignment.goal_id, current);
+    }
+
+    for (const entry of (historyResult.data ?? []) as GoalProgressRow[]) {
+      const current = historyByGoalId.get(entry.goal_id) ?? [];
+      current.push(toHistoryItem(entry));
+      historyByGoalId.set(entry.goal_id, current);
+    }
+  }
+
   return NextResponse.json({
     success: true,
-    goals: ((data ?? []) as GoalRow[]).map((row) => ({
-      id: row.id,
-      employeeSlug: row.employee?.[0]?.slug,
-      employeeName: row.employee?.[0]?.name,
-      title: row.title,
-      description: row.description,
-      weekStartDate: row.week_start_date,
-      dueDate: row.due_date,
-      priority: row.priority,
-      status: row.status,
-      successMetric: row.success_metric,
-      notes: row.notes,
-      progressPercent: row.progress_percent,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    })),
+    goals: rows.map((row) => {
+      const taskCounts = taskCountByGoalId.get(row.id) ?? {
+        total: 0,
+        completed: 0,
+      };
+      const history = historyByGoalId.get(row.id) ?? [];
+      const latestHistory = history[0] ?? null;
+      const suggestedCompletion =
+        row.status !== "completed" &&
+        taskCounts.total > 0 &&
+        taskCounts.completed === taskCounts.total;
+
+      return {
+        id: row.id,
+        employeeSlug: row.employee?.[0]?.slug,
+        employeeName: row.employee?.[0]?.name,
+        title: row.title,
+        description: row.description,
+        weekStartDate: row.week_start_date,
+        dueDate: row.due_date,
+        priority: row.priority,
+        status: row.status,
+        successMetric: row.success_metric,
+        notes: row.notes,
+        progressPercent: row.progress_percent,
+        completedAt: row.completed_at,
+        latestProgressUpdate: latestHistory?.workCompleted ?? "",
+        lastProgressUpdatedAt: latestHistory?.createdAt ?? null,
+        relatedTaskCompletedCount: taskCounts.completed,
+        relatedTaskTotalCount: taskCounts.total,
+        suggestedCompletion,
+        progressHistory: history,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    }),
   });
 }
 
@@ -151,6 +276,7 @@ export async function POST(request: NextRequest) {
 
   const weekStartDate =
     parsed.data.weekStartDate ?? startOfWeekIso(parsed.data.dueDate);
+  const shouldStartCompleted = parsed.data.status === "completed";
   const { data, error } = await supabase
     .from("ai_weekly_goals")
     .insert({
@@ -164,7 +290,8 @@ export async function POST(request: NextRequest) {
       status: parsed.data.status,
       success_metric: parsed.data.successMetric,
       notes: parsed.data.notes,
-      progress_percent: parsed.data.status === "completed" ? 100 : 0,
+      progress_percent: shouldStartCompleted ? 100 : 0,
+      completed_at: shouldStartCompleted ? new Date().toISOString() : null,
     })
     .select("id")
     .single();
@@ -198,6 +325,60 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  const supabase = await createServerSupabaseClient();
+  const { data: existingGoal, error: existingGoalError } = await supabase
+    .from("ai_weekly_goals")
+    .select("id,status,progress_percent,completed_at")
+    .eq("id", parsed.data.id)
+    .eq("super_admin_user_id", access.userId)
+    .single();
+
+  if (existingGoalError || !existingGoal) {
+    return NextResponse.json(
+      { success: false, message: "Unable to find goal." },
+      { status: 404 },
+    );
+  }
+
+  const existingStatus =
+    existingGoal.status as (typeof AI_GOAL_STATUSES)[number];
+  const existingProgress = existingGoal.progress_percent as number;
+
+  let nextStatus =
+    parsed.data.status ?? (existingStatus as (typeof AI_GOAL_STATUSES)[number]);
+  let nextProgress =
+    typeof parsed.data.progressPercent === "number"
+      ? parsed.data.progressPercent
+      : existingProgress;
+
+  if (parsed.data.markComplete) {
+    nextStatus = "completed";
+    nextProgress = 100;
+  }
+
+  if (
+    parsed.data.status === "completed" &&
+    typeof parsed.data.progressPercent !== "number"
+  ) {
+    nextProgress = 100;
+  }
+
+  if (nextStatus === "completed" && nextProgress < 100) {
+    nextStatus = "in_progress";
+  }
+
+  let nextCompletedAt: string | null =
+    typeof existingGoal.completed_at === "string"
+      ? existingGoal.completed_at
+      : null;
+  if (nextStatus === "completed") {
+    if (existingStatus !== "completed" || !nextCompletedAt) {
+      nextCompletedAt = new Date().toISOString();
+    }
+  } else {
+    nextCompletedAt = null;
+  }
+
   const patch: Record<string, unknown> = {};
   if (typeof parsed.data.title === "string") patch.title = parsed.data.title;
   if (typeof parsed.data.description === "string")
@@ -208,37 +389,68 @@ export async function PATCH(request: NextRequest) {
     patch.due_date = parsed.data.dueDate;
   if (typeof parsed.data.priority === "string")
     patch.priority = parsed.data.priority;
-  if (typeof parsed.data.status === "string") patch.status = parsed.data.status;
+  if (nextStatus !== existingStatus) patch.status = nextStatus;
   if (typeof parsed.data.successMetric === "string")
     patch.success_metric = parsed.data.successMetric;
   if (typeof parsed.data.notes === "string") patch.notes = parsed.data.notes;
-  if (typeof parsed.data.progressPercent === "number")
-    patch.progress_percent = parsed.data.progressPercent;
-  if (
-    parsed.data.status === "completed" &&
-    typeof patch.progress_percent !== "number"
-  )
-    patch.progress_percent = 100;
+  if (nextProgress !== existingProgress) patch.progress_percent = nextProgress;
+  if (nextCompletedAt !== existingGoal.completed_at) {
+    patch.completed_at = nextCompletedAt;
+  }
 
-  if (Object.keys(patch).length === 0) {
+  const workCompleted = parsed.data.workCompleted?.trim() ?? "";
+  const blockerNotes = parsed.data.blockerNotes?.trim() ?? "";
+  const nextAction = parsed.data.nextAction?.trim() ?? "";
+  const shouldRecordHistory = parsed.data.recordHistory ?? true;
+  const hasNarrative =
+    workCompleted.length > 0 ||
+    blockerNotes.length > 0 ||
+    nextAction.length > 0;
+  const hasStatusOrProgressChange =
+    nextStatus !== existingStatus || nextProgress !== existingProgress;
+
+  if (
+    Object.keys(patch).length === 0 &&
+    !(shouldRecordHistory && (hasNarrative || hasStatusOrProgressChange))
+  ) {
     return NextResponse.json(
       { success: false, message: "No updates provided." },
       { status: 400 },
     );
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase
-    .from("ai_weekly_goals")
-    .update(patch)
-    .eq("id", parsed.data.id)
-    .eq("super_admin_user_id", access.userId);
+  if (Object.keys(patch).length > 0) {
+    const { error } = await supabase
+      .from("ai_weekly_goals")
+      .update(patch)
+      .eq("id", parsed.data.id)
+      .eq("super_admin_user_id", access.userId);
 
-  if (error) {
-    return NextResponse.json(
-      { success: false, message: "Unable to update goal." },
-      { status: 500 },
-    );
+    if (error) {
+      return NextResponse.json(
+        { success: false, message: "Unable to update goal." },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (shouldRecordHistory && (hasNarrative || hasStatusOrProgressChange)) {
+    const { error } = await supabase.from("ai_goal_progress_updates").insert({
+      goal_id: parsed.data.id,
+      super_admin_user_id: access.userId,
+      status: nextStatus,
+      progress_percent: nextProgress,
+      work_completed: workCompleted,
+      blocker_notes: blockerNotes,
+      next_action: nextAction,
+    });
+
+    if (error) {
+      return NextResponse.json(
+        { success: false, message: "Unable to save goal progress history." },
+        { status: 500 },
+      );
+    }
   }
 
   return NextResponse.json({ success: true });

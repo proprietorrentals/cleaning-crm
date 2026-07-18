@@ -56,10 +56,34 @@ type GoalItem = {
   dueDate: string;
   status: "not_started" | "in_progress" | "blocked" | "completed";
   priority: "low" | "medium" | "high" | "urgent";
+  successMetric: string;
+  notes: string;
+  progressPercent: number;
+  completedAt: string | null;
+  latestProgressUpdate: string;
+  lastProgressUpdatedAt: string | null;
+  relatedTaskCompletedCount: number;
+  relatedTaskTotalCount: number;
+  suggestedCompletion: boolean;
+  progressHistory: GoalProgressHistoryItem[];
+  updatedAt: string;
+};
+
+type GoalProgressHistoryItem = {
+  id: string;
+  goalId: string;
+  status: GoalItem["status"];
+  progressPercent: number;
+  workCompleted: string;
+  blockerNotes: string;
+  nextAction: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type AssignmentItem = {
   id: string;
+  goalId: string | null;
   title: string;
   dueDate: string;
   status:
@@ -79,6 +103,24 @@ type GoalDraft = {
   description: string;
   dueDate: string;
   priority: "low" | "medium" | "high" | "urgent";
+  successMetric: string;
+};
+
+type GoalProgressDraft = {
+  status: GoalItem["status"];
+  progressPercent: number;
+  workCompleted: string;
+  blockerNotes: string;
+  nextAction: string;
+};
+
+type GoalEditDraft = {
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: GoalItem["priority"];
+  successMetric: string;
+  notes: string;
 };
 
 type TaskDraft = {
@@ -194,6 +236,10 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function emitGoalsUpdatedEvent() {
+  window.dispatchEvent(new Event("ai-workforce-goals-updated"));
+}
+
 export function AiEmployeeWorkspace({
   employee,
   quickActions,
@@ -228,6 +274,7 @@ export function AiEmployeeWorkspace({
     description: "",
     dueDate: todayIso(),
     priority: "medium",
+    successMetric: "",
   });
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({
     title: "",
@@ -238,6 +285,31 @@ export function AiEmployeeWorkspace({
   const [expandedContent, setExpandedContent] = useState<
     Record<string, boolean>
   >({});
+  const [activeGoalProgressId, setActiveGoalProgressId] = useState<
+    string | null
+  >(null);
+  const [activeGoalEditId, setActiveGoalEditId] = useState<string | null>(null);
+  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
+  const [markingCompleteGoalId, setMarkingCompleteGoalId] = useState<
+    string | null
+  >(null);
+  const [goalProgressDraft, setGoalProgressDraft] = useState<GoalProgressDraft>(
+    {
+      status: "not_started",
+      progressPercent: 0,
+      workCompleted: "",
+      blockerNotes: "",
+      nextAction: "",
+    },
+  );
+  const [goalEditDraft, setGoalEditDraft] = useState<GoalEditDraft>({
+    title: "",
+    description: "",
+    dueDate: todayIso(),
+    priority: "medium",
+    successMetric: "",
+    notes: "",
+  });
 
   const latestSavedItem = useMemo(() => savedItems[0] ?? null, [savedItems]);
 
@@ -604,6 +676,182 @@ export function AiEmployeeWorkspace({
     }));
   };
 
+  const openGoalProgressEditor = (goal: GoalItem) => {
+    setActiveGoalEditId(null);
+    setActiveGoalProgressId(goal.id);
+    setGoalProgressDraft({
+      status: goal.status,
+      progressPercent: goal.progressPercent,
+      workCompleted: "",
+      blockerNotes: "",
+      nextAction: "",
+    });
+  };
+
+  const openGoalEditEditor = (goal: GoalItem) => {
+    setActiveGoalProgressId(null);
+    setActiveGoalEditId(goal.id);
+    setGoalEditDraft({
+      title: goal.title,
+      description: goal.description,
+      dueDate: goal.dueDate,
+      priority: goal.priority,
+      successMetric: goal.successMetric,
+      notes: goal.notes,
+    });
+  };
+
+  const submitGoalProgressUpdate = async (goalId: string) => {
+    if (isUpdatingGoal) {
+      return;
+    }
+
+    setIsUpdatingGoal(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/goals",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: goalId,
+            status: goalProgressDraft.status,
+            progressPercent: goalProgressDraft.progressPercent,
+            workCompleted: goalProgressDraft.workCompleted,
+            blockerNotes: goalProgressDraft.blockerNotes,
+            nextAction: goalProgressDraft.nextAction,
+            recordHistory: true,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body ? body.message : "Unable to update goal.",
+        );
+        return;
+      }
+
+      setActiveGoalProgressId(null);
+      setSuccess("Goal progress updated.");
+      await loadManagement();
+      emitGoalsUpdatedEvent();
+    } catch {
+      setError("Unable to update goal.");
+    } finally {
+      setIsUpdatingGoal(false);
+    }
+  };
+
+  const submitGoalEdit = async (goalId: string) => {
+    if (
+      isUpdatingGoal ||
+      !goalEditDraft.title.trim() ||
+      !goalEditDraft.dueDate
+    ) {
+      return;
+    }
+
+    setIsUpdatingGoal(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/goals",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: goalId,
+            title: goalEditDraft.title.trim(),
+            description: goalEditDraft.description.trim(),
+            dueDate: goalEditDraft.dueDate,
+            priority: goalEditDraft.priority,
+            successMetric: goalEditDraft.successMetric.trim(),
+            notes: goalEditDraft.notes.trim(),
+            recordHistory: false,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body ? body.message : "Unable to edit goal.",
+        );
+        return;
+      }
+
+      setActiveGoalEditId(null);
+      setSuccess("Goal updated.");
+      await loadManagement();
+      emitGoalsUpdatedEvent();
+    } catch {
+      setError("Unable to edit goal.");
+    } finally {
+      setIsUpdatingGoal(false);
+    }
+  };
+
+  const markGoalComplete = async (goalId: string) => {
+    if (markingCompleteGoalId) {
+      return;
+    }
+
+    setMarkingCompleteGoalId(goalId);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/ai-workforce/management/goals",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: goalId,
+            markComplete: true,
+            workCompleted: "Marked complete by Super Admin.",
+            recordHistory: true,
+          }),
+        },
+      );
+
+      const body = (await response.json().catch(() => null)) as
+        | { success: true }
+        | { success: false; message: string }
+        | null;
+
+      if (!response.ok || !body || !body.success) {
+        setError(
+          body && "message" in body ? body.message : "Unable to complete goal.",
+        );
+        return;
+      }
+
+      setSuccess("Goal marked complete.");
+      await loadManagement();
+      emitGoalsUpdatedEvent();
+    } catch {
+      setError("Unable to complete goal.");
+    } finally {
+      setMarkingCompleteGoalId(null);
+    }
+  };
+
   const createGoal = async () => {
     if (!goalDraft.title.trim() || !goalDraft.dueDate || isCreatingGoal) {
       return;
@@ -625,6 +873,7 @@ export function AiEmployeeWorkspace({
             description: goalDraft.description.trim(),
             dueDate: goalDraft.dueDate,
             priority: goalDraft.priority,
+            successMetric: goalDraft.successMetric.trim(),
           }),
         },
       );
@@ -646,10 +895,12 @@ export function AiEmployeeWorkspace({
         description: "",
         dueDate: todayIso(),
         priority: "medium",
+        successMetric: "",
       });
       setShowGoalComposer(false);
       setSuccess("Goal created.");
       await loadManagement();
+      emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to create goal.");
     } finally {
@@ -703,6 +954,7 @@ export function AiEmployeeWorkspace({
       setShowTaskComposer(false);
       setSuccess("Task assigned.");
       await loadManagement();
+      emitGoalsUpdatedEvent();
     } catch {
       setError("Unable to create task.");
     } finally {
@@ -941,6 +1193,17 @@ export function AiEmployeeWorkspace({
                         placeholder="Goal description"
                         className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
                       />
+                      <input
+                        value={goalDraft.successMetric}
+                        onChange={(event) =>
+                          setGoalDraft((current) => ({
+                            ...current,
+                            successMetric: event.target.value,
+                          }))
+                        }
+                        placeholder="Success metric"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500"
+                      />
                       <div className="grid gap-2 sm:grid-cols-2">
                         <label className="text-xs text-slate-400">
                           Due date
@@ -1008,7 +1271,7 @@ export function AiEmployeeWorkspace({
                     goals.map((goal) => (
                       <article
                         key={goal.id}
-                        className="rounded-lg border border-slate-800 bg-slate-900 p-4"
+                        className="space-y-3 rounded-lg border border-slate-800 bg-slate-900 p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1016,19 +1279,346 @@ export function AiEmployeeWorkspace({
                               {goal.title}
                             </p>
                             <p className="mt-1 text-xs text-slate-400">
-                              Due date: {goal.dueDate}
+                              {goal.description || "No description provided."}
                             </p>
                           </div>
                           <span className="inline-flex rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
-                            {goal.priority}
+                            {goalStatusLabel(goal.status)}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm text-slate-300">
-                          {goal.description || "No description provided."}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          Status: {goalStatusLabel(goal.status)}
-                        </p>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs text-slate-400">
+                            <span>Progress</span>
+                            <span>{goal.progressPercent}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                            <div
+                              className={`h-full ${
+                                goal.status === "completed"
+                                  ? "bg-emerald-400"
+                                  : goal.status === "blocked"
+                                    ? "bg-rose-400"
+                                    : "bg-cyan-400"
+                              }`}
+                              style={{ width: `${goal.progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+                          <p>Due date: {goal.dueDate}</p>
+                          <p>Priority: {goal.priority}</p>
+                          <p>
+                            Success metric:{" "}
+                            {goal.successMetric || "Not provided"}
+                          </p>
+                          <p>
+                            Tasks: {goal.relatedTaskCompletedCount}/
+                            {goal.relatedTaskTotalCount} completed
+                          </p>
+                          <p>Last updated: {timestampLabel(goal.updatedAt)}</p>
+                          <p>
+                            Latest progress update:{" "}
+                            {goal.latestProgressUpdate || "No updates yet"}
+                          </p>
+                        </div>
+
+                        {goal.completedAt ? (
+                          <p className="rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-xs text-emerald-300">
+                            Completed on {timestampLabel(goal.completedAt)}
+                          </p>
+                        ) : null}
+
+                        {goal.suggestedCompletion ? (
+                          <p className="rounded-lg border border-amber-800 bg-amber-950/40 px-3 py-2 text-xs text-amber-300">
+                            All related tasks are complete. Goal completion is
+                            suggested, but requires Super Admin confirmation.
+                          </p>
+                        ) : null}
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openGoalProgressEditor(goal)}
+                            className="rounded-lg border border-cyan-800 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-950/40"
+                          >
+                            Update Progress
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void markGoalComplete(goal.id)}
+                            disabled={markingCompleteGoalId === goal.id}
+                            className="rounded-lg border border-emerald-800 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-950/40 disabled:opacity-60"
+                          >
+                            {markingCompleteGoalId === goal.id
+                              ? "Marking..."
+                              : "Mark Complete"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openGoalEditEditor(goal)}
+                            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                          >
+                            Edit Goal
+                          </button>
+                        </div>
+
+                        {activeGoalProgressId === goal.id ? (
+                          <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-950 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                              Update Progress
+                            </p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <label className="text-xs text-slate-400">
+                                Status
+                                <select
+                                  value={goalProgressDraft.status}
+                                  onChange={(event) =>
+                                    setGoalProgressDraft((current) => ({
+                                      ...current,
+                                      status: event.target
+                                        .value as GoalProgressDraft["status"],
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                                >
+                                  <option value="not_started">
+                                    Not Started
+                                  </option>
+                                  <option value="in_progress">
+                                    In Progress
+                                  </option>
+                                  <option value="blocked">Blocked</option>
+                                  <option value="completed">Completed</option>
+                                </select>
+                              </label>
+                              <label className="text-xs text-slate-400">
+                                Progress %
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={goalProgressDraft.progressPercent}
+                                  onChange={(event) =>
+                                    setGoalProgressDraft((current) => ({
+                                      ...current,
+                                      progressPercent: Math.max(
+                                        0,
+                                        Math.min(
+                                          100,
+                                          Number(event.target.value) || 0,
+                                        ),
+                                      ),
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                                />
+                              </label>
+                            </div>
+                            <textarea
+                              value={goalProgressDraft.workCompleted}
+                              onChange={(event) =>
+                                setGoalProgressDraft((current) => ({
+                                  ...current,
+                                  workCompleted: event.target.value,
+                                }))
+                              }
+                              rows={3}
+                              placeholder="Work completed / progress update"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <textarea
+                              value={goalProgressDraft.blockerNotes}
+                              onChange={(event) =>
+                                setGoalProgressDraft((current) => ({
+                                  ...current,
+                                  blockerNotes: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              placeholder="Blocker notes"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <textarea
+                              value={goalProgressDraft.nextAction}
+                              onChange={(event) =>
+                                setGoalProgressDraft((current) => ({
+                                  ...current,
+                                  nextAction: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              placeholder="Next action"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void submitGoalProgressUpdate(goal.id)
+                                }
+                                disabled={isUpdatingGoal}
+                                className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+                              >
+                                {isUpdatingGoal ? "Saving..." : "Save Update"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveGoalProgressId(null)}
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {activeGoalEditId === goal.id ? (
+                          <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-950 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                              Edit Goal
+                            </p>
+                            <input
+                              value={goalEditDraft.title}
+                              onChange={(event) =>
+                                setGoalEditDraft((current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }))
+                              }
+                              placeholder="Goal title"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <textarea
+                              value={goalEditDraft.description}
+                              onChange={(event) =>
+                                setGoalEditDraft((current) => ({
+                                  ...current,
+                                  description: event.target.value,
+                                }))
+                              }
+                              rows={3}
+                              placeholder="Goal description"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <label className="text-xs text-slate-400">
+                                Due date
+                                <input
+                                  type="date"
+                                  value={goalEditDraft.dueDate}
+                                  onChange={(event) =>
+                                    setGoalEditDraft((current) => ({
+                                      ...current,
+                                      dueDate: event.target.value,
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                                />
+                              </label>
+                              <label className="text-xs text-slate-400">
+                                Priority
+                                <select
+                                  value={goalEditDraft.priority}
+                                  onChange={(event) =>
+                                    setGoalEditDraft((current) => ({
+                                      ...current,
+                                      priority: event.target
+                                        .value as GoalEditDraft["priority"],
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                                >
+                                  <option value="low">Low</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="high">High</option>
+                                  <option value="urgent">Urgent</option>
+                                </select>
+                              </label>
+                              <label className="text-xs text-slate-400">
+                                Success metric
+                                <input
+                                  value={goalEditDraft.successMetric}
+                                  onChange={(event) =>
+                                    setGoalEditDraft((current) => ({
+                                      ...current,
+                                      successMetric: event.target.value,
+                                    }))
+                                  }
+                                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                                />
+                              </label>
+                            </div>
+                            <textarea
+                              value={goalEditDraft.notes}
+                              onChange={(event) =>
+                                setGoalEditDraft((current) => ({
+                                  ...current,
+                                  notes: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              placeholder="Goal notes"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void submitGoalEdit(goal.id)}
+                                disabled={
+                                  isUpdatingGoal || !goalEditDraft.title.trim()
+                                }
+                                className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white disabled:opacity-60"
+                              >
+                                {isUpdatingGoal ? "Saving..." : "Save Goal"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveGoalEditId(null)}
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Update History
+                          </p>
+                          {goal.progressHistory.length === 0 ? (
+                            <p className="mt-2 text-xs text-slate-500">
+                              No progress history yet.
+                            </p>
+                          ) : (
+                            <div className="mt-2 space-y-2">
+                              {goal.progressHistory.map((entry) => (
+                                <article
+                                  key={entry.id}
+                                  className="rounded-lg border border-slate-800 bg-slate-900 p-2"
+                                >
+                                  <p className="text-xs text-slate-300">
+                                    {timestampLabel(entry.createdAt)} |{" "}
+                                    {goalStatusLabel(entry.status)} |{" "}
+                                    {entry.progressPercent}%
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    Work completed:{" "}
+                                    {entry.workCompleted || "Not provided"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Blockers: {entry.blockerNotes || "None"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Next action: {entry.nextAction || "Not set"}
+                                  </p>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </article>
                     ))
                   )}
