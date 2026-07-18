@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AI_WORKFORCE_STATUSES } from "@/lib/ai-workforce/workspace-types";
+import { resolveAiEmployee } from "@/lib/ai-workforce/resolve-employee";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -8,12 +9,6 @@ const bodySchema = z.object({
   employeeSlug: z.string().min(1),
   status: z.enum(AI_WORKFORCE_STATUSES),
 });
-
-type EmployeeRow = {
-  id: string;
-  slug: string;
-  name: string;
-};
 
 type TransitionRow = {
   content_id: string;
@@ -70,15 +65,14 @@ export async function PATCH(request: Request) {
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: employeeRow, error: employeeError } = await supabase
-    .from("ai_employees")
-    .select("id,slug,name")
-    .eq("slug", parsedBody.data.employeeSlug)
-    .maybeSingle<EmployeeRow>();
+  const { employeeRow, errorMessage } = await resolveAiEmployee(
+    supabase,
+    parsedBody.data.employeeSlug,
+  );
 
-  if (employeeError || !employeeRow) {
+  if (!employeeRow || errorMessage) {
     return Response.json(
-      { success: false, message: "Unknown AI employee." },
+      { success: false, message: errorMessage ?? "Unknown AI employee." },
       { status: 404 },
     );
   }

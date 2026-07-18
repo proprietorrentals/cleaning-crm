@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AiProviderError, getAiProvider } from "@/lib/ai/provider";
-import { getAiEmployeeBySlug } from "@/lib/ai-workforce/employees";
+import { resolveAiEmployee } from "@/lib/ai-workforce/resolve-employee";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -11,13 +11,6 @@ const requestSchema = z.object({
   requestId: z.string().uuid().optional(),
   context: z.record(z.string(), z.string().max(1000)).default({}),
 });
-
-type EmployeeRow = {
-  id: string;
-  slug: string;
-  name: string;
-  status: string;
-};
 
 type GenerationUpsertRow = {
   saved_content_id: string;
@@ -240,39 +233,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const employee = getAiEmployeeBySlug(parsed.data.employeeSlug);
-
-    if (!employee) {
-      return Response.json(
-        { success: false, message: "Unknown AI employee." },
-        { status: 404 },
-      );
-    }
-
-    if (employee.status !== "active") {
-      return Response.json(
-        { success: false, message: "This employee is not active in Phase 1." },
-        { status: 400 },
-      );
-    }
-
     const supabase = await createServerSupabaseClient();
-    const { data: employeeRow, error: employeeLookupError } = await supabase
-      .from("ai_employees")
-      .select("id,slug,name,status")
-      .eq("slug", parsed.data.employeeSlug)
-      .maybeSingle<EmployeeRow>();
+    const { configEmployee, employeeRow, errorMessage } =
+      await resolveAiEmployee(supabase, parsed.data.employeeSlug);
 
-    if (employeeLookupError || !employeeRow) {
+    if (!configEmployee || !employeeRow || errorMessage) {
       return Response.json(
-        { success: false, message: "Unable to resolve AI employee." },
+        { success: false, message: errorMessage ?? "Unable to resolve AI employee." },
         { status: 503 },
       );
     }
 
-    if (employeeRow.status !== "active") {
+    if (configEmployee.status !== "active") {
       return Response.json(
-        { success: false, message: "This employee is not active in Phase 1." },
+        { success: false, message: "This employee is not active." },
         { status: 400 },
       );
     }
@@ -299,9 +273,9 @@ export async function POST(request: Request) {
     const provider = getAiProvider();
 
     const result = await provider.generate({
-      employeeSlug: employee.slug,
+      employeeSlug: configEmployee.slug,
       systemPrompt: [
-        employee.systemPrompt,
+        configEmployee.systemPrompt,
         "Task type:",
         parsed.data.taskType,
         "Safety policy:",
@@ -322,7 +296,7 @@ export async function POST(request: Request) {
     const { data: upsertRows, error: upsertError } = await supabase.rpc(
       "ai_workforce_upsert_generated_content",
       {
-        p_employee_slug: employee.slug,
+        p_employee_slug: configEmployee.slug,
         p_task_type: parsed.data.taskType,
         p_prompt: parsed.data.prompt,
         p_context: parsed.data.context,

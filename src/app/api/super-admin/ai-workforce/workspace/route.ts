@@ -4,18 +4,13 @@ import type {
   AiWorkspaceSavedItem,
   AiWorkspaceSnapshot,
 } from "@/lib/ai-workforce/workspace-types";
+import { resolveAiEmployee } from "@/lib/ai-workforce/resolve-employee";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 const querySchema = z.object({
   employeeSlug: z.string().min(1),
 });
-
-type EmployeeRow = {
-  id: string;
-  slug: string;
-  name: string;
-};
 
 type SavedContentRow = {
   id: string;
@@ -162,15 +157,14 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data: employeeRow, error: employeeError } = await supabase
-    .from("ai_employees")
-    .select("id,slug,name")
-    .eq("slug", parsedQuery.data.employeeSlug)
-    .maybeSingle<EmployeeRow>();
+  const { employeeRow, errorMessage } = await resolveAiEmployee(
+    supabase,
+    parsedQuery.data.employeeSlug,
+  );
 
-  if (employeeError || !employeeRow) {
+  if (!employeeRow || errorMessage) {
     return Response.json(
-      { success: false, message: "Unknown AI employee." },
+      { success: false, message: errorMessage ?? "Unknown AI employee." },
       { status: 404 },
     );
   }
