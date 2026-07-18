@@ -26,6 +26,12 @@ const SUPER_ADMIN_NAV_ITEMS: SuperAdminNavItem[] = [
       pathname === "/super-admin/ai-workforce" ||
       pathname.startsWith("/super-admin/ai-workforce/"),
   },
+  {
+    label: "Command Center",
+    href: "/super-admin/command-center",
+    icon: "CC",
+    isActive: (pathname) => pathname === "/super-admin/command-center",
+  },
 ];
 
 export function SuperAdminShell({ children }: { children: React.ReactNode }) {
