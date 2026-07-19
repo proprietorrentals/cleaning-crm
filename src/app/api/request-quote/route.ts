@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   buildDuplicateLookupTokens,
   type DuplicateSignal,
-  type QualificationResult,
   qualifyMarketplaceLead,
 } from "@/lib/lead-marketplace/qualification";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -11,14 +10,6 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 const MAX_PHOTO_COUNT = 3;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const PHOTO_BUCKET = "marketplace-lead-photos";
-
-type RequestQuoteFailureStage =
-  | "VALIDATION_FAILED"
-  | "PHOTO_UPLOAD_FAILED"
-  | "QUALIFICATION_FAILED"
-  | "DUPLICATE_CHECK_FAILED"
-  | "DATABASE_WRITE_FAILED"
-  | "HISTORY_WRITE_FAILED";
 
 const quoteLeadSchema = z.object({
   businessName: z.string().trim().min(2).max(200),
@@ -36,7 +27,10 @@ const quoteLeadSchema = z.object({
   budget: z.string().trim().max(120).optional(),
   preferredStartDate: z.iso.date(),
   notes: z.string().trim().max(4000).optional(),
-  website: z.string().trim().max(200).optional(),
+  website: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.string().trim().max(200).optional(),
+  ),
 });
 
 function cleanText(value: string, maxLength: number) {
@@ -204,22 +198,6 @@ async function uploadLeadPhotos(files: File[]) {
   return urls;
 }
 
-function failureResponse(stage: RequestQuoteFailureStage, error: unknown) {
-  console.error("request-quote failure", {
-    stage,
-    message: error instanceof Error ? error.message : String(error),
-  });
-
-  return NextResponse.json(
-    {
-      ok: false,
-      error: "Could not submit quote request.",
-      stage,
-    },
-    { status: 400 },
-  );
-}
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -244,7 +222,11 @@ export async function POST(request: Request) {
     });
 
     if (!parsed.success) {
-      return failureResponse("VALIDATION_FAILED", parsed.error);
+      const firstIssue = parsed.error.issues[0]?.message || "Invalid request.";
+      return NextResponse.json(
+        { ok: false, error: firstIssue },
+        { status: 400 },
+      );
     }
 
     if (parsed.data.website) {
@@ -257,24 +239,24 @@ export async function POST(request: Request) {
       .filter((file) => file.size > 0);
 
     if (photoFiles.length > MAX_PHOTO_COUNT) {
-      return failureResponse(
-        "PHOTO_UPLOAD_FAILED",
-        new Error(`Upload up to ${MAX_PHOTO_COUNT} photos.`),
+      return NextResponse.json(
+        { ok: false, error: `Upload up to ${MAX_PHOTO_COUNT} photos.` },
+        { status: 400 },
       );
     }
 
     for (const photo of photoFiles) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(photo.type)) {
-        return failureResponse(
-          "PHOTO_UPLOAD_FAILED",
-          new Error("Photos must be JPG, PNG, or WEBP."),
+        return NextResponse.json(
+          { ok: false, error: "Photos must be JPG, PNG, or WEBP." },
+          { status: 400 },
         );
       }
 
       if (photo.size > MAX_PHOTO_BYTES) {
-        return failureResponse(
-          "PHOTO_UPLOAD_FAILED",
-          new Error("Each photo must be 5MB or smaller."),
+        return NextResponse.json(
+          { ok: false, error: "Each photo must be 5MB or smaller." },
+          { status: 400 },
         );
       }
     }
@@ -297,52 +279,37 @@ export async function POST(request: Request) {
       notes: cleanOptional(parsed.data.notes, 4000),
     };
 
-    let duplicateSignals: DuplicateSignal[];
-    try {
-      duplicateSignals = await findDuplicateSignals({
+    const duplicateSignals = await findDuplicateSignals({
+      businessName: cleanInput.businessName,
+      email: cleanInput.email,
+      phone: cleanInput.phone,
+      address: cleanInput.address,
+      city: cleanInput.city,
+    });
+
+    const qualification = await qualifyMarketplaceLead({
+      lead: {
         businessName: cleanInput.businessName,
+        contactName: cleanInput.contactName,
         email: cleanInput.email,
         phone: cleanInput.phone,
         address: cleanInput.address,
         city: cleanInput.city,
-      });
-    } catch (error) {
-      return failureResponse("DUPLICATE_CHECK_FAILED", error);
-    }
+        state: cleanInput.state,
+        zipCode: cleanInput.zipCode,
+        propertyType: cleanInput.propertyType,
+        squareFootage: cleanInput.squareFootage,
+        cleaningFrequency: cleanInput.cleaningFrequency,
+        serviceRequested: cleanInput.serviceRequested,
+        budget: cleanInput.budget,
+        preferredStartDate: cleanInput.preferredStartDate,
+        notes: cleanInput.notes,
+      },
+      duplicateSignals,
+      honeypotValue: parsed.data.website ?? "",
+    });
 
-    let qualification: QualificationResult;
-    try {
-      qualification = await qualifyMarketplaceLead({
-        lead: {
-          businessName: cleanInput.businessName,
-          contactName: cleanInput.contactName,
-          email: cleanInput.email,
-          phone: cleanInput.phone,
-          address: cleanInput.address,
-          city: cleanInput.city,
-          state: cleanInput.state,
-          zipCode: cleanInput.zipCode,
-          propertyType: cleanInput.propertyType,
-          squareFootage: cleanInput.squareFootage,
-          cleaningFrequency: cleanInput.cleaningFrequency,
-          serviceRequested: cleanInput.serviceRequested,
-          budget: cleanInput.budget,
-          preferredStartDate: cleanInput.preferredStartDate,
-          notes: cleanInput.notes,
-        },
-        duplicateSignals,
-        honeypotValue: parsed.data.website ?? "",
-      });
-    } catch (error) {
-      return failureResponse("QUALIFICATION_FAILED", error);
-    }
-
-    let photoUrls: string[];
-    try {
-      photoUrls = await uploadLeadPhotos(photoFiles);
-    } catch (error) {
-      return failureResponse("PHOTO_UPLOAD_FAILED", error);
-    }
+    const photoUrls = await uploadLeadPhotos(photoFiles);
 
     const supabase = createAdminSupabaseClient();
     const { data, error } = await supabase
@@ -385,38 +352,16 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return failureResponse("DATABASE_WRITE_FAILED", error);
-    }
-
-    try {
-      const { error: historyError } = await supabase
-        .from("marketplace_lead_audit_history")
-        .insert({
-          lead_id: data.lead_id,
-          action: "lead_qualified",
-          change_summary: "Temporary request-quote diagnostic history entry.",
-          before_data: null,
-          after_data: {
-            lead_id: data.lead_id,
-            qualification_status: qualification.qualificationStatus,
-            quality_score: qualification.qualityScore,
-            lead_grade: qualification.leadGrade,
-          },
-          metadata: {
-            source: "request-quote",
-            diagnostic: true,
-          },
-        });
-
-      if (historyError) {
-        return failureResponse("HISTORY_WRITE_FAILED", historyError);
-      }
-    } catch (error) {
-      return failureResponse("HISTORY_WRITE_FAILED", error);
+      throw new Error(`Failed to save lead: ${error.message}`);
     }
 
     return NextResponse.json({ ok: true, leadId: data.lead_id });
   } catch (error) {
-    return failureResponse("VALIDATION_FAILED", error);
+    const message =
+      process.env.NODE_ENV === "development" && error instanceof Error
+        ? error.message
+        : "Could not submit quote request.";
+
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }
