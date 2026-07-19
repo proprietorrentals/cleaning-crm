@@ -232,6 +232,8 @@ export function SuperAdminLeadMarketplace() {
   const [purchasingPackageId, setPurchasingPackageId] = useState<string | null>(
     null,
   );
+  const [recoveringPurchase, setRecoveringPurchase] = useState(false);
+  const [recoverSessionId, setRecoverSessionId] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [adjustmentDelta, setAdjustmentDelta] = useState("1");
 
@@ -563,6 +565,53 @@ export function SuperAdminLeadMarketplace() {
     [adjustmentDelta, adjustmentReason, loadCredits],
   );
 
+  const recoverPaidPurchase = useCallback(async () => {
+    const checkoutSessionId = recoverSessionId.trim();
+    if (!checkoutSessionId) {
+      setError("Enter a Stripe Checkout Session ID to recover.");
+      return;
+    }
+
+    setRecoveringPurchase(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/lead-marketplace/credits/recover",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkoutSessionId }),
+        },
+      );
+
+      const body = (await response.json()) as
+        | {
+            success: true;
+            recovered: boolean;
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Recovery failed." : body.message);
+        return;
+      }
+
+      setSuccess(
+        body.recovered
+          ? "Paid credit purchase recovered and applied."
+          : "This paid session was already credited (no duplicate credits applied).",
+      );
+      setRecoverSessionId("");
+      await loadCredits();
+    } catch {
+      setError("Unable to recover paid credit purchase.");
+    } finally {
+      setRecoveringPurchase(false);
+    }
+  }, [loadCredits, recoverSessionId]);
+
   const claimLead = useCallback(async () => {
     if (!selectedLeadId || !selectedLead) return;
 
@@ -798,6 +847,28 @@ export function SuperAdminLeadMarketplace() {
                   className="rounded-lg border border-cyan-500/60 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
                 >
                   Adjust
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                Recover Paid Credit Purchase
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  value={recoverSessionId}
+                  onChange={(event) => setRecoverSessionId(event.target.value)}
+                  placeholder="Stripe Checkout Session ID (cs_...)"
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => void recoverPaidPurchase()}
+                  disabled={recoveringPurchase}
+                  className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  {recoveringPurchase ? "Recovering..." : "Recover Purchase"}
                 </button>
               </div>
             </div>
