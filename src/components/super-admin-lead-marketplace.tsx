@@ -32,6 +32,8 @@ type LeadSummary = {
   close_probability: number;
   duplicate_risk: number;
   spam_risk: number;
+  claimed_at: string | null;
+  claimed_by_user_email: string | null;
   created_at: string;
 };
 
@@ -52,6 +54,7 @@ type LeadDetail = LeadSummary & {
   internal_notes: string | null;
   claimed_at: string | null;
   claimed_by_user_id: string | null;
+  claimed_by_user_email: string | null;
   claimed_company_id: string | null;
   claimed_sales_lead_id: string | null;
   updated_at: string;
@@ -131,6 +134,14 @@ const STATUS_VIEWS: Array<FilterState["view"]> = [
   "Verified",
   "Rejected",
 ];
+
+const STATUS_VIEW_LABELS: Record<FilterState["view"], string> = {
+  All: "All",
+  New: "Submitted Leads",
+  "Needs Review": "Needs Review",
+  Verified: "Verified",
+  Rejected: "Rejected",
+};
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -497,7 +508,7 @@ export function SuperAdminLeadMarketplace() {
                   : "border border-slate-700 text-slate-300 hover:bg-slate-800"
               }`}
             >
-              {view} ({leadCountByView[view] ?? 0})
+              {STATUS_VIEW_LABELS[view]} ({leadCountByView[view] ?? 0})
             </button>
           ))}
         </div>
@@ -629,10 +640,8 @@ export function SuperAdminLeadMarketplace() {
             </header>
             <div className="max-h-[70vh] overflow-auto">
               {leads.map((lead) => (
-                <button
+                <div
                   key={lead.lead_id}
-                  type="button"
-                  onClick={() => setSelectedLeadId(lead.lead_id)}
                   className={`w-full border-b border-slate-800 px-4 py-3 text-left transition hover:bg-slate-800/50 ${
                     selectedLeadId === lead.lead_id ? "bg-slate-800/70" : ""
                   }`}
@@ -646,9 +655,16 @@ export function SuperAdminLeadMarketplace() {
                         {lead.contact_name} · {lead.city}, {lead.state}
                       </p>
                     </div>
-                    <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
-                      {lead.qualification_status}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
+                        {lead.qualification_status}
+                      </span>
+                      {lead.claimed_at ? (
+                        <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
+                          Claimed
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
                     <span>Score {lead.quality_score}</span>
@@ -665,7 +681,36 @@ export function SuperAdminLeadMarketplace() {
                     <span>Spam {Math.round(lead.spam_risk * 100)}%</span>
                     <span>{formatDate(lead.created_at)}</span>
                   </div>
-                </button>
+                  {lead.claimed_at ? (
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Claimed by {lead.claimed_by_user_email ?? "a Super Admin"}{" "}
+                      on {formatDate(lead.claimed_at)}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLeadId(lead.lead_id)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        lead.qualification_status !== "Verified" ||
+                        Boolean(lead.claimed_at)
+                      }
+                      onClick={() => {
+                        setSelectedLeadId(lead.lead_id);
+                        void loadLeadDetail(lead.lead_id);
+                      }}
+                      className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                    >
+                      {lead.claimed_at ? "Claimed" : "Claim Lead"}
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </section>
@@ -694,6 +739,13 @@ export function SuperAdminLeadMarketplace() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadLeadDetail(selectedLead.lead_id)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+                    >
+                      Preview
+                    </button>
                     <button
                       type="button"
                       disabled={
@@ -807,6 +859,17 @@ export function SuperAdminLeadMarketplace() {
                     Warning: lead has elevated risk signals. Duplicate risk{" "}
                     {Math.round(selectedLead.duplicate_risk * 100)}%, spam risk{" "}
                     {Math.round(selectedLead.spam_risk * 100)}%.
+                  </div>
+                ) : null}
+
+                {selectedLead.claimed_at ? (
+                  <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-50">
+                    <p className="font-semibold">Claimed</p>
+                    <p className="mt-1 text-emerald-100/90">
+                      Claimed by{" "}
+                      {selectedLead.claimed_by_user_email ?? "a Super Admin"} on{" "}
+                      {formatDate(selectedLead.claimed_at)}.
+                    </p>
                   </div>
                 ) : null}
 

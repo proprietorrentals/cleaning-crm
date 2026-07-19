@@ -86,6 +86,7 @@ export async function POST(
     target_lead_id: leadId,
     target_tenant_id: targetTenantId,
     claiming_user_id: userId,
+    claiming_user_email: access.user?.email ?? null,
   });
 
   if (error) {

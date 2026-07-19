@@ -5,12 +5,14 @@
 alter table public.marketplace_leads
   add column if not exists claimed_at timestamptz,
   add column if not exists claimed_by_user_id uuid references auth.users(id) on delete set null,
+  add column if not exists claimed_by_user_email text,
   add column if not exists claimed_company_id uuid references public.customers(id) on delete set null,
   add column if not exists claimed_sales_lead_id uuid references public.sales_leads(id) on delete set null;
 
 alter table public.marketplace_leads
   alter column claimed_at drop not null,
   alter column claimed_by_user_id drop not null,
+  alter column claimed_by_user_email drop not null,
   alter column claimed_company_id drop not null,
   alter column claimed_sales_lead_id drop not null;
 
@@ -25,6 +27,9 @@ create index if not exists marketplace_leads_claimed_at_idx
 
 create index if not exists marketplace_leads_claimed_by_user_id_idx
   on public.marketplace_leads(claimed_by_user_id);
+
+create index if not exists marketplace_leads_claimed_by_user_email_idx
+  on public.marketplace_leads(claimed_by_user_email);
 
 create index if not exists marketplace_leads_claimed_company_id_idx
   on public.marketplace_leads(claimed_company_id);
@@ -65,7 +70,8 @@ alter table public.platform_events
 create or replace function public.claim_marketplace_lead(
   target_lead_id uuid,
   target_tenant_id uuid,
-  claiming_user_id uuid
+  claiming_user_id uuid,
+  claiming_user_email text
 )
 returns jsonb
 language plpgsql
@@ -292,6 +298,7 @@ begin
     status = 'Claimed',
     claimed_at = now_iso,
     claimed_by_user_id = claiming_user_id,
+    claimed_by_user_email = claiming_user_email,
     claimed_company_id = customer_row.id,
     claimed_sales_lead_id = sales_lead_row.id
   where lead_id = lead_row.lead_id;
@@ -300,6 +307,7 @@ begin
     'leadId', lead_row.lead_id,
     'claimedAt', now_iso,
     'claimedByUserId', claiming_user_id,
+    'claimedByUserEmail', claiming_user_email,
     'claimedCompanyId', customer_row.id,
     'claimedSalesLeadId', sales_lead_row.id,
     'taskCount', task_count,

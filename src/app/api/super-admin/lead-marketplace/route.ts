@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("marketplace_leads")
     .select(
-      "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,verified_at,verified_by,internal_notes,created_at,updated_at",
+      "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,verified_at,verified_by,internal_notes,claimed_at,claimed_by_user_id,claimed_by_user_email,claimed_company_id,claimed_sales_lead_id,created_at,updated_at",
     )
     .order("created_at", { ascending: false })
     .limit(filter.limit ?? 500);
