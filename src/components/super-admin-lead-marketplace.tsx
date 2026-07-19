@@ -141,17 +141,7 @@ type RecoveryResponseBody = {
   success: boolean;
   message?: string;
   recovered?: boolean;
-  diagnostics?: {
-    routeReached: boolean;
-    sessionFound: boolean;
-    paymentPaid: boolean;
-    metadataValid: boolean;
-    packageValid: boolean;
-    tenantValid: boolean;
-    purchaseApplied: boolean;
-    alreadyCredited: boolean;
-    errorCode: string | null;
-  };
+  alreadyCredited?: boolean;
 };
 
 type FilterState = {
@@ -251,6 +241,7 @@ export function SuperAdminLeadMarketplace() {
   );
   const [recoveringPurchase, setRecoveringPurchase] = useState(false);
   const [recoverSessionId, setRecoverSessionId] = useState("");
+  const [legacyRecoveryConfirmed, setLegacyRecoveryConfirmed] = useState(false);
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [adjustmentDelta, setAdjustmentDelta] = useState("1");
 
@@ -601,7 +592,10 @@ export function SuperAdminLeadMarketplace() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checkoutSessionId }),
+          body: JSON.stringify({
+            checkoutSessionId,
+            legacyPreTenantMetadataConfirmed: legacyRecoveryConfirmed,
+          }),
         },
       );
 
@@ -635,6 +629,7 @@ export function SuperAdminLeadMarketplace() {
           : "This paid session was already credited (no duplicate credits applied).",
       );
       setRecoverSessionId("");
+      setLegacyRecoveryConfirmed(false);
     } catch {
       setError("Unable to recover paid credit purchase.");
     } finally {
@@ -643,7 +638,7 @@ export function SuperAdminLeadMarketplace() {
       }
       setRecoveringPurchase(false);
     }
-  }, [loadCredits, recoverSessionId]);
+  }, [legacyRecoveryConfirmed, loadCredits, recoverSessionId]);
 
   const claimLead = useCallback(async () => {
     if (!selectedLeadId || !selectedLead) return;
@@ -888,6 +883,10 @@ export function SuperAdminLeadMarketplace() {
               <p className="text-xs uppercase tracking-wide text-slate-400">
                 Recover Paid Credit Purchase
               </p>
+              <p className="mt-1 text-[11px] leading-4 text-slate-400">
+                Use this only for legacy purchases that were paid before tenant
+                metadata was added.
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <input
                   value={recoverSessionId}
@@ -895,10 +894,20 @@ export function SuperAdminLeadMarketplace() {
                   placeholder="Stripe Checkout Session ID (cs_...)"
                   className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
                 />
+                <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={legacyRecoveryConfirmed}
+                    onChange={(event) =>
+                      setLegacyRecoveryConfirmed(event.target.checked)
+                    }
+                  />
+                  Legacy pre-tenant-metadata purchase
+                </label>
                 <button
                   type="button"
                   onClick={() => void recoverPaidPurchase()}
-                  disabled={recoveringPurchase}
+                  disabled={recoveringPurchase || !legacyRecoveryConfirmed}
                   className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
                 >
                   {recoveringPurchase ? "Recovering..." : "Recover Purchase"}

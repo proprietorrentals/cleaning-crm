@@ -2,11 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
 import { getLeadCreditPackage } from "@/lib/lead-marketplace/credits";
+import { resolveAuthenticatedMarketplaceTenant } from "@/lib/lead-marketplace/tenant-resolution";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 const bodySchema = z.object({
   checkoutSessionId: z.string().trim().min(1),
+  legacyPreTenantMetadataConfirmed: z.boolean().optional().default(false),
 });
 
 const checkoutSessionIdSchema = z
@@ -15,65 +17,20 @@ const checkoutSessionIdSchema = z
 
 const uuidSchema = z.string().uuid();
 
-type RecoveryDiagnostics = {
-  routeReached: boolean;
-  sessionFound: boolean;
-  paymentPaid: boolean;
-  metadataValid: boolean;
-  packageValid: boolean;
-  tenantValid: boolean;
-  purchaseApplied: boolean;
-  alreadyCredited: boolean;
-  errorCode: string | null;
-};
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
   apiVersion: "2024-06-20",
 });
 
-function createRecoveryDiagnostics(
-  overrides: Partial<RecoveryDiagnostics> = {},
-): RecoveryDiagnostics {
-  return {
-    routeReached: true,
-    sessionFound: false,
-    paymentPaid: false,
-    metadataValid: false,
-    packageValid: false,
-    tenantValid: false,
-    purchaseApplied: false,
-    alreadyCredited: false,
-    errorCode: null,
-    ...overrides,
-  };
-}
-
-function recoveryResponse(
-  status: number,
-  message: string,
-  diagnostics: RecoveryDiagnostics,
-  extra: Record<string, unknown> = {},
-) {
-  return NextResponse.json(
-    {
-      success: status < 400,
-      message,
-      diagnostics,
-      ...extra,
-    },
-    { status },
-  );
-}
-
-async function ensureAccess(diagnostics: RecoveryDiagnostics) {
+async function ensureAccess() {
   const access = await requireSuperAdminAccess();
 
   if (access.needsAuth) {
     return {
-      deniedResponse: recoveryResponse(
-        401,
-        "Authentication required.",
-        diagnostics,
+      deniedResponse: NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 },
       ),
       access,
     };
@@ -81,10 +38,9 @@ async function ensureAccess(diagnostics: RecoveryDiagnostics) {
 
   if (access.denied) {
     return {
-      deniedResponse: recoveryResponse(
-        403,
-        "Super Admin access required.",
-        diagnostics,
+      deniedResponse: NextResponse.json(
+        { success: false, message: "Super Admin access required." },
+        { status: 403 },
       ),
       access,
     };
@@ -92,10 +48,9 @@ async function ensureAccess(diagnostics: RecoveryDiagnostics) {
 
   if (access.rpcError) {
     return {
-      deniedResponse: recoveryResponse(
-        503,
-        "Unable to verify Super Admin access.",
-        diagnostics,
+      deniedResponse: NextResponse.json(
+        { success: false, message: "Unable to verify Super Admin access." },
+        { status: 503 },
       ),
       access,
     };
@@ -105,111 +60,96 @@ async function ensureAccess(diagnostics: RecoveryDiagnostics) {
 }
 
 export async function POST(request: NextRequest) {
-  const diagnostics = createRecoveryDiagnostics();
-  const { deniedResponse, access } = await ensureAccess(diagnostics);
+  const { deniedResponse, access } = await ensureAccess();
   if (deniedResponse) {
     return deniedResponse;
   }
 
   if (!process.env.STRIPE_SECRET_KEY) {
-    diagnostics.errorCode = "stripe_not_configured";
-    return recoveryResponse(500, "Stripe is not configured.", diagnostics);
+    return NextResponse.json(
+      { success: false, message: "Stripe is not configured." },
+      { status: 500 },
+    );
   }
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
 
   if (!parsed.success) {
-    diagnostics.errorCode = "invalid_payload";
-    return recoveryResponse(400, "Invalid request payload.", diagnostics, {
-      issues: parsed.error.flatten(),
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Invalid request payload.",
+        issues: parsed.error.flatten(),
+      },
+      { status: 400 },
+    );
   }
 
   const sessionIdParse = checkoutSessionIdSchema.safeParse(
     parsed.data.checkoutSessionId,
   );
   if (!sessionIdParse.success) {
-    diagnostics.errorCode = "invalid_checkout_session_id";
-    return recoveryResponse(
-      400,
-      "Invalid Stripe Checkout Session ID.",
-      diagnostics,
+    return NextResponse.json(
+      { success: false, message: "Invalid Stripe Checkout Session ID." },
+      { status: 400 },
     );
   }
 
   const checkoutSessionId = sessionIdParse.data;
+  const legacyPreTenantMetadataConfirmed =
+    parsed.data.legacyPreTenantMetadataConfirmed;
 
   let session: Stripe.Checkout.Session;
   try {
     session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
   } catch {
-    diagnostics.errorCode = "stripe_session_not_found";
-    return recoveryResponse(
-      404,
-      "Unable to retrieve Stripe Checkout Session.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Unable to retrieve Stripe Checkout Session.",
+      },
+      { status: 404 },
     );
   }
 
-  diagnostics.sessionFound = true;
-
   if (session.mode !== "payment") {
-    diagnostics.errorCode = "invalid_session_mode";
-    return recoveryResponse(
-      400,
-      "Checkout Session is not a payment session.",
-      diagnostics,
+    return NextResponse.json(
+      { success: false, message: "Checkout Session is not a payment session." },
+      { status: 400 },
     );
   }
 
   if (session.payment_status !== "paid") {
-    diagnostics.paymentPaid = false;
-    diagnostics.errorCode = "payment_not_paid";
-    return recoveryResponse(
-      400,
-      "Checkout Session has not been paid.",
-      diagnostics,
+    return NextResponse.json(
+      { success: false, message: "Checkout Session has not been paid." },
+      { status: 400 },
     );
   }
 
-  diagnostics.paymentPaid = true;
-
   const purchaseType = session.metadata?.purchaseType;
   if (purchaseType !== "lead_marketplace_credits") {
-    diagnostics.errorCode = "invalid_purchase_type";
-    return recoveryResponse(
-      400,
-      "Checkout Session is not a marketplace credit purchase.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Checkout Session is not a marketplace credit purchase.",
+      },
+      { status: 400 },
     );
   }
 
   const packageId = session.metadata?.packageId ?? "";
   const pkg = getLeadCreditPackage(packageId);
   if (!pkg) {
-    diagnostics.errorCode = "invalid_package_id";
-    return recoveryResponse(
-      400,
-      "Invalid package metadata on Checkout Session.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Invalid package metadata on Checkout Session.",
+      },
+      { status: 400 },
     );
   }
 
-  const tenantIdParse = uuidSchema.safeParse(session.metadata?.tenantId ?? "");
-  if (!tenantIdParse.success) {
-    diagnostics.errorCode = "invalid_tenant_id";
-    return recoveryResponse(
-      400,
-      "Invalid tenant metadata on Checkout Session.",
-      diagnostics,
-    );
-  }
-
-  const tenantId = tenantIdParse.data;
-  diagnostics.metadataValid = true;
-  diagnostics.packageValid = true;
-  diagnostics.tenantValid = true;
   const packageCredits = Number(session.metadata?.packageCredits ?? "0");
   const packageAmountCents = Number(
     session.metadata?.packageAmountCents ?? "0",
@@ -219,74 +159,247 @@ export async function POST(request: NextRequest) {
     packageCredits !== pkg.credits ||
     packageAmountCents !== pkg.amountCents
   ) {
-    diagnostics.packageValid = false;
-    diagnostics.errorCode = "package_mismatch";
-    return recoveryResponse(
-      400,
-      "Checkout metadata does not match server package pricing.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Checkout metadata does not match server package pricing.",
+      },
+      { status: 400 },
     );
   }
 
   if (session.amount_total !== pkg.amountCents) {
-    diagnostics.packageValid = false;
-    diagnostics.errorCode = "amount_mismatch";
-    return recoveryResponse(
-      400,
-      "Checkout amount does not match package pricing.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Checkout amount does not match package pricing.",
+      },
+      { status: 400 },
     );
   }
 
   if ((session.currency ?? "").toLowerCase() !== "usd") {
-    diagnostics.packageValid = false;
-    diagnostics.errorCode = "currency_mismatch";
-    return recoveryResponse(
-      400,
-      "Checkout currency is invalid for marketplace credit purchase.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "Checkout currency is invalid for marketplace credit purchase.",
+      },
+      { status: 400 },
     );
   }
 
+  const superAdminTenantResolution =
+    await resolveAuthenticatedMarketplaceTenant(access.user?.id ?? "");
+  if (!superAdminTenantResolution.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: superAdminTenantResolution.message,
+      },
+      { status: superAdminTenantResolution.status },
+    );
+  }
+
+  const resolvedTenantId = superAdminTenantResolution.tenantId;
   const supabase = createAdminSupabaseClient();
+  const rawTenantMetadata = session.metadata?.tenantId?.trim() ?? "";
+  const parsedTenantMetadata = rawTenantMetadata
+    ? uuidSchema.safeParse(rawTenantMetadata)
+    : null;
+  const sessionTenantId = parsedTenantMetadata?.success
+    ? parsedTenantMetadata.data
+    : null;
+  const hasValidSessionTenantMetadata =
+    sessionTenantId !== null && sessionTenantId !== ZERO_UUID;
+
+  if (hasValidSessionTenantMetadata) {
+    if (sessionTenantId !== resolvedTenantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Checkout Session tenant metadata does not match the authenticated Super Admin tenant.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const { data: existingTransaction, error: existingTransactionError } =
+      await supabase
+        .from("marketplace_credit_transactions")
+        .select("id,transaction_type,balance_after,credits_delta")
+        .eq("stripe_checkout_session_id", checkoutSessionId)
+        .maybeSingle();
+
+    if (existingTransactionError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: existingTransactionError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (existingTransaction) {
+      return NextResponse.json({
+        success: true,
+        recovered: false,
+        alreadyCredited: true,
+        tenantId: resolvedTenantId,
+        checkoutSessionId,
+        transaction: {
+          applied: false,
+          transactionId: existingTransaction.id,
+          creditsDelta: existingTransaction.credits_delta,
+          balance: existingTransaction.balance_after,
+          transactionType: existingTransaction.transaction_type,
+        },
+      });
+    }
+
+    const purchaseResult = await supabase.rpc(
+      "marketplace_apply_credit_transaction",
+      {
+        target_tenant_id: resolvedTenantId,
+        tx_type: "purchased",
+        delta: pkg.credits,
+        tx_reference_key: `stripe_purchase:${checkoutSessionId}`,
+        tx_reason: `Stripe package purchase: ${pkg.id}`,
+        tx_metadata: {
+          packageId: pkg.id,
+          credits: pkg.credits,
+          amountCents: pkg.amountCents,
+          currency: "usd",
+          recoveryMode: "legacy_pre_tenant_metadata",
+          legacyTenantFallback: true,
+          legacyTenantFallbackConfirmed: true,
+          legacyTenantResolutionSource:
+            superAdminTenantResolution.resolutionSource,
+        },
+        actor_user_id: access.user?.id ?? null,
+        tx_idempotency_key: `stripe:recovery:${checkoutSessionId}`,
+        tx_stripe_event_id: `recovery:${checkoutSessionId}`,
+        tx_stripe_session_id: checkoutSessionId,
+      },
+    );
+
+    if (purchaseResult.error) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unable to recover paid credit purchase.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const result = purchaseResult.data as {
+      applied?: boolean;
+      balance?: number;
+      transactionId?: string;
+      creditsDelta?: number;
+    } | null;
+
+    return NextResponse.json({
+      success: true,
+      recovered: result?.applied === true,
+      alreadyCredited: result?.applied === false,
+      tenantId: resolvedTenantId,
+      checkoutSessionId,
+      transaction: result,
+      legacyTenantFallback: true,
+    });
+  }
+
+  if (!legacyPreTenantMetadataConfirmed) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "Legacy recovery requires explicit confirmation that this is a pre-tenant-metadata purchase.",
+      },
+      { status: 400 },
+    );
+  }
+
   const { data: tenantExists, error: tenantLookupError } = await supabase
     .from("tenants")
     .select("id")
-    .eq("id", tenantId)
+    .eq("id", resolvedTenantId)
     .maybeSingle();
 
   if (tenantLookupError || !tenantExists) {
-    diagnostics.tenantValid = false;
-    diagnostics.errorCode = "tenant_not_found";
-    return recoveryResponse(
-      400,
-      "Tenant metadata does not map to an active company.",
-      diagnostics,
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Authenticated Super Admin tenant could not be resolved.",
+      },
+      { status: 400 },
     );
   }
 
-  const recoveryEventId = `recovery:${checkoutSessionId}`;
+  const existingTransactionLookup = await supabase
+    .from("marketplace_credit_transactions")
+    .select("id,transaction_type,balance_after,credits_delta")
+    .eq("stripe_checkout_session_id", checkoutSessionId)
+    .maybeSingle();
+
+  if (existingTransactionLookup.error) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: existingTransactionLookup.error.message,
+      },
+      { status: 500 },
+    );
+  }
+
+  if (existingTransactionLookup.data) {
+    return NextResponse.json({
+      success: true,
+      recovered: false,
+      alreadyCredited: true,
+      tenantId: resolvedTenantId,
+      checkoutSessionId,
+      transaction: {
+        applied: false,
+        transactionId: existingTransactionLookup.data.id,
+        creditsDelta: existingTransactionLookup.data.credits_delta,
+        balance: existingTransactionLookup.data.balance_after,
+        transactionType: existingTransactionLookup.data.transaction_type,
+      },
+    });
+  }
+
   const actorUserId = access.user?.id ?? null;
 
   const purchaseResult = await supabase.rpc(
-    "marketplace_apply_credit_purchase",
+    "marketplace_apply_credit_transaction",
     {
-      target_tenant_id: tenantId,
-      package_id: pkg.id,
-      package_credits: pkg.credits,
-      package_amount_cents: pkg.amountCents,
-      stripe_event_id: recoveryEventId,
-      stripe_checkout_session_id: checkoutSessionId,
+      target_tenant_id: resolvedTenantId,
+      tx_type: "purchased",
+      delta: pkg.credits,
+      tx_reference_key: `stripe_purchase:${checkoutSessionId}`,
+      tx_reason: `Stripe package purchase: ${pkg.id}`,
+      tx_metadata: {
+        packageId: pkg.id,
+        credits: pkg.credits,
+        amountCents: pkg.amountCents,
+        currency: "usd",
+      },
       actor_user_id: actorUserId,
+      tx_idempotency_key: `stripe:recovery:${checkoutSessionId}`,
+      tx_stripe_event_id: `recovery:${checkoutSessionId}`,
+      tx_stripe_session_id: checkoutSessionId,
     },
   );
 
   if (purchaseResult.error) {
-    diagnostics.errorCode = "purchase_recovery_failed";
-    return recoveryResponse(
-      500,
-      "Unable to recover paid credit purchase.",
-      diagnostics,
+    return NextResponse.json(
+      { success: false, message: "Unable to recover paid credit purchase." },
+      { status: 500 },
     );
   }
 
@@ -297,13 +410,13 @@ export async function POST(request: NextRequest) {
     creditsDelta?: number;
   } | null;
 
-  diagnostics.purchaseApplied = result?.applied === true;
-  diagnostics.alreadyCredited = result?.applied === false;
-
-  return recoveryResponse(200, "Recovery completed.", diagnostics, {
+  return NextResponse.json({
+    success: true,
     recovered: result?.applied === true,
-    tenantId,
+    alreadyCredited: result?.applied === false,
+    tenantId: resolvedTenantId,
     checkoutSessionId,
     transaction: result,
+    legacyTenantFallback: true,
   });
 }
