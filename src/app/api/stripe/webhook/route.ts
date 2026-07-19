@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+
+const uuidSchema = z.string().uuid();
 
 export async function POST(request: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -44,7 +47,9 @@ export async function POST(request: NextRequest) {
       const purchaseType = session.metadata?.purchaseType;
 
       if (purchaseType === "lead_marketplace_credits") {
-        const tenantId = session.metadata?.tenantId;
+        const tenantIdRaw = session.metadata?.tenantId;
+        const tenantIdParse = uuidSchema.safeParse(tenantIdRaw);
+        const tenantId = tenantIdParse.success ? tenantIdParse.data : null;
         const packageId = session.metadata?.packageId;
         const packageCredits = Number(session.metadata?.packageCredits ?? "0");
         const packageAmountCents = Number(

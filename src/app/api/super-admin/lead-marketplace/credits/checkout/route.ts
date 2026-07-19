@@ -2,15 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
 import {
-  DEFAULT_TARGET_TENANT_ID,
   getAppBaseUrl,
   getLeadCreditPackage,
 } from "@/lib/lead-marketplace/credits";
+import { resolveAuthenticatedMarketplaceTenant } from "@/lib/lead-marketplace/tenant-resolution";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 const bodySchema = z.object({
   packageId: z.string().trim().min(1),
-  tenantId: z.string().uuid().optional(),
 });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
@@ -88,7 +87,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const targetTenantId = parsed.data.tenantId ?? DEFAULT_TARGET_TENANT_ID;
+  const userId = access.user?.id;
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, message: "Authentication required." },
+      { status: 401 },
+    );
+  }
+
+  const tenantResolution = await resolveAuthenticatedMarketplaceTenant(userId);
+  if (!tenantResolution.ok) {
+    return NextResponse.json(
+      { success: false, message: tenantResolution.message },
+      { status: tenantResolution.status },
+    );
+  }
+
+  const targetTenantId = tenantResolution.tenantId;
   const baseUrl = getAppBaseUrl();
 
   try {

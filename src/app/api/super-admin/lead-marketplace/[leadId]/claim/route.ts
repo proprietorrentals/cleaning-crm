@@ -1,15 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { resolveAuthenticatedMarketplaceTenant } from "@/lib/lead-marketplace/tenant-resolution";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
-
-const claimBodySchema = z.object({
-  tenantId: z.string().uuid().optional(),
-});
-
-const DEFAULT_TARGET_TENANT_ID =
-  process.env.PUBLIC_MARKETING_TENANT_ID ||
-  "00000000-0000-0000-0000-000000000001";
 
 async function ensureAccess() {
   const access = await requireSuperAdminAccess();
@@ -48,7 +40,7 @@ async function ensureAccess() {
 }
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<{ leadId: string }> },
 ) {
   const { deniedResponse, access } = await ensureAccess();
@@ -65,22 +57,16 @@ export async function POST(
   }
 
   const { leadId } = await context.params;
-  const body = await request.json().catch(() => null);
-  const parsed = claimBodySchema.safeParse(body ?? {});
-
-  if (!parsed.success) {
+  const tenantResolution = await resolveAuthenticatedMarketplaceTenant(userId);
+  if (!tenantResolution.ok) {
     return NextResponse.json(
-      {
-        success: false,
-        message: "Invalid request payload.",
-        issues: parsed.error.flatten(),
-      },
-      { status: 400 },
+      { success: false, message: tenantResolution.message },
+      { status: tenantResolution.status },
     );
   }
 
   const supabase = await createServerSupabaseClient();
-  const targetTenantId = parsed.data.tenantId ?? DEFAULT_TARGET_TENANT_ID;
+  const targetTenantId = tenantResolution.tenantId;
 
   const { data, error } = await supabase.rpc("claim_marketplace_lead", {
     target_lead_id: leadId,

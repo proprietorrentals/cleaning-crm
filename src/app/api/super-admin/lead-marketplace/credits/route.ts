@@ -1,16 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { listLeadCreditPackages } from "@/lib/lead-marketplace/credits";
 import {
-  DEFAULT_TARGET_TENANT_ID,
-  listLeadCreditPackages,
-} from "@/lib/lead-marketplace/credits";
+  ensureIntroMarketplaceCreditForTenant,
+  resolveAuthenticatedMarketplaceTenant,
+} from "@/lib/lead-marketplace/tenant-resolution";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 const adjustmentSchema = z.object({
   action: z.enum(["refund", "adjustment"]),
-  tenantId: z.string().uuid().optional(),
   credits: z.number().int().min(1).max(10000).optional(),
   creditsDelta: z.number().int().min(-10000).max(10000).optional(),
   reason: z.string().trim().min(3).max(500),
@@ -54,14 +54,38 @@ async function ensureAccess() {
   return { deniedResponse: null, access };
 }
 
-export async function GET(request: NextRequest) {
-  const { deniedResponse } = await ensureAccess();
+export async function GET(_request: NextRequest) {
+  const { deniedResponse, access } = await ensureAccess();
   if (deniedResponse) {
     return deniedResponse;
   }
 
-  const tenantId =
-    request.nextUrl.searchParams.get("tenantId") ?? DEFAULT_TARGET_TENANT_ID;
+  const userId = access.user?.id;
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, message: "Authentication required." },
+      { status: 401 },
+    );
+  }
+
+  const tenantResolution = await resolveAuthenticatedMarketplaceTenant(userId);
+  if (!tenantResolution.ok) {
+    return NextResponse.json(
+      { success: false, message: tenantResolution.message },
+      { status: tenantResolution.status },
+    );
+  }
+
+  const tenantId = tenantResolution.tenantId;
+  const introRepairResult =
+    await ensureIntroMarketplaceCreditForTenant(tenantId);
+  if (!introRepairResult.ok) {
+    return NextResponse.json(
+      { success: false, message: introRepairResult.message },
+      { status: 500 },
+    );
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const [
@@ -145,7 +169,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const targetTenantId = parsed.data.tenantId ?? DEFAULT_TARGET_TENANT_ID;
+  const tenantResolution = await resolveAuthenticatedMarketplaceTenant(userId);
+  if (!tenantResolution.ok) {
+    return NextResponse.json(
+      { success: false, message: tenantResolution.message },
+      { status: tenantResolution.status },
+    );
+  }
+
+  const targetTenantId = tenantResolution.tenantId;
   let delta = 0;
   let txType: "refunded" | "adjustment" = "adjustment";
 

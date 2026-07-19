@@ -1,7 +1,3 @@
-export const DEFAULT_TARGET_TENANT_ID =
-  process.env.PUBLIC_MARKETING_TENANT_ID ||
-  "00000000-0000-0000-0000-000000000001";
-
 export type LeadCreditPackageId = "starter" | "growth" | "professional";
 
 export type LeadCreditPackage = {
