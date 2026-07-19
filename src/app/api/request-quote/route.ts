@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  buildDuplicateLookupTokens,
+  type DuplicateSignal,
+  qualifyMarketplaceLead,
+} from "@/lib/lead-marketplace/qualification";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const MAX_PHOTO_COUNT = 3;
@@ -24,12 +29,6 @@ const quoteLeadSchema = z.object({
   notes: z.string().trim().max(4000).optional(),
   website: z.string().trim().max(200).optional(),
 });
-
-type PlaceholderScoring = {
-  aiScore: number;
-  estimatedContractValue: number;
-  closeProbability: number;
-};
 
 function cleanText(value: string, maxLength: number) {
   return value
@@ -67,49 +66,102 @@ function resolveFileExtension(fileName: string, mimeType: string) {
   return "bin";
 }
 
-function buildPlaceholderScoring(input: {
-  squareFootage: number;
-  cleaningFrequency: string;
-  serviceRequested: string;
-}): PlaceholderScoring {
-  const normalizedFrequency = input.cleaningFrequency.toLowerCase();
-  const monthlyVisits =
-    normalizedFrequency === "daily"
-      ? 22
-      : normalizedFrequency === "weekly"
-        ? 4
-        : normalizedFrequency === "bi-weekly"
-          ? 2
-          : normalizedFrequency === "monthly"
-            ? 1
-            : 0.5;
+async function findDuplicateSignals(params: {
+  businessName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+}) {
+  const supabase = createAdminSupabaseClient();
+  const tokens = buildDuplicateLookupTokens(params);
 
-  const serviceMultiplier = input.serviceRequested
-    .toLowerCase()
-    .includes("deep")
-    ? 1.35
-    : 1;
-  const estimatedContractValue = Math.max(
-    500,
-    Math.round(input.squareFootage * 0.11 * monthlyVisits * serviceMultiplier),
-  );
+  const [
+    emailMatches,
+    phoneMatches,
+    addressBusinessMatches,
+    businessCityMatches,
+  ] = await Promise.all([
+    supabase
+      .from("marketplace_leads")
+      .select("lead_id,created_at,email")
+      .eq("email", tokens.email)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("marketplace_leads")
+      .select("lead_id,created_at,phone")
+      .eq("phone", params.phone)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("marketplace_leads")
+      .select("lead_id,created_at,address,business_name")
+      .eq("address", params.address)
+      .eq("business_name", params.businessName)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("marketplace_leads")
+      .select("lead_id,created_at,business_name,city")
+      .eq("business_name", params.businessName)
+      .eq("city", params.city)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
 
-  const aiScoreRaw =
-    35 +
-    Math.min(35, input.squareFootage / 4000) +
-    Math.min(25, monthlyVisits * 3);
-  const aiScore = Math.max(1, Math.min(99, Math.round(aiScoreRaw)));
+  const errors = [
+    emailMatches.error,
+    phoneMatches.error,
+    addressBusinessMatches.error,
+    businessCityMatches.error,
+  ].filter(Boolean);
 
-  const closeProbabilityRaw = 0.2 + aiScore / 140;
-  const closeProbability = Number(
-    Math.min(0.92, Math.max(0.1, closeProbabilityRaw)).toFixed(2),
-  );
+  if (errors.length > 0) {
+    throw new Error(
+      `Failed to evaluate duplicate signals: ${errors.map((err) => err?.message).join(" | ")}`,
+    );
+  }
 
-  return {
-    aiScore,
-    estimatedContractValue,
-    closeProbability,
-  };
+  const signals: DuplicateSignal[] = [];
+
+  for (const row of emailMatches.data ?? []) {
+    signals.push({
+      leadId: row.lead_id,
+      signalType: "email",
+      matchedValue: row.email,
+      createdAt: row.created_at,
+    });
+  }
+
+  for (const row of phoneMatches.data ?? []) {
+    signals.push({
+      leadId: row.lead_id,
+      signalType: "phone",
+      matchedValue: row.phone,
+      createdAt: row.created_at,
+    });
+  }
+
+  for (const row of addressBusinessMatches.data ?? []) {
+    signals.push({
+      leadId: row.lead_id,
+      signalType: "address_business",
+      matchedValue: `${row.address} | ${row.business_name}`,
+      createdAt: row.created_at,
+    });
+  }
+
+  for (const row of businessCityMatches.data ?? []) {
+    signals.push({
+      leadId: row.lead_id,
+      signalType: "business_city",
+      matchedValue: `${row.business_name} | ${row.city}`,
+      createdAt: row.created_at,
+    });
+  }
+
+  return signals;
 }
 
 async function uploadLeadPhotos(files: File[]) {
@@ -224,10 +276,34 @@ export async function POST(request: Request) {
       notes: cleanOptional(parsed.data.notes, 4000),
     };
 
-    const scoring = buildPlaceholderScoring({
-      squareFootage: cleanInput.squareFootage,
-      cleaningFrequency: cleanInput.cleaningFrequency,
-      serviceRequested: cleanInput.serviceRequested,
+    const duplicateSignals = await findDuplicateSignals({
+      businessName: cleanInput.businessName,
+      email: cleanInput.email,
+      phone: cleanInput.phone,
+      address: cleanInput.address,
+      city: cleanInput.city,
+    });
+
+    const qualification = await qualifyMarketplaceLead({
+      lead: {
+        businessName: cleanInput.businessName,
+        contactName: cleanInput.contactName,
+        email: cleanInput.email,
+        phone: cleanInput.phone,
+        address: cleanInput.address,
+        city: cleanInput.city,
+        state: cleanInput.state,
+        zipCode: cleanInput.zipCode,
+        propertyType: cleanInput.propertyType,
+        squareFootage: cleanInput.squareFootage,
+        cleaningFrequency: cleanInput.cleaningFrequency,
+        serviceRequested: cleanInput.serviceRequested,
+        budget: cleanInput.budget,
+        preferredStartDate: cleanInput.preferredStartDate,
+        notes: cleanInput.notes,
+      },
+      duplicateSignals,
+      honeypotValue: parsed.data.website ?? "",
     });
 
     const photoUrls = await uploadLeadPhotos(photoFiles);
@@ -252,9 +328,21 @@ export async function POST(request: Request) {
         preferred_start_date: cleanInput.preferredStartDate,
         notes: cleanInput.notes,
         photo_urls: photoUrls,
-        ai_score: scoring.aiScore,
-        estimated_contract_value: scoring.estimatedContractValue,
-        close_probability: scoring.closeProbability,
+        ai_score: qualification.qualityScore,
+        estimated_contract_value: qualification.estimatedAnnualValue,
+        qualification_status: qualification.qualificationStatus,
+        quality_score: qualification.qualityScore,
+        lead_grade: qualification.leadGrade,
+        estimated_monthly_value: qualification.estimatedMonthlyValue,
+        estimated_annual_value: qualification.estimatedAnnualValue,
+        close_probability: qualification.closeProbability,
+        urgency_score: qualification.urgencyScore,
+        completeness_score: qualification.completenessScore,
+        duplicate_risk: qualification.duplicateRisk,
+        spam_risk: qualification.spamRisk,
+        qualification_summary: qualification.qualificationSummary,
+        scoring_breakdown: qualification.scoringBreakdown,
+        qualification_last_run_at: new Date().toISOString(),
         status: "new",
       })
       .select("lead_id")
