@@ -42,6 +42,10 @@ type MarketplaceLeadRow = {
   verified_at: string | null;
   verified_by: string | null;
   internal_notes: string | null;
+  claimed_at: string | null;
+  claimed_by_user_id: string | null;
+  claimed_company_id: string | null;
+  claimed_sales_lead_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -114,7 +118,7 @@ async function loadLead(
   const { data, error } = await supabase
     .from("marketplace_leads")
     .select(
-      "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,scoring_breakdown,verified_at,verified_by,internal_notes,created_at,updated_at",
+      "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,scoring_breakdown,verified_at,verified_by,internal_notes,claimed_at,claimed_by_user_id,claimed_company_id,claimed_sales_lead_id,created_at,updated_at",
     )
     .eq("lead_id", leadId)
     .maybeSingle<MarketplaceLeadRow>();

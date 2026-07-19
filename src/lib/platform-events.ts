@@ -9,6 +9,7 @@ export const PLATFORM_EVENT_ALLOWLIST = [
   "demo_video_opened",
   "book_demo_clicked",
   "lead_marked_won",
+  "lead_claimed",
 ] as const;
 
 export type PlatformEventName = (typeof PLATFORM_EVENT_ALLOWLIST)[number];
@@ -24,4 +25,5 @@ export const PLATFORM_CONVERSION_EVENTS: readonly PlatformEventName[] = [
   "demo_request_submitted",
   "founding_partner_application_submitted",
   "lead_marked_won",
+  "lead_claimed",
 ];

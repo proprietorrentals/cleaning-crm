@@ -16,7 +16,7 @@ type SalesLeadStatus =
   | "won"
   | "lost";
 
-type SalesLeadSource = "website" | "website_contact" | "demo_request" | "founding_partner" | "free_trial";
+type SalesLeadSource = "website" | "website_contact" | "demo_request" | "founding_partner" | "free_trial" | "lead_marketplace";
 
 type SalesLeadRow = {
   id: string;

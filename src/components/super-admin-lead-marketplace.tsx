@@ -4,12 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 type QualificationStatus = "New" | "Needs Review" | "Verified" | "Rejected";
 
+type LeadStatus =
+  | "new"
+  | "reviewing"
+  | "qualified"
+  | "contacted"
+  | "Claimed"
+  | "closed_won"
+  | "closed_lost";
+
 type LeadSummary = {
   lead_id: string;
   business_name: string;
   contact_name: string;
   email: string;
   phone: string;
+  status: LeadStatus;
   city: string;
   state: string;
   zip_code: string;
@@ -40,6 +50,10 @@ type LeadDetail = LeadSummary & {
   scoring_breakdown: Record<string, unknown> | null;
   verified_at: string | null;
   internal_notes: string | null;
+  claimed_at: string | null;
+  claimed_by_user_id: string | null;
+  claimed_company_id: string | null;
+  claimed_sales_lead_id: string | null;
   updated_at: string;
 };
 
@@ -51,6 +65,35 @@ type AuditEvent = {
   change_summary: string | null;
   before_data: Record<string, unknown> | null;
   after_data: Record<string, unknown> | null;
+};
+
+type ClaimTimelineItem = {
+  leadId: string;
+  businessName: string;
+  city: string;
+  state: string;
+  leadGrade: string;
+  qualityScore: number;
+  estimatedAnnualValue: number;
+  qualificationStatus: QualificationStatus;
+  claimedAt: string;
+  changedAt: string;
+  changeSummary: string | null;
+  metadata: Record<string, unknown>;
+};
+
+type ClaimInsights = {
+  recentClaimCount: number;
+  revenuePotential: number;
+  aiTasksGenerated: number;
+  claimSuccessRate: number;
+  funnel: {
+    verified: number;
+    claimed: number;
+    open: number;
+    won: number;
+    lost: number;
+  };
 };
 
 type FilterState = {
@@ -109,12 +152,17 @@ export function SuperAdminLeadMarketplace() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [savingAction, setSavingAction] = useState(false);
+  const [claimingLead, setClaimingLead] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [leads, setLeads] = useState<LeadSummary[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadDetail | null>(null);
   const [history, setHistory] = useState<AuditEvent[]>([]);
+  const [claimInsights, setClaimInsights] = useState<ClaimInsights | null>(
+    null,
+  );
+  const [claimTimeline, setClaimTimeline] = useState<ClaimTimelineItem[]>([]);
 
   const [overrideDraft, setOverrideDraft] = useState({
     qualityScore: "",
@@ -244,9 +292,36 @@ export function SuperAdminLeadMarketplace() {
     }
   }, []);
 
+  const loadClaimInsights = useCallback(async () => {
+    try {
+      const response = await fetch("/api/super-admin/lead-marketplace/claims");
+      const body = (await response.json()) as
+        | {
+            success: true;
+            metrics: ClaimInsights;
+            timeline: ClaimTimelineItem[];
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        return;
+      }
+
+      setClaimInsights(body.metrics);
+      setClaimTimeline(body.timeline);
+    } catch {
+      setClaimInsights(null);
+      setClaimTimeline([]);
+    }
+  }, []);
+
   useEffect(() => {
     void loadLeads(INITIAL_FILTERS);
   }, [loadLeads]);
+
+  useEffect(() => {
+    void loadClaimInsights();
+  }, [loadClaimInsights]);
 
   useEffect(() => {
     if (!selectedLeadId) return;
@@ -258,7 +333,51 @@ export function SuperAdminLeadMarketplace() {
     if (selectedLeadId) {
       await loadLeadDetail(selectedLeadId);
     }
-  }, [filters, loadLeads, loadLeadDetail, selectedLeadId]);
+    await loadClaimInsights();
+  }, [filters, loadLeads, loadLeadDetail, selectedLeadId, loadClaimInsights]);
+
+  const claimLead = useCallback(async () => {
+    if (!selectedLeadId || !selectedLead) return;
+
+    setClaimingLead(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        `/api/super-admin/lead-marketplace/${selectedLeadId}/claim`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      const body = (await response.json()) as
+        | {
+            success: true;
+            claim: {
+              taskCount: number;
+              claimedCompanyId: string;
+              claimedSalesLeadId: string;
+            };
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Unable to claim lead." : body.message);
+        return;
+      }
+
+      setSuccess(
+        `Lead claimed, CRM records imported, and ${body.claim.taskCount} AI tasks generated.`,
+      );
+      await refreshAll();
+    } catch {
+      setError("Unexpected error while claiming lead.");
+    } finally {
+      setClaimingLead(false);
+    }
+  }, [refreshAll, selectedLead, selectedLeadId]);
 
   const runLeadAction = async (
     payload:
@@ -315,6 +434,8 @@ export function SuperAdminLeadMarketplace() {
     }
   };
 
+  const selectedLeadIsClaimed = selectedLead?.status === "Claimed";
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
@@ -336,6 +457,29 @@ export function SuperAdminLeadMarketplace() {
             Refresh
           </button>
         </header>
+
+        <section className="mb-5 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:grid-cols-2 xl:grid-cols-5">
+          <Metric
+            label="Recent Claims"
+            value={claimInsights?.recentClaimCount ?? 0}
+          />
+          <Metric
+            label="Revenue Potential"
+            value={formatCurrency(claimInsights?.revenuePotential ?? 0)}
+          />
+          <Metric
+            label="AI Tasks Generated"
+            value={claimInsights?.aiTasksGenerated ?? 0}
+          />
+          <Metric
+            label="Claim Success Rate"
+            value={`${claimInsights?.claimSuccessRate ?? 0}%`}
+          />
+          <Metric
+            label="Open / Claimed"
+            value={`${claimInsights?.funnel.open ?? 0} / ${claimInsights?.funnel.claimed ?? 0}`}
+          />
+        </section>
 
         <div className="mb-5 flex flex-wrap gap-2">
           {STATUS_VIEWS.map((view) => (
@@ -552,6 +696,19 @@ export function SuperAdminLeadMarketplace() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
+                      disabled={
+                        savingAction ||
+                        claimingLead ||
+                        selectedLeadIsClaimed ||
+                        selectedLead.qualification_status !== "Verified"
+                      }
+                      onClick={() => void claimLead()}
+                      className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                    >
+                      {selectedLeadIsClaimed ? "Claimed" : "Claim Lead"}
+                    </button>
+                    <button
+                      type="button"
                       disabled={savingAction}
                       onClick={() =>
                         void runLeadAction(
@@ -599,7 +756,7 @@ export function SuperAdminLeadMarketplace() {
                 <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Metric
                     label="Status"
-                    value={selectedLead.qualification_status}
+                    value={`${selectedLead.qualification_status} / ${selectedLead.status}`}
                   />
                   <Metric
                     label="Quality"
@@ -652,6 +809,39 @@ export function SuperAdminLeadMarketplace() {
                     {Math.round(selectedLead.spam_risk * 100)}%.
                   </div>
                 ) : null}
+
+                <div className="mb-5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-cyan-200">
+                    Claim Preview
+                  </p>
+                  <div className="grid gap-3 text-sm text-cyan-50 sm:grid-cols-2">
+                    <div>
+                      <p className="text-cyan-100/80">Customer import</p>
+                      <p className="font-semibold">
+                        {selectedLead.business_name} /{" "}
+                        {selectedLead.contact_name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-cyan-100/80">Opportunity source</p>
+                      <p className="font-semibold">
+                        Lead Marketplace claim workflow
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-cyan-100/80">AI tasks generated</p>
+                      <p className="font-semibold">
+                        6 role-specific assignments
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-cyan-100/80">Timeline entry</p>
+                      <p className="font-semibold">
+                        Claim audit + platform event
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="mb-5 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
                   <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">
@@ -919,6 +1109,48 @@ export function SuperAdminLeadMarketplace() {
                     )}
                   </div>
                 </div>
+
+                <div className="mb-5 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">
+                    Claim Timeline
+                  </p>
+                  {claimTimeline.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      No recent claim activity yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {claimTimeline.slice(0, 6).map((item) => (
+                        <div
+                          key={`${item.leadId}-${item.changedAt}`}
+                          className="rounded-lg border border-slate-800 bg-slate-900/70 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-100">
+                                {item.businessName}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {item.city}, {item.state} · Grade{" "}
+                                {item.leadGrade} · {item.qualityScore}/100
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-200">
+                              Claimed
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-300">
+                            {item.changeSummary || "Claim imported into CRM."}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            {formatDate(item.changedAt)} · Potential value{" "}
+                            {formatCurrency(item.estimatedAnnualValue)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </section>
@@ -928,7 +1160,7 @@ export function SuperAdminLeadMarketplace() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
       <p className="text-[11px] uppercase tracking-wide text-slate-500">
