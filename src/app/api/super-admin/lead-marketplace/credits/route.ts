@@ -6,8 +6,10 @@ import {
   resolveAuthenticatedMarketplaceTenant,
 } from "@/lib/lead-marketplace/tenant-resolution";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const adjustmentSchema = z.object({
   action: z.enum(["refund", "adjustment"]),
@@ -81,64 +83,82 @@ export async function GET(_request: NextRequest) {
     await ensureIntroMarketplaceCreditForTenant(tenantId);
   if (!introRepairResult.ok) {
     return NextResponse.json(
-      { success: false, message: introRepairResult.message },
-      { status: 500 },
-    );
-  }
-
-  const supabase = await createServerSupabaseClient();
-
-  const [
-    { data: balance, error: balanceError },
-    { data: transactions, error: txError },
-  ] = await Promise.all([
-    supabase
-      .from("marketplace_credit_balances")
-      .select(
-        "tenant_id,balance,lifetime_purchased,lifetime_spent,lifetime_refunded,lifetime_promotional,lifetime_adjustment,last_transaction_at,updated_at",
-      )
-      .eq("tenant_id", tenantId)
-      .maybeSingle(),
-    supabase
-      .from("marketplace_credit_transactions")
-      .select(
-        "id,tenant_id,transaction_type,credits_delta,balance_after,reference_key,reason,metadata,created_by_user_id,created_at",
-      )
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false })
-      .limit(100),
-  ]);
-
-  if (balanceError || txError) {
-    return NextResponse.json(
       {
         success: false,
-        message:
-          balanceError?.message ||
-          txError?.message ||
-          "Unable to load credits.",
+        message: "Unable to ensure introductory marketplace credit.",
       },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({
-    success: true,
-    tenantId,
-    balance: balance ?? {
-      tenant_id: tenantId,
-      balance: 0,
-      lifetime_purchased: 0,
-      lifetime_spent: 0,
-      lifetime_refunded: 0,
-      lifetime_promotional: 0,
-      lifetime_adjustment: 0,
-      last_transaction_at: null,
-      updated_at: null,
+  const supabase = createAdminSupabaseClient();
+
+  const loadCreditState = async () =>
+    Promise.all([
+      supabase
+        .from("marketplace_credit_balances")
+        .select(
+          "tenant_id,balance,lifetime_purchased,lifetime_spent,lifetime_refunded,lifetime_promotional,lifetime_adjustment,last_transaction_at,updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .maybeSingle(),
+      supabase
+        .from("marketplace_credit_transactions")
+        .select(
+          "id,tenant_id,transaction_type,credits_delta,balance_after,reference_key,reason,metadata,created_by_user_id,created_at",
+        )
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+
+  let [
+    { data: balance, error: balanceError },
+    { data: transactions, error: txError },
+  ] = await loadCreditState();
+
+  if (introRepairResult.granted) {
+    const [freshBalanceState, freshTransactionState] = await loadCreditState();
+    balance = freshBalanceState.data;
+    balanceError = freshBalanceState.error;
+    transactions = freshTransactionState.data;
+    txError = freshTransactionState.error;
+  }
+
+  if (balanceError || txError) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Unable to load credits.",
+      },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      success: true,
+      tenantId,
+      balance: balance ?? {
+        tenant_id: tenantId,
+        balance: 0,
+        lifetime_purchased: 0,
+        lifetime_spent: 0,
+        lifetime_refunded: 0,
+        lifetime_promotional: 0,
+        lifetime_adjustment: 0,
+        last_transaction_at: null,
+        updated_at: null,
+      },
+      transactions: transactions ?? [],
+      packages: listLeadCreditPackages(),
     },
-    transactions: transactions ?? [],
-    packages: listLeadCreditPackages(),
-  });
+    {
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      },
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {
