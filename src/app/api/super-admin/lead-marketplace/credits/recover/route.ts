@@ -15,18 +15,65 @@ const checkoutSessionIdSchema = z
 
 const uuidSchema = z.string().uuid();
 
+type RecoveryDiagnostics = {
+  routeReached: boolean;
+  sessionFound: boolean;
+  paymentPaid: boolean;
+  metadataValid: boolean;
+  packageValid: boolean;
+  tenantValid: boolean;
+  purchaseApplied: boolean;
+  alreadyCredited: boolean;
+  errorCode: string | null;
+};
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
   apiVersion: "2024-06-20",
 });
 
-async function ensureAccess() {
+function createRecoveryDiagnostics(
+  overrides: Partial<RecoveryDiagnostics> = {},
+): RecoveryDiagnostics {
+  return {
+    routeReached: true,
+    sessionFound: false,
+    paymentPaid: false,
+    metadataValid: false,
+    packageValid: false,
+    tenantValid: false,
+    purchaseApplied: false,
+    alreadyCredited: false,
+    errorCode: null,
+    ...overrides,
+  };
+}
+
+function recoveryResponse(
+  status: number,
+  message: string,
+  diagnostics: RecoveryDiagnostics,
+  extra: Record<string, unknown> = {},
+) {
+  return NextResponse.json(
+    {
+      success: status < 400,
+      message,
+      diagnostics,
+      ...extra,
+    },
+    { status },
+  );
+}
+
+async function ensureAccess(diagnostics: RecoveryDiagnostics) {
   const access = await requireSuperAdminAccess();
 
   if (access.needsAuth) {
     return {
-      deniedResponse: NextResponse.json(
-        { success: false, message: "Authentication required." },
-        { status: 401 },
+      deniedResponse: recoveryResponse(
+        401,
+        "Authentication required.",
+        diagnostics,
       ),
       access,
     };
@@ -34,9 +81,10 @@ async function ensureAccess() {
 
   if (access.denied) {
     return {
-      deniedResponse: NextResponse.json(
-        { success: false, message: "Super Admin access required." },
-        { status: 403 },
+      deniedResponse: recoveryResponse(
+        403,
+        "Super Admin access required.",
+        diagnostics,
       ),
       access,
     };
@@ -44,9 +92,10 @@ async function ensureAccess() {
 
   if (access.rpcError) {
     return {
-      deniedResponse: NextResponse.json(
-        { success: false, message: "Unable to verify Super Admin access." },
-        { status: 503 },
+      deniedResponse: recoveryResponse(
+        503,
+        "Unable to verify Super Admin access.",
+        diagnostics,
       ),
       access,
     };
@@ -56,39 +105,36 @@ async function ensureAccess() {
 }
 
 export async function POST(request: NextRequest) {
-  const { deniedResponse, access } = await ensureAccess();
+  const diagnostics = createRecoveryDiagnostics();
+  const { deniedResponse, access } = await ensureAccess(diagnostics);
   if (deniedResponse) {
     return deniedResponse;
   }
 
   if (!process.env.STRIPE_SECRET_KEY) {
-    return NextResponse.json(
-      { success: false, message: "Stripe is not configured." },
-      { status: 500 },
-    );
+    diagnostics.errorCode = "stripe_not_configured";
+    return recoveryResponse(500, "Stripe is not configured.", diagnostics);
   }
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Invalid request payload.",
-        issues: parsed.error.flatten(),
-      },
-      { status: 400 },
-    );
+    diagnostics.errorCode = "invalid_payload";
+    return recoveryResponse(400, "Invalid request payload.", diagnostics, {
+      issues: parsed.error.flatten(),
+    });
   }
 
   const sessionIdParse = checkoutSessionIdSchema.safeParse(
     parsed.data.checkoutSessionId,
   );
   if (!sessionIdParse.success) {
-    return NextResponse.json(
-      { success: false, message: "Invalid Stripe Checkout Session ID." },
-      { status: 400 },
+    diagnostics.errorCode = "invalid_checkout_session_id";
+    return recoveryResponse(
+      400,
+      "Invalid Stripe Checkout Session ID.",
+      diagnostics,
     );
   }
 
@@ -98,64 +144,72 @@ export async function POST(request: NextRequest) {
   try {
     session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
   } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Unable to retrieve Stripe Checkout Session.",
-      },
-      { status: 404 },
+    diagnostics.errorCode = "stripe_session_not_found";
+    return recoveryResponse(
+      404,
+      "Unable to retrieve Stripe Checkout Session.",
+      diagnostics,
     );
   }
 
+  diagnostics.sessionFound = true;
+
   if (session.mode !== "payment") {
-    return NextResponse.json(
-      { success: false, message: "Checkout Session is not a payment session." },
-      { status: 400 },
+    diagnostics.errorCode = "invalid_session_mode";
+    return recoveryResponse(
+      400,
+      "Checkout Session is not a payment session.",
+      diagnostics,
     );
   }
 
   if (session.payment_status !== "paid") {
-    return NextResponse.json(
-      { success: false, message: "Checkout Session has not been paid." },
-      { status: 400 },
+    diagnostics.paymentPaid = false;
+    diagnostics.errorCode = "payment_not_paid";
+    return recoveryResponse(
+      400,
+      "Checkout Session has not been paid.",
+      diagnostics,
     );
   }
 
+  diagnostics.paymentPaid = true;
+
   const purchaseType = session.metadata?.purchaseType;
   if (purchaseType !== "lead_marketplace_credits") {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Checkout Session is not a marketplace credit purchase.",
-      },
-      { status: 400 },
+    diagnostics.errorCode = "invalid_purchase_type";
+    return recoveryResponse(
+      400,
+      "Checkout Session is not a marketplace credit purchase.",
+      diagnostics,
     );
   }
 
   const packageId = session.metadata?.packageId ?? "";
   const pkg = getLeadCreditPackage(packageId);
   if (!pkg) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Invalid package metadata on Checkout Session.",
-      },
-      { status: 400 },
+    diagnostics.errorCode = "invalid_package_id";
+    return recoveryResponse(
+      400,
+      "Invalid package metadata on Checkout Session.",
+      diagnostics,
     );
   }
 
   const tenantIdParse = uuidSchema.safeParse(session.metadata?.tenantId ?? "");
   if (!tenantIdParse.success) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Invalid tenant metadata on Checkout Session.",
-      },
-      { status: 400 },
+    diagnostics.errorCode = "invalid_tenant_id";
+    return recoveryResponse(
+      400,
+      "Invalid tenant metadata on Checkout Session.",
+      diagnostics,
     );
   }
 
   const tenantId = tenantIdParse.data;
+  diagnostics.metadataValid = true;
+  diagnostics.packageValid = true;
+  diagnostics.tenantValid = true;
   const packageCredits = Number(session.metadata?.packageCredits ?? "0");
   const packageAmountCents = Number(
     session.metadata?.packageAmountCents ?? "0",
@@ -165,33 +219,32 @@ export async function POST(request: NextRequest) {
     packageCredits !== pkg.credits ||
     packageAmountCents !== pkg.amountCents
   ) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Checkout metadata does not match server package pricing.",
-      },
-      { status: 400 },
+    diagnostics.packageValid = false;
+    diagnostics.errorCode = "package_mismatch";
+    return recoveryResponse(
+      400,
+      "Checkout metadata does not match server package pricing.",
+      diagnostics,
     );
   }
 
   if (session.amount_total !== pkg.amountCents) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Checkout amount does not match package pricing.",
-      },
-      { status: 400 },
+    diagnostics.packageValid = false;
+    diagnostics.errorCode = "amount_mismatch";
+    return recoveryResponse(
+      400,
+      "Checkout amount does not match package pricing.",
+      diagnostics,
     );
   }
 
   if ((session.currency ?? "").toLowerCase() !== "usd") {
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          "Checkout currency is invalid for marketplace credit purchase.",
-      },
-      { status: 400 },
+    diagnostics.packageValid = false;
+    diagnostics.errorCode = "currency_mismatch";
+    return recoveryResponse(
+      400,
+      "Checkout currency is invalid for marketplace credit purchase.",
+      diagnostics,
     );
   }
 
@@ -203,12 +256,12 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (tenantLookupError || !tenantExists) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Tenant metadata does not map to an active company.",
-      },
-      { status: 400 },
+    diagnostics.tenantValid = false;
+    diagnostics.errorCode = "tenant_not_found";
+    return recoveryResponse(
+      400,
+      "Tenant metadata does not map to an active company.",
+      diagnostics,
     );
   }
 
@@ -229,9 +282,11 @@ export async function POST(request: NextRequest) {
   );
 
   if (purchaseResult.error) {
-    return NextResponse.json(
-      { success: false, message: "Unable to recover paid credit purchase." },
-      { status: 500 },
+    diagnostics.errorCode = "purchase_recovery_failed";
+    return recoveryResponse(
+      500,
+      "Unable to recover paid credit purchase.",
+      diagnostics,
     );
   }
 
@@ -242,8 +297,10 @@ export async function POST(request: NextRequest) {
     creditsDelta?: number;
   } | null;
 
-  return NextResponse.json({
-    success: true,
+  diagnostics.purchaseApplied = result?.applied === true;
+  diagnostics.alreadyCredited = result?.applied === false;
+
+  return recoveryResponse(200, "Recovery completed.", diagnostics, {
     recovered: result?.applied === true,
     tenantId,
     checkoutSessionId,

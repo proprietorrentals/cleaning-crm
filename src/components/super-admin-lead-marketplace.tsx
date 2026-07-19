@@ -137,6 +137,23 @@ type LeadCreditPackage = {
   description: string;
 };
 
+type RecoveryResponseBody = {
+  success: boolean;
+  message?: string;
+  recovered?: boolean;
+  diagnostics?: {
+    routeReached: boolean;
+    sessionFound: boolean;
+    paymentPaid: boolean;
+    metadataValid: boolean;
+    packageValid: boolean;
+    tenantValid: boolean;
+    purchaseApplied: boolean;
+    alreadyCredited: boolean;
+    errorCode: string | null;
+  };
+};
+
 type FilterState = {
   view: QualificationStatus | "All";
   search: string;
@@ -576,6 +593,8 @@ export function SuperAdminLeadMarketplace() {
     setError(null);
     setSuccess(null);
 
+    let shouldRefreshCredits = false;
+
     try {
       const response = await fetch(
         "/api/super-admin/lead-marketplace/credits/recover",
@@ -586,15 +605,27 @@ export function SuperAdminLeadMarketplace() {
         },
       );
 
-      const body = (await response.json()) as
-        | {
-            success: true;
-            recovered: boolean;
-          }
-        | { success: false; message: string };
+      shouldRefreshCredits = true;
 
-      if (!response.ok || !body.success) {
-        setError(body.success ? "Recovery failed." : body.message);
+      const rawBody = await response.text();
+      let body: RecoveryResponseBody | null = null;
+
+      if (rawBody.trim().length > 0) {
+        try {
+          body = JSON.parse(rawBody) as RecoveryResponseBody;
+        } catch {
+          body = null;
+        }
+      }
+
+      const errorMessage =
+        body?.message?.trim() ||
+        `Recovery failed (${response.status}${
+          response.statusText ? ` ${response.statusText}` : ""
+        }).`;
+
+      if (!response.ok || !body?.success) {
+        setError(errorMessage);
         return;
       }
 
@@ -604,10 +635,12 @@ export function SuperAdminLeadMarketplace() {
           : "This paid session was already credited (no duplicate credits applied).",
       );
       setRecoverSessionId("");
-      await loadCredits();
     } catch {
       setError("Unable to recover paid credit purchase.");
     } finally {
+      if (shouldRefreshCredits) {
+        await loadCredits();
+      }
       setRecoveringPurchase(false);
     }
   }, [loadCredits, recoverSessionId]);
