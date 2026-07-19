@@ -1,10 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
-import {
-  getAppBaseUrl,
-  getLeadCreditPackage,
-} from "@/lib/lead-marketplace/credits";
+import { getLeadCreditPackage } from "@/lib/lead-marketplace/credits";
 import { resolveAuthenticatedMarketplaceTenant } from "@/lib/lead-marketplace/tenant-resolution";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -15,6 +12,18 @@ const bodySchema = z.object({
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
   apiVersion: "2024-06-20",
 });
+
+function resolveCheckoutBaseUrl(request: NextRequest) {
+  if (request.nextUrl.origin && request.nextUrl.origin !== "null") {
+    return request.nextUrl.origin;
+  }
+
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "http://localhost:3000"
+  );
+}
 
 async function ensureAccess() {
   const access = await requireSuperAdminAccess();
@@ -104,7 +113,7 @@ export async function POST(request: NextRequest) {
   }
 
   const targetTenantId = tenantResolution.tenantId;
-  const baseUrl = getAppBaseUrl();
+  const baseUrl = resolveCheckoutBaseUrl(request);
 
   try {
     const session = await stripe.checkout.sessions.create({

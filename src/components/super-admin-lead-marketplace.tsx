@@ -429,6 +429,29 @@ export function SuperAdminLeadMarketplace() {
   }, [loadCredits]);
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const purchaseStatus = query.get("creditsPurchase");
+    if (!purchaseStatus) {
+      return;
+    }
+
+    if (purchaseStatus === "success") {
+      setSuccess("Payment successful. Credits have been refreshed.");
+      setError(null);
+      void loadCredits();
+    } else if (purchaseStatus === "cancelled") {
+      setError("Payment cancelled. No credits were added.");
+      setSuccess(null);
+      void loadCredits();
+    }
+
+    const cleanedUrl = new URL(window.location.href);
+    cleanedUrl.searchParams.delete("creditsPurchase");
+    cleanedUrl.searchParams.delete("session_id");
+    window.history.replaceState({}, "", cleanedUrl.toString());
+  }, [loadCredits]);
+
+  useEffect(() => {
     if (!selectedLeadId) return;
     void loadLeadDetail(selectedLeadId);
   }, [selectedLeadId, loadLeadDetail]);
