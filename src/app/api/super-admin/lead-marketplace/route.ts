@@ -82,69 +82,120 @@ export async function GET(request: NextRequest) {
   const filter = parsed.data;
   const supabase = await createServerSupabaseClient();
 
-  let query = supabase
-    .from("marketplace_leads")
-    .select(
-      "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,verified_at,verified_by,internal_notes,claimed_at,claimed_by_user_id,claimed_by_user_email,claimed_company_id,claimed_sales_lead_id,created_at,updated_at",
+  const selectWithClaimColumns =
+    "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,verified_at,verified_by,internal_notes,claimed_at,claimed_by_user_id,claimed_by_user_email,claimed_company_id,claimed_sales_lead_id,created_at,updated_at";
+  const selectWithoutClaimColumns =
+    "lead_id,business_name,contact_name,email,phone,address,city,state,zip_code,property_type,square_footage,cleaning_frequency,service_requested,budget,preferred_start_date,notes,photo_urls,status,qualification_status,quality_score,lead_grade,estimated_monthly_value,estimated_annual_value,close_probability,urgency_score,completeness_score,duplicate_risk,spam_risk,qualification_summary,verified_at,verified_by,internal_notes,created_at,updated_at";
+
+  type LeadRow = Record<string, unknown> & {
+    claimed_at?: string | null;
+    claimed_by_user_id?: string | null;
+    claimed_by_user_email?: string | null;
+    claimed_company_id?: string | null;
+    claimed_sales_lead_id?: string | null;
+  };
+
+  type FilterableQuery<T> = {
+    eq: (column: string, value: string) => T;
+    ilike: (column: string, value: string) => T;
+    gte: (column: string, value: number | string) => T;
+    lte: (column: string, value: number | string) => T;
+    or: (filters: string) => T;
+  };
+
+  const applyFilters = <T extends FilterableQuery<T>>(query: T): T => {
+    let nextQuery = query;
+
+    if (filter.view && filter.view !== "All") {
+      nextQuery = nextQuery.eq("qualification_status", filter.view);
+    }
+
+    if (filter.status) {
+      nextQuery = nextQuery.eq("status", filter.status);
+    }
+
+    if (filter.grade) {
+      nextQuery = nextQuery.eq("lead_grade", filter.grade);
+    }
+
+    if (filter.city) {
+      nextQuery = nextQuery.ilike("city", `%${filter.city}%`);
+    }
+
+    if (filter.zip) {
+      nextQuery = nextQuery.ilike("zip_code", `%${filter.zip}%`);
+    }
+
+    if (filter.propertyType) {
+      nextQuery = nextQuery.ilike("property_type", `%${filter.propertyType}%`);
+    }
+
+    if (typeof filter.minScore === "number") {
+      nextQuery = nextQuery.gte("quality_score", filter.minScore);
+    }
+
+    if (typeof filter.maxScore === "number") {
+      nextQuery = nextQuery.lte("quality_score", filter.maxScore);
+    }
+
+    if (filter.fromDate) {
+      nextQuery = nextQuery.gte(
+        "created_at",
+        `${filter.fromDate}T00:00:00.000Z`,
+      );
+    }
+
+    if (filter.toDate) {
+      nextQuery = nextQuery.lte("created_at", `${filter.toDate}T23:59:59.999Z`);
+    }
+
+    if (filter.search) {
+      const escaped = filter.search.replace(/,/g, " ").trim();
+      nextQuery = nextQuery.or(
+        [
+          `business_name.ilike.%${escaped}%`,
+          `contact_name.ilike.%${escaped}%`,
+          `email.ilike.%${escaped}%`,
+          `phone.ilike.%${escaped}%`,
+          `address.ilike.%${escaped}%`,
+          `city.ilike.%${escaped}%`,
+        ].join(","),
+      );
+    }
+
+    return nextQuery;
+  };
+
+  const query = applyFilters(
+    supabase
+      .from("marketplace_leads")
+      .select(selectWithClaimColumns)
+      .order("created_at", { ascending: false })
+      .limit(filter.limit ?? 500),
+  );
+
+  const primaryResult = await query;
+  let data = (primaryResult.data ?? null) as LeadRow[] | null;
+  let error = primaryResult.error;
+
+  if (
+    error &&
+    /claimed_at|claimed_by_user_id|claimed_company_id|claimed_by_user_email|claimed_sales_lead_id/i.test(
+      error.message,
     )
-    .order("created_at", { ascending: false })
-    .limit(filter.limit ?? 500);
-
-  if (filter.view && filter.view !== "All") {
-    query = query.eq("qualification_status", filter.view);
-  }
-
-  if (filter.status) {
-    query = query.eq("status", filter.status);
-  }
-
-  if (filter.grade) {
-    query = query.eq("lead_grade", filter.grade);
-  }
-
-  if (filter.city) {
-    query = query.ilike("city", `%${filter.city}%`);
-  }
-
-  if (filter.zip) {
-    query = query.ilike("zip_code", `%${filter.zip}%`);
-  }
-
-  if (filter.propertyType) {
-    query = query.ilike("property_type", `%${filter.propertyType}%`);
-  }
-
-  if (typeof filter.minScore === "number") {
-    query = query.gte("quality_score", filter.minScore);
-  }
-
-  if (typeof filter.maxScore === "number") {
-    query = query.lte("quality_score", filter.maxScore);
-  }
-
-  if (filter.fromDate) {
-    query = query.gte("created_at", `${filter.fromDate}T00:00:00.000Z`);
-  }
-
-  if (filter.toDate) {
-    query = query.lte("created_at", `${filter.toDate}T23:59:59.999Z`);
-  }
-
-  if (filter.search) {
-    const escaped = filter.search.replace(/,/g, " ").trim();
-    query = query.or(
-      [
-        `business_name.ilike.%${escaped}%`,
-        `contact_name.ilike.%${escaped}%`,
-        `email.ilike.%${escaped}%`,
-        `phone.ilike.%${escaped}%`,
-        `address.ilike.%${escaped}%`,
-        `city.ilike.%${escaped}%`,
-      ].join(","),
+  ) {
+    const fallbackQuery = applyFilters(
+      supabase
+        .from("marketplace_leads")
+        .select(selectWithoutClaimColumns)
+        .order("created_at", { ascending: false })
+        .limit(filter.limit ?? 500),
     );
-  }
 
-  const { data, error } = await query;
+    const fallback = await fallbackQuery;
+    data = (fallback.data ?? null) as LeadRow[] | null;
+    error = fallback.error;
+  }
 
   if (error) {
     return NextResponse.json(
@@ -153,5 +204,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true, leads: data ?? [] });
+  const normalizedLeads = (data ?? []).map((lead) => ({
+    ...lead,
+    claimed_at: "claimed_at" in lead ? lead.claimed_at : null,
+    claimed_by_user_id:
+      "claimed_by_user_id" in lead ? lead.claimed_by_user_id : null,
+    claimed_by_user_email:
+      "claimed_by_user_email" in lead ? lead.claimed_by_user_email : null,
+    claimed_company_id:
+      "claimed_company_id" in lead ? lead.claimed_company_id : null,
+    claimed_sales_lead_id:
+      "claimed_sales_lead_id" in lead ? lead.claimed_sales_lead_id : null,
+  }));
+
+  return NextResponse.json({ success: true, leads: normalizedLeads });
 }
