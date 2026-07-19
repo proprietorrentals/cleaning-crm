@@ -99,6 +99,44 @@ type ClaimInsights = {
   };
 };
 
+type CreditBalance = {
+  tenant_id: string;
+  balance: number;
+  lifetime_purchased: number;
+  lifetime_spent: number;
+  lifetime_refunded: number;
+  lifetime_promotional: number;
+  lifetime_adjustment: number;
+  last_transaction_at: string | null;
+  updated_at: string | null;
+};
+
+type CreditTransaction = {
+  id: string;
+  tenant_id: string;
+  transaction_type:
+    | "purchased"
+    | "spent"
+    | "refunded"
+    | "promotional"
+    | "adjustment";
+  credits_delta: number;
+  balance_after: number;
+  reference_key: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  created_by_user_id: string | null;
+  created_at: string;
+};
+
+type LeadCreditPackage = {
+  id: "starter" | "growth" | "professional";
+  name: string;
+  credits: number;
+  amountCents: number;
+  description: string;
+};
+
 type FilterState = {
   view: QualificationStatus | "All";
   search: string;
@@ -151,6 +189,14 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatCurrencyPrecise(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -174,6 +220,20 @@ export function SuperAdminLeadMarketplace() {
     null,
   );
   const [claimTimeline, setClaimTimeline] = useState<ClaimTimelineItem[]>([]);
+  const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(
+    null,
+  );
+  const [creditTransactions, setCreditTransactions] = useState<
+    CreditTransaction[]
+  >([]);
+  const [creditPackages, setCreditPackages] = useState<LeadCreditPackage[]>([]);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [creditActionLoading, setCreditActionLoading] = useState(false);
+  const [purchasingPackageId, setPurchasingPackageId] = useState<string | null>(
+    null,
+  );
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [adjustmentDelta, setAdjustmentDelta] = useState("1");
 
   const [overrideDraft, setOverrideDraft] = useState({
     qualityScore: "",
@@ -326,6 +386,36 @@ export function SuperAdminLeadMarketplace() {
     }
   }, []);
 
+  const loadCredits = useCallback(async () => {
+    setLoadingCredits(true);
+
+    try {
+      const response = await fetch("/api/super-admin/lead-marketplace/credits");
+      const body = (await response.json()) as
+        | {
+            success: true;
+            balance: CreditBalance;
+            transactions: CreditTransaction[];
+            packages: LeadCreditPackage[];
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        return;
+      }
+
+      setCreditBalance(body.balance);
+      setCreditTransactions(body.transactions);
+      setCreditPackages(body.packages);
+    } catch {
+      setCreditBalance(null);
+      setCreditTransactions([]);
+      setCreditPackages([]);
+    } finally {
+      setLoadingCredits(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadLeads(INITIAL_FILTERS);
   }, [loadLeads]);
@@ -333,6 +423,10 @@ export function SuperAdminLeadMarketplace() {
   useEffect(() => {
     void loadClaimInsights();
   }, [loadClaimInsights]);
+
+  useEffect(() => {
+    void loadCredits();
+  }, [loadCredits]);
 
   useEffect(() => {
     if (!selectedLeadId) return;
@@ -345,10 +439,118 @@ export function SuperAdminLeadMarketplace() {
       await loadLeadDetail(selectedLeadId);
     }
     await loadClaimInsights();
-  }, [filters, loadLeads, loadLeadDetail, selectedLeadId, loadClaimInsights]);
+    await loadCredits();
+  }, [
+    filters,
+    loadLeads,
+    loadLeadDetail,
+    selectedLeadId,
+    loadClaimInsights,
+    loadCredits,
+  ]);
+
+  const purchaseCreditPackage = useCallback(async (packageId: string) => {
+    setPurchasingPackageId(packageId);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        "/api/super-admin/lead-marketplace/credits/checkout",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ packageId }),
+        },
+      );
+
+      const body = (await response.json()) as
+        | { success: true; url: string }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Unable to start checkout." : body.message);
+        return;
+      }
+
+      window.location.href = body.url;
+    } catch {
+      setError("Unable to start package checkout.");
+    } finally {
+      setPurchasingPackageId(null);
+    }
+  }, []);
+
+  const runCreditAdjustment = useCallback(
+    async (action: "refund" | "adjustment") => {
+      setCreditActionLoading(true);
+      setError(null);
+
+      try {
+        const parsedDelta = Number(adjustmentDelta);
+        const payload =
+          action === "refund"
+            ? {
+                action,
+                credits: Math.max(
+                  1,
+                  Number.isFinite(parsedDelta) ? parsedDelta : 1,
+                ),
+                reason:
+                  adjustmentReason.trim() ||
+                  "Super Admin approved refund for marketplace credits.",
+              }
+            : {
+                action,
+                creditsDelta: Number.isFinite(parsedDelta) ? parsedDelta : 0,
+                reason:
+                  adjustmentReason.trim() ||
+                  "Super Admin manual credit adjustment.",
+              };
+
+        const response = await fetch(
+          "/api/super-admin/lead-marketplace/credits",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+
+        const body = (await response.json()) as
+          | { success: true }
+          | { success: false; message: string };
+
+        if (!response.ok || !body.success) {
+          setError(body.success ? "Credit update failed." : body.message);
+          return;
+        }
+
+        setSuccess(
+          action === "refund"
+            ? "Marketplace credit refund applied."
+            : "Marketplace credit adjustment applied.",
+        );
+        await loadCredits();
+      } catch {
+        setError("Unable to apply credit update.");
+      } finally {
+        setCreditActionLoading(false);
+      }
+    },
+    [adjustmentDelta, adjustmentReason, loadCredits],
+  );
 
   const claimLead = useCallback(async () => {
     if (!selectedLeadId || !selectedLead) return;
+
+    const currentBalance = creditBalance?.balance ?? 0;
+    const confirmed = window.confirm(
+      `Claim this lead for 1 credit?\n\nLead cost: 1\nCurrent balance: ${currentBalance}\nBalance after claim: ${Math.max(currentBalance - 1, 0)}`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
 
     setClaimingLead(true);
     setError(null);
@@ -370,6 +572,9 @@ export function SuperAdminLeadMarketplace() {
               taskCount: number;
               claimedCompanyId: string;
               claimedSalesLeadId: string;
+              leadCost?: number;
+              currentBalance?: number;
+              balanceAfterClaim?: number;
             };
           }
         | { success: false; message: string };
@@ -379,8 +584,13 @@ export function SuperAdminLeadMarketplace() {
         return;
       }
 
+      const before = body.claim.currentBalance;
+      const after = body.claim.balanceAfterClaim;
+      const leadCost = body.claim.leadCost ?? 1;
       setSuccess(
-        `Lead claimed, CRM records imported, and ${body.claim.taskCount} AI tasks generated.`,
+        Number.isFinite(before) && Number.isFinite(after)
+          ? `Lead claimed. Cost ${leadCost} credit. Balance ${before} -> ${after}. ${body.claim.taskCount} AI tasks generated.`
+          : `Lead claimed, CRM records imported, and ${body.claim.taskCount} AI tasks generated.`,
       );
       await refreshAll();
     } catch {
@@ -388,7 +598,7 @@ export function SuperAdminLeadMarketplace() {
     } finally {
       setClaimingLead(false);
     }
-  }, [refreshAll, selectedLead, selectedLeadId]);
+  }, [creditBalance?.balance, refreshAll, selectedLead, selectedLeadId]);
 
   const runLeadAction = async (
     payload:
@@ -469,6 +679,108 @@ export function SuperAdminLeadMarketplace() {
           </button>
         </header>
 
+        <section className="mb-5 grid gap-4 rounded-2xl border border-cyan-900/60 bg-cyan-950/30 p-4 lg:grid-cols-[1.1fr_1fr]">
+          <div className="rounded-xl border border-cyan-800/60 bg-slate-950/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-cyan-300">
+              Lead Credit Balance
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-cyan-100">
+              {loadingCredits ? "..." : (creditBalance?.balance ?? 0)}
+            </p>
+            <p className="mt-1 text-xs text-cyan-200/80">Available credits</p>
+            <div className="mt-3 grid gap-2 text-xs text-cyan-100/90 sm:grid-cols-2">
+              <p>Purchased: {creditBalance?.lifetime_purchased ?? 0}</p>
+              <p>Spent: {creditBalance?.lifetime_spent ?? 0}</p>
+              <p>Refunded: {creditBalance?.lifetime_refunded ?? 0}</p>
+              <p>Promotional: {creditBalance?.lifetime_promotional ?? 0}</p>
+            </div>
+            <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                How Lead Credits Work
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-slate-200">
+                <li>You receive 1 free credit to try the marketplace.</li>
+                <li>Each verified lead costs 1 credit.</li>
+                <li>Credits are deducted only after a successful claim.</li>
+                <li>Failed claims do not use credits.</li>
+                <li>Approved refunds restore credits.</li>
+                <li>More credits can be purchased at any time.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">
+              Purchase Credits
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {creditPackages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="rounded-lg border border-slate-700 bg-slate-900/80 p-3"
+                >
+                  <p className="text-sm font-semibold text-slate-100">
+                    {pkg.name}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {pkg.description}
+                  </p>
+                  <p className="mt-2 text-sm text-cyan-200">
+                    {pkg.credits} credits
+                  </p>
+                  <p className="text-lg font-semibold text-cyan-100">
+                    {formatCurrencyPrecise(pkg.amountCents / 100)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void purchaseCreditPackage(pkg.id)}
+                    disabled={purchasingPackageId === pkg.id}
+                    className="mt-3 w-full rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                  >
+                    {purchasingPackageId === pkg.id ? "Opening..." : "Buy"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                Super Admin Refund / Adjustment
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  value={adjustmentDelta}
+                  onChange={(event) => setAdjustmentDelta(event.target.value)}
+                  placeholder="Credits"
+                  className="w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
+                />
+                <input
+                  value={adjustmentReason}
+                  onChange={(event) => setAdjustmentReason(event.target.value)}
+                  placeholder="Reason"
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => void runCreditAdjustment("refund")}
+                  disabled={creditActionLoading}
+                  className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                >
+                  Refund
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runCreditAdjustment("adjustment")}
+                  disabled={creditActionLoading}
+                  className="rounded-lg border border-cyan-500/60 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+                >
+                  Adjust
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="mb-5 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:grid-cols-2 xl:grid-cols-5">
           <Metric
             label="Recent Claims"
@@ -490,6 +802,40 @@ export function SuperAdminLeadMarketplace() {
             label="Open / Claimed"
             value={`${claimInsights?.funnel.open ?? 0} / ${claimInsights?.funnel.claimed ?? 0}`}
           />
+        </section>
+
+        <section className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">
+            Credit Transaction History
+          </p>
+          {creditTransactions.length === 0 ? (
+            <p className="text-xs text-slate-400">
+              No credit transactions yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {creditTransactions.slice(0, 8).map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-200">
+                      {tx.transaction_type}{" "}
+                      {tx.credits_delta > 0
+                        ? `+${tx.credits_delta}`
+                        : tx.credits_delta}
+                    </p>
+                    <p className="text-slate-400">{tx.reason || "No reason"}</p>
+                  </div>
+                  <div className="text-right text-slate-400">
+                    <p>Balance: {tx.balance_after}</p>
+                    <p>{formatDate(tx.created_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <div className="mb-5 flex flex-wrap gap-2">
@@ -633,6 +979,13 @@ export function SuperAdminLeadMarketplace() {
           </div>
         ) : null}
 
+        {(creditBalance?.balance ?? 0) <= 0 ? (
+          <div className="mb-4 rounded-xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-100">
+            No credits available. Purchase a package or apply a
+            refund/adjustment to continue claiming verified leads.
+          </div>
+        ) : null}
+
         <div className="grid gap-5 lg:grid-cols-[1.05fr_1.35fr]">
           <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
             <header className="border-b border-slate-800 px-4 py-3 text-sm text-slate-400">
@@ -699,7 +1052,8 @@ export function SuperAdminLeadMarketplace() {
                       type="button"
                       disabled={
                         lead.qualification_status !== "Verified" ||
-                        Boolean(lead.claimed_at)
+                        Boolean(lead.claimed_at) ||
+                        (creditBalance?.balance ?? 0) <= 0
                       }
                       onClick={() => {
                         setSelectedLeadId(lead.lead_id);
@@ -752,7 +1106,8 @@ export function SuperAdminLeadMarketplace() {
                         savingAction ||
                         claimingLead ||
                         selectedLeadIsClaimed ||
-                        selectedLead.qualification_status !== "Verified"
+                        selectedLead.qualification_status !== "Verified" ||
+                        (creditBalance?.balance ?? 0) <= 0
                       }
                       onClick={() => void claimLead()}
                       className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
@@ -878,6 +1233,22 @@ export function SuperAdminLeadMarketplace() {
                     Claim Preview
                   </p>
                   <div className="grid gap-3 text-sm text-cyan-50 sm:grid-cols-2">
+                    <div>
+                      <p className="text-cyan-100/80">Lead cost</p>
+                      <p className="font-semibold">1 credit</p>
+                    </div>
+                    <div>
+                      <p className="text-cyan-100/80">Current balance</p>
+                      <p className="font-semibold">
+                        {creditBalance?.balance ?? 0} credits
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-cyan-100/80">Balance after claim</p>
+                      <p className="font-semibold">
+                        {Math.max((creditBalance?.balance ?? 0) - 1, 0)} credits
+                      </p>
+                    </div>
                     <div>
                       <p className="text-cyan-100/80">Customer import</p>
                       <p className="font-semibold">
