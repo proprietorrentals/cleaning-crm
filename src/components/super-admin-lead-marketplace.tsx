@@ -270,59 +270,50 @@ export function SuperAdminLeadMarketplace() {
     };
   }, [creditBalance?.balance, leads]);
 
-  const loadLeads = useCallback(
-    async (nextFilters: FilterState) => {
-      setLoadingList(true);
-      setError(null);
+  const loadLeads = useCallback(async (nextFilters: FilterState) => {
+    setLoadingList(true);
+    setError(null);
 
-      const params = new URLSearchParams();
-      if (nextFilters.search.trim())
-        params.set("search", nextFilters.search.trim());
-      if (nextFilters.state.trim())
-        params.set("state", nextFilters.state.trim());
-      if (nextFilters.city.trim()) params.set("city", nextFilters.city.trim());
-      if (nextFilters.grade.trim())
-        params.set("grade", nextFilters.grade.trim());
-      if (nextFilters.propertyType.trim())
-        params.set("propertyType", nextFilters.propertyType.trim());
-      if (nextFilters.minContractValue.trim())
-        params.set("minContractValue", nextFilters.minContractValue.trim());
-      if (nextFilters.maxContractValue.trim())
-        params.set("maxContractValue", nextFilters.maxContractValue.trim());
-      if (nextFilters.verifiedOnly) params.set("verified", "true");
-      if (nextFilters.unclaimedOnly) params.set("unclaimed", "true");
+    const params = new URLSearchParams();
+    if (nextFilters.search.trim())
+      params.set("search", nextFilters.search.trim());
+    if (nextFilters.state.trim()) params.set("state", nextFilters.state.trim());
+    if (nextFilters.city.trim()) params.set("city", nextFilters.city.trim());
+    if (nextFilters.grade.trim()) params.set("grade", nextFilters.grade.trim());
+    if (nextFilters.propertyType.trim())
+      params.set("propertyType", nextFilters.propertyType.trim());
+    if (nextFilters.minContractValue.trim())
+      params.set("minContractValue", nextFilters.minContractValue.trim());
+    if (nextFilters.maxContractValue.trim())
+      params.set("maxContractValue", nextFilters.maxContractValue.trim());
+    if (nextFilters.verifiedOnly) params.set("verified", "true");
+    if (nextFilters.unclaimedOnly) params.set("unclaimed", "true");
 
-      try {
-        const response = await fetch(
-          `/api/super-admin/lead-marketplace?${params.toString()}`,
-        );
-        const body = (await response.json()) as
-          | { success: true; leads: LeadSummary[] }
-          | { success: false; message: string };
+    try {
+      const response = await fetch(
+        `/api/super-admin/lead-marketplace?${params.toString()}`,
+      );
+      const body = (await response.json()) as
+        | { success: true; leads: LeadSummary[] }
+        | { success: false; message: string };
 
-        if (!response.ok || !body.success) {
-          setError(body.success ? "Failed to load leads." : body.message);
-          return;
-        }
-
-        setLeads(body.leads);
-        setSelectedLeadId(
-          (current) => current ?? body.leads[0]?.lead_id ?? null,
-        );
-        if (
-          selectedLeadId &&
-          !body.leads.some((lead) => lead.lead_id === selectedLeadId)
-        ) {
-          setSelectedLeadId(body.leads[0]?.lead_id ?? null);
-        }
-      } catch {
-        setError("Unable to load leads.");
-      } finally {
-        setLoadingList(false);
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Failed to load leads." : body.message);
+        return;
       }
-    },
-    [selectedLeadId],
-  );
+
+      setLeads(body.leads);
+      setSelectedLeadId((current) =>
+        current && body.leads.some((lead) => lead.lead_id === current)
+          ? current
+          : null,
+      );
+    } catch {
+      setError("Unable to load leads.");
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
 
   const loadLeadDetail = useCallback(async (leadId: string) => {
     setLoadingDetail(true);
