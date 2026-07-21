@@ -4,19 +4,15 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
 const filterSchema = z.object({
-  view: z
-    .enum(["New", "Needs Review", "Verified", "Rejected", "All"])
-    .optional(),
-  status: z.string().trim().max(60).optional(),
   grade: z.string().trim().max(8).optional(),
+  state: z.string().trim().max(40).optional(),
   city: z.string().trim().max(100).optional(),
-  zip: z.string().trim().max(20).optional(),
   propertyType: z.string().trim().max(120).optional(),
   search: z.string().trim().max(200).optional(),
-  minScore: z.coerce.number().min(0).max(100).optional(),
-  maxScore: z.coerce.number().min(0).max(100).optional(),
-  fromDate: z.string().trim().max(30).optional(),
-  toDate: z.string().trim().max(30).optional(),
+  minContractValue: z.coerce.number().min(0).max(100000000).optional(),
+  maxContractValue: z.coerce.number().min(0).max(100000000).optional(),
+  verified: z.enum(["true", "false"]).optional(),
+  unclaimed: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
 });
 
@@ -54,17 +50,17 @@ export async function GET(request: NextRequest) {
   }
 
   const parsed = filterSchema.safeParse({
-    view: request.nextUrl.searchParams.get("view") ?? undefined,
-    status: request.nextUrl.searchParams.get("status") ?? undefined,
     grade: request.nextUrl.searchParams.get("grade") ?? undefined,
+    state: request.nextUrl.searchParams.get("state") ?? undefined,
     city: request.nextUrl.searchParams.get("city") ?? undefined,
-    zip: request.nextUrl.searchParams.get("zip") ?? undefined,
     propertyType: request.nextUrl.searchParams.get("propertyType") ?? undefined,
     search: request.nextUrl.searchParams.get("search") ?? undefined,
-    minScore: request.nextUrl.searchParams.get("minScore") ?? undefined,
-    maxScore: request.nextUrl.searchParams.get("maxScore") ?? undefined,
-    fromDate: request.nextUrl.searchParams.get("fromDate") ?? undefined,
-    toDate: request.nextUrl.searchParams.get("toDate") ?? undefined,
+    minContractValue:
+      request.nextUrl.searchParams.get("minContractValue") ?? undefined,
+    maxContractValue:
+      request.nextUrl.searchParams.get("maxContractValue") ?? undefined,
+    verified: request.nextUrl.searchParams.get("verified") ?? undefined,
+    unclaimed: request.nextUrl.searchParams.get("unclaimed") ?? undefined,
     limit: request.nextUrl.searchParams.get("limit") ?? undefined,
   });
 
@@ -101,52 +97,49 @@ export async function GET(request: NextRequest) {
     gte: (column: string, value: number | string) => T;
     lte: (column: string, value: number | string) => T;
     or: (filters: string) => T;
+    is: (column: string, value: null) => T;
+    not: (column: string, operator: string, value: null) => T;
   };
 
   const applyFilters = <T extends FilterableQuery<T>>(query: T): T => {
     let nextQuery = query;
 
-    if (filter.view && filter.view !== "All") {
-      nextQuery = nextQuery.eq("qualification_status", filter.view);
-    }
-
-    if (filter.status) {
-      nextQuery = nextQuery.eq("status", filter.status);
-    }
-
     if (filter.grade) {
       nextQuery = nextQuery.eq("lead_grade", filter.grade);
+    }
+
+    if (filter.state) {
+      nextQuery = nextQuery.eq("state", filter.state);
     }
 
     if (filter.city) {
       nextQuery = nextQuery.ilike("city", `%${filter.city}%`);
     }
 
-    if (filter.zip) {
-      nextQuery = nextQuery.ilike("zip_code", `%${filter.zip}%`);
-    }
-
     if (filter.propertyType) {
       nextQuery = nextQuery.ilike("property_type", `%${filter.propertyType}%`);
     }
 
-    if (typeof filter.minScore === "number") {
-      nextQuery = nextQuery.gte("quality_score", filter.minScore);
-    }
-
-    if (typeof filter.maxScore === "number") {
-      nextQuery = nextQuery.lte("quality_score", filter.maxScore);
-    }
-
-    if (filter.fromDate) {
+    if (typeof filter.minContractValue === "number") {
       nextQuery = nextQuery.gte(
-        "created_at",
-        `${filter.fromDate}T00:00:00.000Z`,
+        "estimated_monthly_value",
+        filter.minContractValue,
       );
     }
 
-    if (filter.toDate) {
-      nextQuery = nextQuery.lte("created_at", `${filter.toDate}T23:59:59.999Z`);
+    if (typeof filter.maxContractValue === "number") {
+      nextQuery = nextQuery.lte(
+        "estimated_monthly_value",
+        filter.maxContractValue,
+      );
+    }
+
+    if (filter.verified === "true") {
+      nextQuery = nextQuery.not("verified_at", "is", null);
+    }
+
+    if (filter.unclaimed === "true") {
+      nextQuery = nextQuery.is("claimed_at", null);
     }
 
     if (filter.search) {
