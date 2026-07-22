@@ -359,15 +359,20 @@ export async function POST(request: NextRequest) {
 
   if (parsed.data.action === "process_run") {
     try {
+      const workerId = `${userId}-${crypto.randomUUID()}`;
+
       const summary = await processLeadDiscoveryRunBatch({
         supabase,
         runId: parsed.data.payload.runId,
+        workerId,
         batchSize: parsed.data.payload.batchSize ?? 5,
       });
 
       return NextResponse.json({
         success: true,
-        run: summary,
+        alreadyProcessing: summary.alreadyProcessing,
+        message: summary.message,
+        run: summary.run,
       });
     } catch (error) {
       return NextResponse.json(
