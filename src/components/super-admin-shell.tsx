@@ -11,32 +11,68 @@ type SuperAdminNavItem = {
   isActive: (pathname: string) => boolean;
 };
 
-const SUPER_ADMIN_NAV_ITEMS: SuperAdminNavItem[] = [
+type SuperAdminNavSection = {
+  title: string;
+  items: SuperAdminNavItem[];
+};
+
+const SUPER_ADMIN_NAV_SECTIONS: SuperAdminNavSection[] = [
   {
-    label: "Analytics",
-    href: "/super-admin",
-    icon: "[]",
-    isActive: (pathname) => pathname === "/super-admin",
+    title: "Platform",
+    items: [
+      {
+        label: "Analytics",
+        href: "/super-admin",
+        icon: "[]",
+        isActive: (pathname) => pathname === "/super-admin",
+      },
+      {
+        label: "AI Workforce",
+        href: "/super-admin/ai-workforce",
+        icon: "AI",
+        isActive: (pathname) =>
+          pathname === "/super-admin/ai-workforce" ||
+          pathname.startsWith("/super-admin/ai-workforce/"),
+      },
+      {
+        label: "Command Center",
+        href: "/super-admin/command-center",
+        icon: "CC",
+        isActive: (pathname) => pathname === "/super-admin/command-center",
+      },
+    ],
   },
   {
-    label: "AI Workforce",
-    href: "/super-admin/ai-workforce",
-    icon: "AI",
-    isActive: (pathname) =>
-      pathname === "/super-admin/ai-workforce" ||
-      pathname.startsWith("/super-admin/ai-workforce/"),
-  },
-  {
-    label: "Command Center",
-    href: "/super-admin/command-center",
-    icon: "CC",
-    isActive: (pathname) => pathname === "/super-admin/command-center",
-  },
-  {
-    label: "Lead Marketplace",
-    href: "/super-admin/lead-marketplace",
-    icon: "LM",
-    isActive: (pathname) => pathname === "/super-admin/lead-marketplace",
+    title: "Lead Operations",
+    items: [
+      {
+        label: "Potential Leads",
+        href: "/super-admin/lead-operations/potential-leads",
+        icon: "PL",
+        isActive: (pathname) =>
+          pathname === "/super-admin/lead-operations/potential-leads",
+      },
+      {
+        label: "Verified Leads",
+        href: "/super-admin/lead-operations/verified-leads",
+        icon: "VL",
+        isActive: (pathname) =>
+          pathname === "/super-admin/lead-operations/verified-leads",
+      },
+      {
+        label: "Marketplace",
+        href: "/super-admin/lead-marketplace",
+        icon: "LM",
+        isActive: (pathname) => pathname === "/super-admin/lead-marketplace",
+      },
+      {
+        label: "Research Queue",
+        href: "/super-admin/lead-operations/research-queue",
+        icon: "RQ",
+        isActive: (pathname) =>
+          pathname === "/super-admin/lead-operations/research-queue",
+      },
+    ],
   },
 ];
 
@@ -54,27 +90,36 @@ export function SuperAdminShell({ children }: { children: React.ReactNode }) {
             subtitle="Super Admin"
           />
 
-          <nav className="mt-8 space-y-1">
-            {SUPER_ADMIN_NAV_ITEMS.map((item) => {
-              const active = item.isActive(pathname);
+          <nav className="mt-8 space-y-4">
+            {SUPER_ADMIN_NAV_SECTIONS.map((section) => (
+              <div key={section.title}>
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  {section.title}
+                </p>
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    const active = item.isActive(pathname);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "bg-cyan-500 text-slate-950 shadow-sm"
-                      : "text-slate-300 hover:bg-slate-900 hover:text-white"
-                  }`}
-                >
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-current/30 text-[11px] font-bold">
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                          active
+                            ? "bg-cyan-500 text-slate-950 shadow-sm"
+                            : "text-slate-300 hover:bg-slate-900 hover:text-white"
+                        }`}
+                      >
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-current/30 text-[11px] font-bold">
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </aside>
 
