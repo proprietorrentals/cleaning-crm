@@ -1,6 +1,10 @@
 import "server-only";
 
 import { getAiProvider } from "@/lib/ai/provider";
+import {
+  type ProviderUsageEntry,
+  runBusinessResearchProviders,
+} from "@/lib/lead-marketplace/research-providers";
 
 export type OutsourcingLikelihood = "High" | "Medium" | "Low" | "Unknown";
 
@@ -380,6 +384,40 @@ function normalizeUncertainFields(
   return [...new Set(fields)];
 }
 
+function buildProviderUsageSources(
+  usage: ProviderUsageEntry[],
+): ResearchSource[] {
+  return usage.map((entry) => ({
+    name: `Provider: ${entry.provider}`,
+    url: null,
+    note: [
+      entry.configured ? "configured" : "not configured",
+      entry.attempted ? "attempted" : "not attempted",
+      entry.success ? "success" : "no success",
+      `results=${entry.resultCount}`,
+      entry.message,
+    ].join(" | "),
+  }));
+}
+
+function mergeSources(...groups: ResearchSource[][]) {
+  const seen = new Set<string>();
+  const merged: ResearchSource[] = [];
+
+  for (const group of groups) {
+    for (const source of group) {
+      const key = `${source.name.toLowerCase()}|${(source.url ?? "").toLowerCase()}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(source);
+    }
+  }
+
+  return merged;
+}
+
 function buildFallbackResult(
   input: ResearchBusinessInput,
 ): ResearchBusinessResult {
@@ -431,6 +469,7 @@ function buildNotes(input: {
   aiNotes: string | null;
   uncertainFields: string[];
   sources: ResearchSource[];
+  providerUsage: ProviderUsageEntry[];
   provider: string;
   model: string;
 }) {
@@ -461,6 +500,17 @@ function buildNotes(input: {
     );
   }
 
+  const providerSummary = input.providerUsage
+    .map((entry) => {
+      const status = entry.success ? "success" : "fallback";
+      return `${entry.provider}: ${status} (${entry.message})`;
+    })
+    .join("; ");
+
+  if (providerSummary) {
+    lines.push(`Research provider pipeline: ${providerSummary}`);
+  }
+
   lines.push(`AI provider: ${input.provider}. Model: ${input.model}.`);
 
   return lines.join("\n\n").slice(0, 16000);
@@ -471,6 +521,17 @@ export async function researchBusiness(
 ): Promise<ResearchBusinessResult> {
   const provider = getAiProvider();
   const normalizedBusinessName = normalizeWhitespace(input.businessName);
+  const providerResearch = await runBusinessResearchProviders({
+    businessName: normalizedBusinessName,
+    city: normalizeOptionalString(input.city),
+    state: normalizeOptionalString(input.state),
+    websiteHint: normalizeOptionalString(input.website),
+    tavilyResultLimit: 8,
+    firecrawlPageLimit: 3,
+  });
+  const providerUsageSources = buildProviderUsageSources(
+    providerResearch.usage,
+  );
 
   try {
     const generated = await provider.generate({
@@ -489,6 +550,7 @@ export async function researchBusiness(
       ].join(" "),
       userPrompt: [
         "Research this business and return structured enrichment data.",
+        "Use the grounded_public_sources_json and grounded_evidence_text context first.",
         "Include source names or URLs for every non-empty contact/location field.",
         "If no reliable public source exists, leave field null.",
       ].join(" "),
@@ -496,7 +558,18 @@ export async function researchBusiness(
         business_name: normalizedBusinessName,
         city: normalizeOptionalString(input.city) ?? "",
         state: normalizeOptionalString(input.state) ?? "",
-        website_hint: normalizeOptionalString(input.website) ?? "",
+        website_hint:
+          providerResearch.officialWebsite ??
+          normalizeOptionalString(input.website) ??
+          "",
+        provider_usage: JSON.stringify(providerResearch.usage),
+        grounded_public_sources_json: JSON.stringify(
+          providerResearch.sources.slice(0, 12),
+        ),
+        grounded_evidence_text: providerResearch.evidenceBlocks
+          .slice(0, 8)
+          .join("\n\n")
+          .slice(0, 12000),
         required_json_shape: JSON.stringify({
           website: "string|null",
           phone: "string|null",
@@ -538,13 +611,28 @@ export async function researchBusiness(
       const fallback = buildFallbackResult(input);
       return {
         ...fallback,
+        website: providerResearch.officialWebsite ?? fallback.website,
+        sources: mergeSources(providerResearch.sources, providerUsageSources),
+        researchNotes: buildNotes({
+          aiNotes:
+            "AI output was unstructured. Returning safe fallback with grounded provider evidence when available.",
+          uncertainFields: fallback.uncertainFields,
+          sources: mergeSources(providerResearch.sources, providerUsageSources),
+          providerUsage: providerResearch.usage,
+          provider: generated.provider,
+          model: generated.model,
+        }),
         provider: generated.provider,
         model: generated.model,
         isMock: generated.isMock,
       };
     }
 
-    const sources = normalizeSources(parsed.sources);
+    const sources = mergeSources(
+      providerResearch.sources,
+      normalizeSources(parsed.sources),
+      providerUsageSources,
+    );
     const uncertainFields = normalizeUncertainFields(parsed.uncertain_fields);
     const confidence = normalizeConfidence(parsed.confidence);
     const propertyType =
@@ -578,7 +666,9 @@ export async function researchBusiness(
 
     const result: ResearchBusinessResult = {
       businessName: normalizedBusinessName,
-      website: normalizeWebsite(parsed.website ?? input.website),
+      website: normalizeWebsite(
+        parsed.website ?? providerResearch.officialWebsite ?? input.website,
+      ),
       phone: normalizePhone(parsed.phone),
       email: normalizeEmail(parsed.email),
       address: normalizeOptionalString(parsed.address),
@@ -671,12 +761,32 @@ export async function researchBusiness(
       aiNotes: normalizeOptionalString(parsed.notes),
       uncertainFields: result.uncertainFields,
       sources: result.sources,
+      providerUsage: providerResearch.usage,
       provider: result.provider,
       model: result.model,
     });
 
     return result;
   } catch {
-    return buildFallbackResult(input);
+    const fallback = buildFallbackResult(input);
+    const combinedSources = mergeSources(
+      providerResearch.sources,
+      providerUsageSources,
+    );
+
+    return {
+      ...fallback,
+      website: providerResearch.officialWebsite ?? fallback.website,
+      sources: combinedSources,
+      researchNotes: buildNotes({
+        aiNotes:
+          "AI provider failed during enrichment. Returned safe fallback data with any grounded provider evidence collected.",
+        uncertainFields: fallback.uncertainFields,
+        sources: combinedSources,
+        providerUsage: providerResearch.usage,
+        provider: fallback.provider,
+        model: fallback.model,
+      }),
+    };
   }
 }
