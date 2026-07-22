@@ -40,9 +40,21 @@ export type DiscoveryCandidate = {
   website: string | null;
   sourceName: string;
   sourceUrl: string | null;
+  sourceTitle: string | null;
+  sourceSnippet: string | null;
   city: string;
   state: string;
   category: DiscoveryCategory;
+  leadEligibilityScore: number;
+  rejectionReason: string | null;
+  hasPhysicalAddressEvidence: boolean;
+  hasCategoryEvidence: boolean;
+  facilityLikelihood: "high" | "medium" | "low";
+};
+
+type DiscoveryCandidatesPartition = {
+  accepted: DiscoveryCandidate[];
+  rejected: DiscoveryCandidate[];
 };
 
 type DiscoveryRunRow = {
@@ -262,7 +274,7 @@ export async function discoverPublicBusinesses(params: {
   area: DiscoveryArea;
   category: DiscoveryCategory;
   limit: number;
-}): Promise<DiscoveryCandidate[]> {
+}): Promise<DiscoveryCandidatesPartition> {
   const candidates = await discoverCandidatesWithProviders({
     city: params.area.city,
     state: params.area.state,
@@ -271,12 +283,24 @@ export async function discoverPublicBusinesses(params: {
     limit: params.limit,
   });
 
-  const typedCandidates: DiscoveryCandidate[] = candidates.map((candidate) => ({
-    ...candidate,
-    category: params.category,
-  }));
+  const typedAccepted: DiscoveryCandidate[] = candidates.accepted.map(
+    (candidate) => ({
+      ...candidate,
+      category: params.category,
+    }),
+  );
 
-  return dedupeCandidates(typedCandidates).slice(0, params.limit);
+  const typedRejected: DiscoveryCandidate[] = candidates.rejected.map(
+    (candidate) => ({
+      ...candidate,
+      category: params.category,
+    }),
+  );
+
+  return {
+    accepted: dedupeCandidates(typedAccepted).slice(0, params.limit),
+    rejected: dedupeCandidates(typedRejected).slice(0, params.limit * 2),
+  };
 }
 
 export async function createLeadDiscoveryRun(params: {
@@ -419,6 +443,7 @@ async function queueCandidatesForBatch(params: {
   batchSize: number;
 }) {
   let discoveredAdded = 0;
+  let filteredRejectedAdded = 0;
   let exhausted = false;
 
   const runRef = {
@@ -475,8 +500,8 @@ async function queueCandidatesForBatch(params: {
       limit: Math.min(params.batchSize, remaining),
     });
 
-    if (candidates.length > 0) {
-      const insertRows = candidates.map((candidate) => ({
+    if (candidates.accepted.length > 0) {
+      const insertRows = candidates.accepted.map((candidate) => ({
         run_id: params.run.run_id,
         area_id: area.area_id,
         city: area.city,
@@ -487,6 +512,8 @@ async function queueCandidatesForBatch(params: {
         website: candidate.website,
         source_name: candidate.sourceName,
         source_url: candidate.sourceUrl,
+        lead_eligibility_score: candidate.leadEligibilityScore,
+        rejection_reason: null,
         status: "queued",
       }));
 
@@ -498,7 +525,38 @@ async function queueCandidatesForBatch(params: {
         throw new Error(queueError.message);
       }
 
-      discoveredAdded += candidates.length;
+      discoveredAdded += candidates.accepted.length;
+    }
+
+    if (candidates.rejected.length > 0) {
+      const rejectedRows = candidates.rejected.map((candidate) => ({
+        run_id: params.run.run_id,
+        area_id: area.area_id,
+        city: area.city,
+        state: area.state,
+        zip_code: area.zip_code,
+        category,
+        business_name: candidate.businessName,
+        website: candidate.website,
+        source_name: candidate.sourceName,
+        source_url: candidate.sourceUrl,
+        lead_eligibility_score: candidate.leadEligibilityScore,
+        rejection_reason:
+          candidate.rejectionReason ?? "Rejected before AI research.",
+        failure_reason:
+          candidate.rejectionReason ?? "Rejected before AI research.",
+        status: "failed",
+      }));
+
+      const { error: rejectedError } = await params.supabase
+        .from("lead_discovery_run_items")
+        .insert(rejectedRows);
+
+      if (rejectedError) {
+        throw new Error(rejectedError.message);
+      }
+
+      filteredRejectedAdded += candidates.rejected.length;
     }
 
     exhausted = cursorAfter.exhausted;
@@ -509,6 +567,7 @@ async function queueCandidatesForBatch(params: {
 
   return {
     discoveredAdded,
+    filteredRejectedAdded,
     nextAreaIndex: runRef.next_area_index,
     nextCategoryIndex: runRef.next_category_index,
     exhausted,
@@ -618,12 +677,14 @@ export async function processLeadDiscoveryRunBatch(params: {
       updatedRun = {
         ...updatedRun,
         businesses_found: updatedRun.businesses_found + queued.discoveredAdded,
+        failed_count: updatedRun.failed_count + queued.filteredRejectedAdded,
         next_area_index: queued.nextAreaIndex,
         next_category_index: queued.nextCategoryIndex,
       };
 
       await persistRunProgress(params.supabase, updatedRun, {
         businesses_found: updatedRun.businesses_found,
+        failed_count: updatedRun.failed_count,
         next_area_index: updatedRun.next_area_index,
         next_category_index: updatedRun.next_category_index,
         status: "running",
