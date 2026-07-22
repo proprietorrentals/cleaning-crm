@@ -66,6 +66,13 @@ const SUPER_ADMIN_NAV_SECTIONS: SuperAdminNavSection[] = [
         isActive: (pathname) => pathname === "/super-admin/lead-marketplace",
       },
       {
+        label: "Lead Discovery",
+        href: "/super-admin/lead-operations/lead-discovery",
+        icon: "LD",
+        isActive: (pathname) =>
+          pathname === "/super-admin/lead-operations/lead-discovery",
+      },
+      {
         label: "Research Queue",
         href: "/super-admin/lead-operations/research-queue",
         icon: "RQ",
