@@ -1,12 +1,19 @@
-import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Sora } from "next/font/google";
 import { cookies } from "next/headers";
 import { GoogleAnalytics } from "@/components/google-analytics";
 import { I18nProvider } from "@/components/i18n-provider";
 import { LanguageSelector } from "@/components/language-selector";
 import { PwaRegister } from "@/components/pwa-register";
+import { SeoJsonLd } from "@/components/seo-json-ld";
 import type { Language } from "@/lib/i18n/types";
+import { buildMarketingMetadata, SEO_SITE_URL } from "@/lib/seo/metadata";
+import {
+  getOrganizationJsonLd,
+  getSoftwareApplicationJsonLd,
+  getWebSiteJsonLd,
+} from "@/lib/seo/structured-data";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -22,11 +29,21 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "ServiceOS Dashboard",
-  description: "Operate with Confidence.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  ...buildMarketingMetadata({
+    title:
+      "Service OS | Commercial Cleaning CRM and Janitorial Management Software",
+    description:
+      "Service OS helps commercial cleaning companies manage sales, operations, and field teams with AI tools, cleaning CRM workflows, and commercial cleaning lead capture.",
+    path: "/",
+    keywords: [
+      "commercial cleaning business software",
+      "cleaning CRM",
+      "janitorial management software",
+      "AI tools for cleaning companies",
+      "commercial cleaning leads",
+    ],
+  }),
+  metadataBase: new URL(SEO_SITE_URL),
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -67,6 +84,9 @@ export default async function RootLayout({
       <body
         className={`min-h-full flex flex-col ${manrope.variable} ${sora.variable}`}
       >
+        <SeoJsonLd payload={getOrganizationJsonLd()} />
+        <SeoJsonLd payload={getWebSiteJsonLd()} />
+        <SeoJsonLd payload={getSoftwareApplicationJsonLd()} />
         <I18nProvider initialLanguage={initialLanguage}>
           <GoogleAnalytics measurementId={gaMeasurementId} />
           <PwaRegister />

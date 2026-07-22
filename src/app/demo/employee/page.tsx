@@ -5,18 +5,23 @@ import {
   type DemoMetadataLanguage,
   demoMetadataByLanguage,
 } from "@/lib/demo-metadata";
+import { buildMarketingMetadata, resolveSeoLocale } from "@/lib/seo/metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
-  const lang = (
-    cookieStore.get("serviceos_lang")?.value === "es" ? "es" : "en"
+  const lang = resolveSeoLocale(
+    cookieStore.get("serviceos_lang")?.value,
   ) as DemoMetadataLanguage;
   const copy = demoMetadataByLanguage[lang];
 
-  return {
+  return buildMarketingMetadata({
     title: copy.employeeTitle,
     description: copy.employeeDescription,
-  };
+    path: "/demo/employee",
+    locale: lang,
+    includeLanguageAlternates: true,
+    keywords: ["cleaning team mobile workflow", "janitorial employee app demo"],
+  });
 }
 
 export default function DemoEmployeeRoute() {

@@ -1,65 +1,99 @@
 import type { MetadataRoute } from "next";
+import { getAllBlogArticles } from "@/lib/blog/articles";
+import { SEO_SITE_URL } from "@/lib/seo/metadata";
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.service-os.app";
+const siteUrl = SEO_SITE_URL;
+
+function toAbsoluteUrl(path: string) {
+  if (path === "/") return siteUrl;
+  return `${siteUrl}${path}`;
+}
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
+  const blogArticles = getAllBlogArticles();
 
-  return [
+  const coreMarketingPages: MetadataRoute.Sitemap = [
     {
-      url: `${siteUrl}/`,
+      url: toAbsoluteUrl("/"),
       lastModified,
       changeFrequency: "weekly",
       priority: 1,
     },
     {
-      url: `${siteUrl}/pricing`,
+      url: toAbsoluteUrl("/pricing"),
       lastModified,
       changeFrequency: "weekly",
       priority: 0.9,
     },
     {
-      url: `${siteUrl}/demo`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    {
-      url: `${siteUrl}/demo/admin`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${siteUrl}/demo/employee`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${siteUrl}/demo/customer`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${siteUrl}/demo/tour`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${siteUrl}/contact`,
+      url: toAbsoluteUrl("/contact"),
       lastModified,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: `${siteUrl}/blog`,
+      url: toAbsoluteUrl("/blog"),
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: toAbsoluteUrl("/demo"),
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: toAbsoluteUrl("/demo/tour"),
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: toAbsoluteUrl("/demo/admin"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: toAbsoluteUrl("/demo/customer"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: toAbsoluteUrl("/demo/employee"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: toAbsoluteUrl("/explore"),
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: toAbsoluteUrl("/website-builder"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.75,
+    },
+    {
+      url: toAbsoluteUrl("/request-quote"),
       lastModified,
       changeFrequency: "weekly",
       priority: 0.8,
     },
   ];
+
+  const blogPages: MetadataRoute.Sitemap = blogArticles.map((article) => ({
+    url: toAbsoluteUrl(`/blog/${article.slug}`),
+    lastModified: new Date(article.publishedOn),
+    changeFrequency: "monthly",
+    priority: 0.7,
+  }));
+
+  return [...coreMarketingPages, ...blogPages];
 }

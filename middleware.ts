@@ -32,14 +32,26 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
   const isBlogRoute = pathname === "/blog" || pathname.startsWith("/blog/");
+  const isDemoRoute = pathname === "/demo" || pathname.startsWith("/demo/");
+  const isMarketingRoute =
+    pathname === "/" ||
+    pathname === "/pricing" ||
+    pathname === "/contact" ||
+    pathname === "/explore" ||
+    pathname === "/website-builder" ||
+    isBlogRoute ||
+    isDemoRoute;
 
   const isPublicRoute =
     pathname === "/login" ||
     pathname === "/super-admin/login" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/manifest.webmanifest" ||
+    isMarketingRoute ||
     pathname === "/request-quote" ||
     pathname.startsWith("/request-quote/") ||
     pathname === "/forgot-password" ||
-    isBlogRoute ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api");
 

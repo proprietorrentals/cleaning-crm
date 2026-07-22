@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SuperAdminShell } from "@/components/super-admin-shell";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function ProtectedSuperAdminLayout({
   children,

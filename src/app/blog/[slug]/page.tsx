@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicSiteFooter } from "@/components/public-site-footer";
 import { PublicSiteNav } from "@/components/public-site-nav";
+import { SeoJsonLd } from "@/components/seo-json-ld";
 import { getAllBlogArticles, getBlogArticleBySlug } from "@/lib/blog/articles";
+import { buildMarketingMetadata, canonicalUrl } from "@/lib/seo/metadata";
+import { getBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 
 type BlogArticlePageProps = {
   params: Promise<{
@@ -32,16 +35,32 @@ export async function generateMetadata({
   if (!article) {
     return {
       title: "Article Not Found | ServiceOS Blog",
+      robots: {
+        index: false,
+        follow: false,
+      },
     };
   }
 
-  return {
-    title: `${article.title} | ServiceOS Blog`,
+  const path = `/blog/${article.slug}`;
+  const baseMetadata = buildMarketingMetadata({
+    title: `${article.title} | Service OS Blog`,
     description: article.excerpt,
+    path,
+    keywords: [
+      "cleaning CRM",
+      "janitorial management software",
+      "commercial cleaning operations",
+    ],
+  });
+
+  return {
+    ...baseMetadata,
     openGraph: {
-      title: `${article.title} | ServiceOS Blog`,
-      description: article.excerpt,
-      images: [{ url: "/icon.svg", type: "image/svg+xml" }],
+      ...baseMetadata.openGraph,
+      type: "article",
+      publishedTime: new Date(article.publishedOn).toISOString(),
+      url: canonicalUrl(path),
     },
   };
 }
@@ -71,6 +90,13 @@ export default async function BlogArticlePage({
         </div>
 
         <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+          <SeoJsonLd
+            payload={getBreadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              { name: "Blog", path: "/blog" },
+              { name: article.title, path: `/blog/${article.slug}` },
+            ])}
+          />
           <p className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
             {article.category}
           </p>

@@ -1,18 +1,53 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { SeoJsonLd } from "@/components/seo-json-ld";
 import { WebsiteBuilderShell } from "@/components/website-builder-shell";
+import { buildMarketingMetadata, resolveSeoLocale } from "@/lib/seo/metadata";
+import { getBreadcrumbJsonLd } from "@/lib/seo/structured-data";
 
-export const metadata: Metadata = {
-  title: "ServiceOS Website Builder",
-  description:
-    "Build and manage your ServiceOS website with templates, page structure, customization controls, and quote-request CRM lead capture.",
-  openGraph: {
-    title: "ServiceOS Website Builder",
-    description:
-      "Create public website pages for ServiceOS and capture quote requests as CRM leads.",
-    images: [{ url: "/icon.svg", type: "image/svg+xml" }],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const locale = resolveSeoLocale(cookieStore.get("serviceos_lang")?.value);
+
+  const copy =
+    locale === "es"
+      ? {
+          title:
+            "Creador de sitios Service OS | CRM para limpieza comercial y captacion de leads",
+          description:
+            "Crea paginas publicas para tu empresa de limpieza comercial y convierte solicitudes en oportunidades dentro de Service OS.",
+        }
+      : {
+          title:
+            "Service OS Website Builder | Cleaning CRM Website and Lead Capture",
+          description:
+            "Build public pages for your commercial cleaning business, capture qualified leads, and sync demand directly into your cleaning CRM.",
+        };
+
+  return buildMarketingMetadata({
+    title: copy.title,
+    description: copy.description,
+    path: "/website-builder",
+    locale,
+    includeLanguageAlternates: true,
+    keywords: [
+      "commercial cleaning leads",
+      "cleaning CRM website builder",
+      "janitorial marketing software",
+    ],
+  });
+}
 
 export default function WebsiteBuilderPage() {
-  return <WebsiteBuilderShell />;
+  return (
+    <>
+      <SeoJsonLd
+        payload={getBreadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Website Builder", path: "/website-builder" },
+        ])}
+      />
+      <WebsiteBuilderShell />
+    </>
+  );
 }
