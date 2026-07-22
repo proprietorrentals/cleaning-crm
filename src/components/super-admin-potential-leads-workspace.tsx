@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type LeadScope = "potential" | "verified" | "research";
 
@@ -27,6 +27,12 @@ type PotentialLead = {
   ai_confidence: number;
   ai_reasoning: string | null;
   research_notes: string | null;
+  research_sources: Array<{
+    name: string;
+    url: string | null;
+    note: string | null;
+  }> | null;
+  needs_manual_verification: boolean | null;
   status: PotentialLeadStatus;
   verified_marketplace_lead_id: string | null;
   reviewed_at: string | null;
@@ -100,7 +106,14 @@ export function SuperAdminPotentialLeadsWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [researchBusinessName, setResearchBusinessName] = useState("");
+  const [researchCity, setResearchCity] = useState("");
+  const [researchState, setResearchState] = useState("");
+  const [researchWebsite, setResearchWebsite] = useState("");
+  const [researching, setResearching] = useState(false);
+  const [focusedLeadId, setFocusedLeadId] = useState<string | null>(null);
   const [leads, setLeads] = useState<PotentialLead[]>([]);
+  const leadCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const filteredCountLabel = useMemo(() => {
     if (loading) return "Loading...";
@@ -141,6 +154,20 @@ export function SuperAdminPotentialLeadsWorkspace({
   useEffect(() => {
     void loadLeads();
   }, [loadLeads]);
+
+  useEffect(() => {
+    if (!focusedLeadId) {
+      return;
+    }
+
+    const card = leadCardRefs.current[focusedLeadId];
+    if (!card) {
+      return;
+    }
+
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.focus({ preventScroll: true });
+  }, [focusedLeadId]);
 
   const runLeadAction = useCallback(
     async (
@@ -189,13 +216,72 @@ export function SuperAdminPotentialLeadsWorkspace({
     [loadLeads],
   );
 
+  const runResearch = useCallback(async () => {
+    if (!researchBusinessName.trim()) {
+      setError("Business name is required for research.");
+      return;
+    }
+
+    setResearching(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/super-admin/potential-leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: researchBusinessName.trim(),
+          city: researchCity.trim() || undefined,
+          state: researchState.trim() || undefined,
+          website: researchWebsite.trim() || undefined,
+        }),
+      });
+
+      const body = (await response.json()) as
+        | {
+            success: true;
+            duplicate: boolean;
+            message: string;
+            lead: PotentialLead;
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Unable to research business." : body.message);
+        return;
+      }
+
+      setSuccess(body.message);
+      await loadLeads();
+      setFocusedLeadId(body.lead.potential_lead_id);
+
+      if (!body.duplicate) {
+        setResearchBusinessName("");
+        setResearchCity("");
+        setResearchState("");
+        setResearchWebsite("");
+      }
+    } catch {
+      setError("Unable to research this business right now.");
+    } finally {
+      setResearching(false);
+    }
+  }, [
+    loadLeads,
+    researchBusinessName,
+    researchCity,
+    researchState,
+    researchWebsite,
+  ]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,116,144,0.18),_transparent_38%),linear-gradient(180deg,_#020617_0%,_#020617_100%)] text-white">
       <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">
-              Phase 2A
+              Phase 2B
             </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
               {title}
@@ -228,20 +314,74 @@ export function SuperAdminPotentialLeadsWorkspace({
         </section>
 
         <section className="mb-5 rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4 shadow-xl shadow-slate-950/20">
-          <div className="flex flex-wrap gap-3">
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search business, website, email, phone, or address"
-              className="min-w-[260px] flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
-            />
-            <button
-              type="button"
-              onClick={() => void loadLeads()}
-              className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-            >
-              Refresh
-            </button>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                Search Existing Leads
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search business, website, email, phone, or address"
+                  className="min-w-[220px] flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => void loadLeads()}
+                  className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-900/70 bg-cyan-950/20 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">
+                Research New Business
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <input
+                  value={researchBusinessName}
+                  onChange={(event) =>
+                    setResearchBusinessName(event.target.value)
+                  }
+                  placeholder="Business name"
+                  className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 sm:col-span-2"
+                />
+                <input
+                  value={researchCity}
+                  onChange={(event) => setResearchCity(event.target.value)}
+                  placeholder="City (optional)"
+                  className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                />
+                <input
+                  value={researchState}
+                  onChange={(event) => setResearchState(event.target.value)}
+                  placeholder="State (optional)"
+                  className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                />
+                <input
+                  value={researchWebsite}
+                  onChange={(event) => setResearchWebsite(event.target.value)}
+                  placeholder="Website (optional)"
+                  className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 sm:col-span-2"
+                />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-cyan-100/80">
+                  Uses only public data and always requires human verification.
+                </p>
+                <button
+                  type="button"
+                  disabled={researching}
+                  onClick={() => void runResearch()}
+                  className="rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+                >
+                  {researching ? "Researching..." : "Research"}
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -268,6 +408,10 @@ export function SuperAdminPotentialLeadsWorkspace({
                 return (
                   <article
                     key={lead.potential_lead_id}
+                    ref={(element) => {
+                      leadCardRefs.current[lead.potential_lead_id] = element;
+                    }}
+                    tabIndex={-1}
                     className="rounded-3xl border border-slate-800 bg-slate-950/85 p-5 transition hover:border-cyan-500/30"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -343,6 +487,12 @@ export function SuperAdminPotentialLeadsWorkspace({
                       </div>
                     </div>
 
+                    {lead.needs_manual_verification ? (
+                      <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                        Needs Manual Verification
+                      </p>
+                    ) : null}
+
                     <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">
                         AI Reasoning
@@ -359,6 +509,42 @@ export function SuperAdminPotentialLeadsWorkspace({
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">
                         {lead.research_notes || "No research notes yet."}
                       </p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Sources
+                      </p>
+                      {lead.research_sources &&
+                      lead.research_sources.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                          {lead.research_sources
+                            .slice(0, 4)
+                            .map((source, index) => (
+                              <li
+                                key={`${lead.potential_lead_id}-source-${index}`}
+                              >
+                                {source.url ? (
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-cyan-300 hover:text-cyan-200"
+                                  >
+                                    {source.name}
+                                  </a>
+                                ) : (
+                                  <span>{source.name}</span>
+                                )}
+                                {source.note ? ` - ${source.note}` : ""}
+                              </li>
+                            ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-500">
+                          No public source list saved.
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-4 text-xs text-slate-500">
