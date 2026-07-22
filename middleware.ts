@@ -45,6 +45,9 @@ export async function middleware(request: NextRequest) {
   ]);
   const isBlogRoute = pathname === "/blog" || pathname.startsWith("/blog/");
   const isDemoRoute = pathname === "/demo" || pathname.startsWith("/demo/");
+  const isCityMarketplaceRoute = pathname.startsWith(
+    "/commercial-cleaning-leads/",
+  );
   const isMarketingRoute =
     pathname === "/" ||
     pathname === "/pricing" ||
@@ -52,6 +55,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/explore" ||
     pathname === "/website-builder" ||
     publicLandingPaths.has(pathname) ||
+    isCityMarketplaceRoute ||
     isBlogRoute ||
     isDemoRoute;
 

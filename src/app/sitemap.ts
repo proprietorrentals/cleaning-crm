@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getAllBlogArticles } from "@/lib/blog/articles";
 import { ALL_LANDING_PAGES } from "@/lib/seo/landing-pages";
+import { getMarketplaceCityPagePaths } from "@/lib/seo/marketplace-city-pages";
 import { SEO_SITE_URL } from "@/lib/seo/metadata";
 
 const siteUrl = SEO_SITE_URL;
@@ -103,5 +104,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: page.path.includes("leads") ? 0.78 : 0.8,
   }));
 
-  return [...coreMarketingPages, ...landingPages, ...blogPages];
+  const cityMarketplacePages: MetadataRoute.Sitemap =
+    getMarketplaceCityPagePaths().map((path) => ({
+      url: toAbsoluteUrl(path),
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.76,
+    }));
+
+  return [
+    ...coreMarketingPages,
+    ...landingPages,
+    ...cityMarketplacePages,
+    ...blogPages,
+  ];
 }
