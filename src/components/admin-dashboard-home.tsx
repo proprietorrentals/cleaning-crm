@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ServiceOSLogo } from "@/components/serviceos-logo";
 import { useI18n } from "@/components/i18n-provider";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type JobRecord = {
@@ -639,8 +640,11 @@ function TrendSparkline({
 
 export function AdminDashboardHome() {
   const supabase = useMemo(() => createClient(), []);
+  const pathname = usePathname();
   const { t, locale, isReady } = useI18n();
   const [newLeadCount, setNewLeadCount] = useState(0);
+  const [showMarketplaceNav, setShowMarketplaceNav] = useState(false);
+  const [marketplaceUnreadCount, setMarketplaceUnreadCount] = useState(0);
   const [dashboard, setDashboard] = useState<DashboardState>({
     loading: true,
     error: null,
@@ -765,6 +769,35 @@ export function AdminDashboardHome() {
           (user?.user_metadata?.first_name as string | undefined) ||
           (user?.user_metadata?.name as string | undefined) ||
           t("dashboard.operatorFallback");
+
+        if (user?.id) {
+          const { data: tenantAdmin, error: tenantAdminError } = await supabase
+            .from("tenant_admins")
+            .select("tenant_id")
+            .eq("auth_user_id", user.id)
+            .maybeSingle();
+
+          if (!tenantAdminError && tenantAdmin?.tenant_id) {
+            setShowMarketplaceNav(true);
+
+            const { count, error: marketplaceUnreadError } = await supabase
+              .from("marketplace_notifications")
+              .select("*", { count: "exact", head: true })
+              .eq("is_read", false);
+
+            if (!marketplaceUnreadError) {
+              setMarketplaceUnreadCount(count ?? 0);
+            } else {
+              setMarketplaceUnreadCount(0);
+            }
+          } else {
+            setShowMarketplaceNav(false);
+            setMarketplaceUnreadCount(0);
+          }
+        } else {
+          setShowMarketplaceNav(false);
+          setMarketplaceUnreadCount(0);
+        }
 
         const activeEmployees = employeesResponse.count ?? 0;
         const openTimeEntries = (openTimeEntriesResponse.data ?? []) as TimeEntryRecord[];
@@ -1173,6 +1206,45 @@ export function AdminDashboardHome() {
                 ) : null}
               </Link>
             ))}
+
+            {showMarketplaceNav ? (
+              <div className="pt-2">
+                <Link
+                  href="/marketplace/saved-searches"
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/marketplace") ? "bg-cyan-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}
+                >
+                  <span>◬</span>
+                  <span className="flex-1">Lead Marketplace</span>
+                  {marketplaceUnreadCount > 0 ? (
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${pathname.startsWith("/marketplace") ? "bg-white text-cyan-700" : "bg-cyan-600 text-white"}`}>
+                      {marketplaceUnreadCount}
+                    </span>
+                  ) : null}
+                </Link>
+
+                <div className="ml-8 mt-1 space-y-1">
+                  <Link
+                    href="/marketplace/saved-searches"
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${pathname === "/marketplace/saved-searches" ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}
+                  >
+                    <span>•</span>
+                    <span className="flex-1">Saved Searches</span>
+                  </Link>
+                  <Link
+                    href="/marketplace/notifications"
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${pathname === "/marketplace/notifications" ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}
+                  >
+                    <span>•</span>
+                    <span className="flex-1">Notifications</span>
+                    {marketplaceUnreadCount > 0 ? (
+                      <span className="rounded-full bg-cyan-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                        {marketplaceUnreadCount}
+                      </span>
+                    ) : null}
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </nav>
         </aside>
 
