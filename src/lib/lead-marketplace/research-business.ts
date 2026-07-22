@@ -2,6 +2,19 @@ import "server-only";
 
 import { getAiProvider } from "@/lib/ai/provider";
 
+export type OutsourcingLikelihood = "High" | "Medium" | "Low" | "Unknown";
+
+export type OrganizationType =
+  | "public sector"
+  | "education"
+  | "healthcare"
+  | "office"
+  | "industrial"
+  | "retail"
+  | "multifamily"
+  | "nonprofit"
+  | "unknown";
+
 export type ResearchBusinessInput = {
   businessName: string;
   city?: string | null;
@@ -25,6 +38,14 @@ export type ResearchBusinessResult = {
   state: string | null;
   zipCode: string | null;
   propertyType: string;
+  estimatedBuildingSize: string | null;
+  estimatedMonthlyContractValue: number | null;
+  contractValueConfidence: number;
+  outsourcingLikelihood: OutsourcingLikelihood;
+  organizationType: OrganizationType;
+  opportunitySummary: string;
+  recommendedNextStep: string;
+  procurementNotes: string | null;
   estimatedContractValue: number;
   aiConfidence: number;
   aiReasoning: string;
@@ -46,6 +67,14 @@ type AiResearchPayload = {
   state?: string | null;
   zip_code?: string | null;
   property_type?: string | null;
+  estimated_building_size?: string | null;
+  estimated_monthly_contract_value?: number | string | null;
+  contract_value_confidence?: number | string | null;
+  outsourcing_likelihood?: string | null;
+  organization_type?: string | null;
+  opportunity_summary?: string | null;
+  recommended_next_step?: string | null;
+  procurement_notes?: string | null;
   estimated_contract_value?: number | string | null;
   confidence?: number | string | null;
   reasoning?: string | null;
@@ -59,6 +88,7 @@ type AiResearchPayload = {
 };
 
 const LOW_CONFIDENCE_THRESHOLD = 65;
+const LOW_VALUE_CONFIDENCE_THRESHOLD = 60;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -123,19 +153,36 @@ function normalizeEmail(value: unknown) {
   return normalized.toLowerCase();
 }
 
-function normalizeCurrencyNumber(value: unknown) {
+function normalizeCurrencyNumberOrNull(value: unknown) {
+  if (value == null) {
+    return null;
+  }
+
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.max(0, Math.round(value));
   }
 
   if (typeof value === "string") {
-    const parsed = Number(value.replace(/[$,\s]/g, ""));
+    const normalized = value.trim().toLowerCase();
+    if (normalized.length === 0) {
+      return null;
+    }
+
+    if (
+      /(unknown|needs estimate|not available|n\/a|unverified|undetermined)/.test(
+        normalized,
+      )
+    ) {
+      return null;
+    }
+
+    const parsed = Number(normalized.replace(/[$,\s]/g, ""));
     if (Number.isFinite(parsed)) {
       return Math.max(0, Math.round(parsed));
     }
   }
 
-  return 0;
+  return null;
 }
 
 function normalizeConfidence(value: unknown) {
@@ -174,6 +221,130 @@ function parseAiJson(content: string): AiResearchPayload | null {
   }
 
   return null;
+}
+
+function normalizeOutsourcingLikelihood(value: unknown): OutsourcingLikelihood {
+  const normalized = normalizeOptionalString(value)?.toLowerCase();
+
+  if (normalized === "high") return "High";
+  if (normalized === "medium") return "Medium";
+  if (normalized === "low") return "Low";
+  return "Unknown";
+}
+
+function normalizeOrganizationType(value: unknown): OrganizationType {
+  const normalized = normalizeOptionalString(value)?.toLowerCase();
+
+  if (normalized === "public sector") return "public sector";
+  if (normalized === "education") return "education";
+  if (normalized === "healthcare") return "healthcare";
+  if (normalized === "office") return "office";
+  if (normalized === "industrial") return "industrial";
+  if (normalized === "retail") return "retail";
+  if (normalized === "multifamily") return "multifamily";
+  if (normalized === "nonprofit") return "nonprofit";
+  return "unknown";
+}
+
+function inferOrganizationTypeFromProperty(
+  propertyType: string,
+): OrganizationType {
+  const normalized = propertyType.toLowerCase();
+
+  if (/(school|district|academy|college|university)/.test(normalized)) {
+    return "education";
+  }
+
+  if (/(municipal|government|city|county|public)/.test(normalized)) {
+    return "public sector";
+  }
+
+  if (/(hospital|clinic|medical)/.test(normalized)) {
+    return "healthcare";
+  }
+
+  if (/(office|corporate|hq)/.test(normalized)) {
+    return "office";
+  }
+
+  if (/(warehouse|industrial|plant|manufacturing)/.test(normalized)) {
+    return "industrial";
+  }
+
+  if (/(retail|store|shopping)/.test(normalized)) {
+    return "retail";
+  }
+
+  if (/(apartment|multifamily|condo|residential complex)/.test(normalized)) {
+    return "multifamily";
+  }
+
+  if (/(nonprofit|foundation|charity)/.test(normalized)) {
+    return "nonprofit";
+  }
+
+  return "unknown";
+}
+
+function isPublicProcurementLikely(orgType: OrganizationType) {
+  return orgType === "public sector" || orgType === "education";
+}
+
+function defaultNextStep(orgType: OrganizationType): string {
+  if (orgType === "education" || orgType === "public sector") {
+    return "Check public bid portal";
+  }
+
+  if (orgType === "multifamily") {
+    return "Research property manager";
+  }
+
+  if (orgType === "industrial") {
+    return "Confirm outsourced janitorial provider";
+  }
+
+  return "Call facilities department";
+}
+
+function buildOpportunitySummary(input: {
+  businessName: string;
+  organizationType: OrganizationType;
+  propertyType: string;
+  outsourcingLikelihood: OutsourcingLikelihood;
+  uncertainFields: string[];
+  procurementNotes: string | null;
+}) {
+  const reasons: string[] = [];
+  const unverified = input.uncertainFields.length
+    ? `Unverified: ${input.uncertainFields.join(", ")}.`
+    : "No major data gaps identified from public sources.";
+
+  if (input.organizationType === "office") {
+    reasons.push(
+      `${input.businessName} appears to operate office space that typically requires recurring janitorial coverage.`,
+    );
+  } else if (input.organizationType === "education") {
+    reasons.push(
+      `${input.businessName} appears to be an education organization with likely recurring day porter and sanitation needs.`,
+    );
+  } else if (input.organizationType === "public sector") {
+    reasons.push(
+      `${input.businessName} appears to be a public-sector entity where cleaning demand is often procured through formal bid cycles.`,
+    );
+  } else {
+    reasons.push(
+      `${input.businessName} may need commercial cleaning based on its ${input.propertyType.toLowerCase()} profile.`,
+    );
+  }
+
+  reasons.push(`Outsourcing likelihood: ${input.outsourcingLikelihood}.`);
+  reasons.push(unverified);
+
+  if (input.procurementNotes) {
+    reasons.push(input.procurementNotes);
+  }
+
+  return reasons.join(" ").slice(0, 2000);
 }
 
 function normalizeSources(value: AiResearchPayload["sources"]) {
@@ -226,6 +397,15 @@ function buildFallbackResult(
     state,
     zipCode: null,
     propertyType: "Commercial Facility (Unverified)",
+    estimatedBuildingSize: null,
+    estimatedMonthlyContractValue: null,
+    contractValueConfidence: 0,
+    outsourcingLikelihood: "Unknown",
+    organizationType: "unknown",
+    opportunitySummary:
+      "Possible commercial cleaning opportunity, but key qualification details are still unverified.",
+    recommendedNextStep: "Research property manager",
+    procurementNotes: null,
     estimatedContractValue: 0,
     aiConfidence: 30,
     aiReasoning:
@@ -298,7 +478,12 @@ export async function researchBusiness(
       systemPrompt: [
         "You are ServiceOS Lead Researcher.",
         "Use only publicly available business information.",
-        "Never fabricate phone, email, address, website, property type, or contract value.",
+        "Never fabricate phone, email, address, website, property type, square footage, contract value, or decision-maker details.",
+        "Estimate values only if supported by explicit public evidence or clearly labeled heuristic assumptions.",
+        "If estimate support is weak, return null for estimate fields and set confidence appropriately.",
+        "Classify organization_type as one of: public sector, education, healthcare, office, industrial, retail, multifamily, nonprofit, unknown.",
+        "Set outsourcing_likelihood as High, Medium, Low, or Unknown.",
+        "For schools, municipalities, and public agencies, provide procurement or bid guidance.",
         "When uncertain, return null for unknown fields and list them in uncertain_fields.",
         "Return strict JSON only.",
       ].join(" "),
@@ -321,6 +506,17 @@ export async function researchBusiness(
           state: "string|null",
           zip_code: "string|null",
           property_type: "string|null",
+          estimated_building_size: "string|null",
+          estimated_monthly_contract_value: "number|null",
+          contract_value_confidence: "number 0-100",
+          outsourcing_likelihood: "High|Medium|Low|Unknown",
+          organization_type:
+            "public sector|education|healthcare|office|industrial|retail|multifamily|nonprofit|unknown",
+          opportunity_summary:
+            "plain-language reasoning: why cleaning likely, what remains unverified, and procurement context",
+          recommended_next_step:
+            "Call facilities department|Check public bid portal|Confirm outsourced janitorial provider|Research property manager|Request vendor registration requirements",
+          procurement_notes: "string|null",
           estimated_contract_value: "number|null",
           confidence: "number 0-100",
           reasoning: "string",
@@ -351,6 +547,34 @@ export async function researchBusiness(
     const sources = normalizeSources(parsed.sources);
     const uncertainFields = normalizeUncertainFields(parsed.uncertain_fields);
     const confidence = normalizeConfidence(parsed.confidence);
+    const propertyType =
+      normalizeOptionalString(parsed.property_type) ??
+      "Commercial Facility (Unverified)";
+    const organizationType =
+      normalizeOrganizationType(parsed.organization_type) ??
+      inferOrganizationTypeFromProperty(propertyType);
+    const outsourcingLikelihood = normalizeOutsourcingLikelihood(
+      parsed.outsourcing_likelihood,
+    );
+    const estimatedMonthlyContractValue = normalizeCurrencyNumberOrNull(
+      parsed.estimated_monthly_contract_value,
+    );
+    const contractValueConfidence = normalizeConfidence(
+      parsed.contract_value_confidence,
+    );
+    const monthlyEstimateSupported =
+      estimatedMonthlyContractValue != null &&
+      contractValueConfidence >= LOW_VALUE_CONFIDENCE_THRESHOLD;
+    const procurementNotesFromAi = normalizeOptionalString(
+      parsed.procurement_notes,
+    );
+    const procurementNotes = isPublicProcurementLikely(organizationType)
+      ? (procurementNotesFromAi ??
+        "Public-sector procurement likely applies. Review district or municipal bid portal and vendor registration requirements before outreach.")
+      : procurementNotesFromAi;
+    const recommendedNextStep =
+      normalizeOptionalString(parsed.recommended_next_step) ??
+      defaultNextStep(organizationType);
 
     const result: ResearchBusinessResult = {
       businessName: normalizedBusinessName,
@@ -365,12 +589,25 @@ export async function researchBusiness(
         normalizeOptionalString(parsed.state) ??
         normalizeOptionalString(input.state),
       zipCode: normalizeOptionalString(parsed.zip_code),
-      propertyType:
-        normalizeOptionalString(parsed.property_type) ??
-        "Commercial Facility (Unverified)",
-      estimatedContractValue: normalizeCurrencyNumber(
-        parsed.estimated_contract_value,
+      propertyType,
+      estimatedBuildingSize: normalizeOptionalString(
+        parsed.estimated_building_size,
       ),
+      estimatedMonthlyContractValue: monthlyEstimateSupported
+        ? estimatedMonthlyContractValue
+        : null,
+      contractValueConfidence,
+      outsourcingLikelihood,
+      organizationType,
+      opportunitySummary:
+        normalizeOptionalString(parsed.opportunity_summary) ??
+        "Potential commercial cleaning opportunity identified, pending manual verification.",
+      recommendedNextStep,
+      procurementNotes,
+      estimatedContractValue:
+        monthlyEstimateSupported && estimatedMonthlyContractValue != null
+          ? estimatedMonthlyContractValue * 12
+          : 0,
       aiConfidence: confidence,
       aiReasoning:
         normalizeOptionalString(parsed.reasoning) ??
@@ -388,6 +625,11 @@ export async function researchBusiness(
       ["phone", result.phone],
       ["email", result.email],
       ["address", result.address],
+      ["estimated_building_size", result.estimatedBuildingSize],
+      [
+        "estimated_monthly_contract_value",
+        result.estimatedMonthlyContractValue,
+      ],
     ]
       .filter(([, value]) => !value)
       .map(([field]) => field)
@@ -403,9 +645,27 @@ export async function researchBusiness(
       result.needsManualVerification = true;
     }
 
+    if (!monthlyEstimateSupported) {
+      result.needsManualVerification = true;
+      if (
+        !result.uncertainFields.includes("estimated_monthly_contract_value")
+      ) {
+        result.uncertainFields.push("estimated_monthly_contract_value");
+      }
+    }
+
     if (result.uncertainFields.length > 0) {
       result.needsManualVerification = true;
     }
+
+    result.opportunitySummary = buildOpportunitySummary({
+      businessName: result.businessName,
+      organizationType: result.organizationType,
+      propertyType: result.propertyType,
+      outsourcingLikelihood: result.outsourcingLikelihood,
+      uncertainFields: result.uncertainFields,
+      procurementNotes: result.procurementNotes,
+    });
 
     result.researchNotes = buildNotes({
       aiNotes: normalizeOptionalString(parsed.notes),

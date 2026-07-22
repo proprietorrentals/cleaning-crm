@@ -34,6 +34,23 @@ type PotentialLeadRow = {
   state: string;
   zip_code: string | null;
   property_type: string;
+  estimated_building_size: string | null;
+  estimated_monthly_contract_value: number | null;
+  contract_value_confidence: number;
+  outsourcing_likelihood: "High" | "Medium" | "Low" | "Unknown";
+  organization_type:
+    | "public sector"
+    | "education"
+    | "healthcare"
+    | "office"
+    | "industrial"
+    | "retail"
+    | "multifamily"
+    | "nonprofit"
+    | "unknown";
+  opportunity_summary: string | null;
+  recommended_next_step: string | null;
+  procurement_notes: string | null;
   estimated_contract_value: number;
   ai_confidence: number;
   ai_reasoning: string | null;
@@ -217,7 +234,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("potential_marketplace_leads")
     .select(
-      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
+      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_building_size,estimated_monthly_contract_value,contract_value_confidence,outsourcing_likelihood,organization_type,opportunity_summary,recommended_next_step,procurement_notes,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
     )
     .order("created_at", { ascending: false })
     .limit(filter.limit ?? 200);
@@ -317,7 +334,7 @@ export async function POST(request: NextRequest) {
   const duplicateQuery = supabase
     .from("potential_marketplace_leads")
     .select(
-      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
+      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_building_size,estimated_monthly_contract_value,contract_value_confidence,outsourcing_likelihood,organization_type,opportunity_summary,recommended_next_step,procurement_notes,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
     )
     .order("created_at", { ascending: false })
     .limit(80);
@@ -373,6 +390,14 @@ export async function POST(request: NextRequest) {
     state: (research.state ?? requestInput.state ?? "Unknown").toUpperCase(),
     zip_code: research.zipCode,
     property_type: research.propertyType,
+    estimated_building_size: research.estimatedBuildingSize,
+    estimated_monthly_contract_value: research.estimatedMonthlyContractValue,
+    contract_value_confidence: research.contractValueConfidence,
+    outsourcing_likelihood: research.outsourcingLikelihood,
+    organization_type: research.organizationType,
+    opportunity_summary: research.opportunitySummary,
+    recommended_next_step: research.recommendedNextStep,
+    procurement_notes: research.procurementNotes,
     estimated_contract_value: research.estimatedContractValue,
     ai_confidence: research.aiConfidence,
     ai_reasoning: research.aiReasoning,
@@ -386,7 +411,7 @@ export async function POST(request: NextRequest) {
     .from("potential_marketplace_leads")
     .insert(insertPayload)
     .select(
-      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
+      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_building_size,estimated_monthly_contract_value,contract_value_confidence,outsourcing_likelihood,organization_type,opportunity_summary,recommended_next_step,procurement_notes,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id,reviewed_by_user_id,reviewed_at,verified_at,rejected_at,created_at,updated_at",
     )
     .single<PotentialLeadRow>();
 

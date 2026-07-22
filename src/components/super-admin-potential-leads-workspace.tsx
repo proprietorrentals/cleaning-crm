@@ -23,6 +23,23 @@ type PotentialLead = {
   state: string;
   zip_code: string | null;
   property_type: string;
+  estimated_building_size: string | null;
+  estimated_monthly_contract_value: number | null;
+  contract_value_confidence: number;
+  outsourcing_likelihood: "High" | "Medium" | "Low" | "Unknown";
+  organization_type:
+    | "public sector"
+    | "education"
+    | "healthcare"
+    | "office"
+    | "industrial"
+    | "retail"
+    | "multifamily"
+    | "nonprofit"
+    | "unknown";
+  opportunity_summary: string | null;
+  recommended_next_step: string | null;
+  procurement_notes: string | null;
   estimated_contract_value: number;
   ai_confidence: number;
   ai_reasoning: string | null;
@@ -86,6 +103,25 @@ function formatCurrency(value: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatCurrencyOrUnknown(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "Needs Estimate";
+  }
+
+  return formatCurrency(value);
+}
+
+function formatOrganizationType(value: PotentialLead["organization_type"]) {
+  if (value === "unknown") {
+    return "Unknown";
+  }
+
+  return value
+    .split(" ")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 function formatDate(value: string | null) {
@@ -281,7 +317,7 @@ export function SuperAdminPotentialLeadsWorkspace({
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">
-              Phase 2B
+              Phase 2C
             </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
               {title}
@@ -471,10 +507,12 @@ export function SuperAdminPotentialLeadsWorkspace({
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          Est. Contract
+                          Annual Contract
                         </p>
                         <p className="mt-1 text-sm font-semibold text-cyan-100">
-                          {formatCurrency(lead.estimated_contract_value)}
+                          {formatCurrencyOrUnknown(
+                            lead.estimated_contract_value,
+                          )}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
@@ -483,6 +521,50 @@ export function SuperAdminPotentialLeadsWorkspace({
                         </p>
                         <p className="mt-1 text-sm font-semibold text-slate-100">
                           {Math.round(lead.ai_confidence)}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          Monthly Estimate
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-cyan-100">
+                          {formatCurrencyOrUnknown(
+                            lead.estimated_monthly_contract_value,
+                          )}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          Confidence:{" "}
+                          {Math.round(lead.contract_value_confidence)}%
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          Building Size
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">
+                          {lead.estimated_building_size || "Unknown"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          Organization Type
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">
+                          {formatOrganizationType(lead.organization_type)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          Outsourcing Likelihood
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">
+                          {lead.outsourcing_likelihood}
                         </p>
                       </div>
                     </div>
@@ -499,6 +581,36 @@ export function SuperAdminPotentialLeadsWorkspace({
                       </p>
                       <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-200">
                         {lead.ai_reasoning || "No AI reasoning provided."}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">
+                        Opportunity Summary
+                      </p>
+                      <p className="mt-2 line-clamp-5 text-sm leading-6 text-slate-200">
+                        {lead.opportunity_summary ||
+                          "Opportunity assessment is still being verified."}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Recommended Next Step
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-slate-200">
+                        {lead.recommended_next_step ||
+                          "Research property manager"}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Procurement Notes
+                      </p>
+                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">
+                        {lead.procurement_notes ||
+                          "No public procurement flags identified."}
                       </p>
                     </div>
 
