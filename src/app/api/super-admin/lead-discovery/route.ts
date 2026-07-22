@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  controlLeadDiscoveryRun,
+  createLeadDiscoveryRun,
   DISCOVERY_CATEGORIES,
-  runLeadDiscovery,
   type DiscoveryArea,
   type DiscoveryCategory,
+  type DiscoveryRunStatus,
+  processLeadDiscoveryRunBatch,
 } from "@/lib/lead-marketplace/discovery-engine";
-import { POTENTIAL_LEAD_SELECT } from "@/lib/lead-marketplace/potential-lead-pipeline";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -31,10 +33,16 @@ const controlSchema = z.object({
   command: z.enum(["pause", "resume", "stop"]),
 });
 
+const processSchema = z.object({
+  runId: z.string().uuid(),
+  batchSize: z.coerce.number().int().min(5).max(10).optional(),
+});
+
 const postSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("add_area"), payload: areaSchema }),
   z.object({ action: z.literal("run_discovery"), payload: runSchema }),
   z.object({ action: z.literal("control_run"), payload: controlSchema }),
+  z.object({ action: z.literal("process_run"), payload: processSchema }),
 ]);
 
 type LeadDiscoveryAreaRow = {
@@ -50,7 +58,7 @@ type LeadDiscoveryAreaRow = {
 
 type LeadDiscoveryRunRow = {
   run_id: string;
-  status: "running" | "paused" | "stopped" | "completed" | "failed";
+  status: DiscoveryRunStatus;
   started_at: string;
   completed_at: string | null;
   duration_seconds: number | null;
@@ -58,10 +66,13 @@ type LeadDiscoveryRunRow = {
   selected_categories: string[];
   selected_area_ids: string[];
   businesses_found: number;
+  processed_count: number;
   inserted_count: number;
   duplicates_skipped: number;
   failed_count: number;
+  percent_complete: number;
   average_confidence: number;
+  stop_requested: boolean;
   error_message: string | null;
   created_at: string;
 };
@@ -135,7 +146,7 @@ export async function GET() {
       supabase
         .from("lead_discovery_runs")
         .select(
-          "run_id,status,started_at,completed_at,duration_seconds,daily_limit,selected_categories,selected_area_ids,businesses_found,inserted_count,duplicates_skipped,failed_count,average_confidence,error_message,created_at",
+          "run_id,status,started_at,completed_at,duration_seconds,daily_limit,selected_categories,selected_area_ids,businesses_found,processed_count,inserted_count,duplicates_skipped,failed_count,percent_complete,average_confidence,stop_requested,error_message,created_at",
         )
         .order("started_at", { ascending: false })
         .limit(40),
@@ -218,8 +229,10 @@ export async function GET() {
   const averageConfidence =
     businessesDiscoveredToday > 0
       ? Math.round(
-          discoveredToday.reduce((total, lead) => total + lead.ai_confidence, 0) /
-            businessesDiscoveredToday,
+          discoveredToday.reduce(
+            (total, lead) => total + lead.ai_confidence,
+            0,
+          ) / businessesDiscoveredToday,
         )
       : 0;
 
@@ -304,7 +317,9 @@ export async function POST(request: NextRequest) {
         radius_miles: area.radiusMiles,
         created_by_user_id: userId,
       })
-      .select("area_id,city,state,zip_code,radius_miles,is_active,created_at,updated_at")
+      .select(
+        "area_id,city,state,zip_code,radius_miles,is_active,created_at,updated_at",
+      )
       .single();
 
     if (error) {
@@ -318,40 +333,54 @@ export async function POST(request: NextRequest) {
   }
 
   if (parsed.data.action === "control_run") {
-    const nextStatus =
-      parsed.data.payload.command === "pause"
-        ? "paused"
-        : parsed.data.payload.command === "resume"
-          ? "running"
-          : "stopped";
+    try {
+      const run = await controlLeadDiscoveryRun({
+        supabase,
+        runId: parsed.data.payload.runId,
+        command: parsed.data.payload.command,
+      });
 
-    const updatePayload: Record<string, unknown> = {
-      status: nextStatus,
-    };
-
-    if (nextStatus === "stopped") {
-      updatePayload.completed_at = new Date().toISOString();
-    }
-
-    const { data, error } = await supabase
-      .from("lead_discovery_runs")
-      .update(updatePayload)
-      .eq("run_id", parsed.data.payload.runId)
-      .select("run_id,status")
-      .single();
-
-    if (error) {
+      return NextResponse.json({
+        success: true,
+        run,
+        message: `Run ${parsed.data.payload.command} command accepted.`,
+      });
+    } catch (error) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        {
+          success: false,
+          message:
+            error instanceof Error ? error.message : "Unable to control run.",
+        },
         { status: 500 },
       );
     }
+  }
 
-    return NextResponse.json({
-      success: true,
-      run: data,
-      message: `Run ${parsed.data.payload.command} command accepted.`,
-    });
+  if (parsed.data.action === "process_run") {
+    try {
+      const summary = await processLeadDiscoveryRunBatch({
+        supabase,
+        runId: parsed.data.payload.runId,
+        batchSize: parsed.data.payload.batchSize ?? 5,
+      });
+
+      return NextResponse.json({
+        success: true,
+        run: summary,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to process discovery run.",
+        },
+        { status: 500 },
+      );
+    }
   }
 
   const runRequest = parsed.data.payload;
@@ -379,24 +408,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const summary = await runLeadDiscovery({
+    const summary = await createLeadDiscoveryRun({
       supabase,
       requestedByUserId: userId,
-      areas: selectedAreas,
+      areaIds: selectedAreas.map((area) => area.area_id),
       categories: runRequest.categories as DiscoveryCategory[],
       dailyLimit: runRequest.dailyLimit,
     });
 
-    const { data: insertedLeads } = await supabase
-      .from("potential_marketplace_leads")
-      .select(POTENTIAL_LEAD_SELECT)
-      .in("potential_lead_id", summary.insertedLeadIds)
-      .order("created_at", { ascending: false });
-
     return NextResponse.json({
       success: true,
       run: summary,
-      insertedLeads: insertedLeads ?? [],
+      message:
+        "Discovery job created. Processing runs in incremental server batches.",
     });
   } catch (error) {
     return NextResponse.json(
@@ -405,7 +429,7 @@ export async function POST(request: NextRequest) {
         message:
           error instanceof Error
             ? error.message
-            : "Lead discovery pipeline failed.",
+            : "Unable to create discovery job.",
       },
       { status: 500 },
     );
