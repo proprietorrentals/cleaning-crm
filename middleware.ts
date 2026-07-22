@@ -31,6 +31,18 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
+  const publicLandingPaths = new Set([
+    "/cleaning-crm",
+    "/commercial-cleaning-software",
+    "/janitorial-crm",
+    "/cleaning-business-management-software",
+    "/ai-cleaning-business-software",
+    "/commercial-cleaning-leads",
+    "/office-cleaning-leads",
+    "/medical-office-cleaning-leads",
+    "/warehouse-cleaning-leads",
+    "/school-cleaning-leads",
+  ]);
   const isBlogRoute = pathname === "/blog" || pathname.startsWith("/blog/");
   const isDemoRoute = pathname === "/demo" || pathname.startsWith("/demo/");
   const isMarketingRoute =
@@ -39,6 +51,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/contact" ||
     pathname === "/explore" ||
     pathname === "/website-builder" ||
+    publicLandingPaths.has(pathname) ||
     isBlogRoute ||
     isDemoRoute;
 

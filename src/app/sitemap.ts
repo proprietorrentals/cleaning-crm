@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAllBlogArticles } from "@/lib/blog/articles";
+import { ALL_LANDING_PAGES } from "@/lib/seo/landing-pages";
 import { SEO_SITE_URL } from "@/lib/seo/metadata";
 
 const siteUrl = SEO_SITE_URL;
@@ -95,5 +96,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...coreMarketingPages, ...blogPages];
+  const landingPages: MetadataRoute.Sitemap = ALL_LANDING_PAGES.map((page) => ({
+    url: toAbsoluteUrl(page.path),
+    lastModified,
+    changeFrequency: "weekly",
+    priority: page.path.includes("leads") ? 0.78 : 0.8,
+  }));
+
+  return [...coreMarketingPages, ...landingPages, ...blogPages];
 }

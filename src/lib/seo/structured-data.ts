@@ -5,6 +5,11 @@ type BreadcrumbItem = {
   path: string;
 };
 
+type FaqItem = {
+  question: string;
+  answer: string;
+};
+
 export function toJsonLd(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
@@ -56,6 +61,21 @@ export function getBreadcrumbJsonLd(items: BreadcrumbItem[]) {
       position: index + 1,
       name: item.name,
       item: canonicalUrl(item.path),
+    })),
+  };
+}
+
+export function getFaqPageJsonLd(items: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
     })),
   };
 }
