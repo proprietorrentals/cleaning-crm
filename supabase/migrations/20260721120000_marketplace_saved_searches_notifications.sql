@@ -46,6 +46,40 @@ begin
 end;
 $$;
 
+create or replace function public.set_marketplace_saved_search_tenant_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $$
+declare
+  resolved_tenant_id uuid;
+begin
+  select ta.tenant_id
+  into resolved_tenant_id
+  from public.tenant_admins ta
+  where ta.auth_user_id = auth.uid()
+  limit 1;
+
+  if resolved_tenant_id is null then
+    select e.tenant_id
+    into resolved_tenant_id
+    from public.employees e
+    where e.auth_user_id = auth.uid()
+      and e.is_active = true
+    limit 1;
+  end if;
+
+  if resolved_tenant_id is null then
+    raise exception 'Cannot resolve marketplace tenant for current session user.';
+  end if;
+
+  -- Never trust a browser-provided tenant_id for saved search inserts.
+  new.tenant_id := resolved_tenant_id;
+  return new;
+end;
+$$;
+
 drop trigger if exists trg_touch_marketplace_saved_searches_updated_at on public.marketplace_saved_searches;
 create trigger trg_touch_marketplace_saved_searches_updated_at
 before update on public.marketplace_saved_searches
@@ -54,7 +88,7 @@ for each row execute function public.touch_marketplace_saved_searches_updated_at
 drop trigger if exists trg_set_marketplace_saved_searches_tenant_id on public.marketplace_saved_searches;
 create trigger trg_set_marketplace_saved_searches_tenant_id
 before insert on public.marketplace_saved_searches
-for each row execute function public.set_tenant_id();
+for each row execute function public.set_marketplace_saved_search_tenant_id();
 
 alter table public.marketplace_saved_searches enable row level security;
 
