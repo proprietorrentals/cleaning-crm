@@ -36,6 +36,13 @@ export type DiscoveryQualityGateResult = {
   eligibilityStatus: DiscoveryEligibilityStatus;
   leadEligibilityScore: number;
   rejectionReason: DiscoveryRejectionReason | null;
+  gateStage: "pre_enrichment" | "post_enrichment";
+  gateRule: string | null;
+  missingEvidence: string[];
+  conflictingEvidence: string[];
+  recommendedCorrectiveAction: string | null;
+  providerReasoning: string;
+  evidenceSummary: string;
   locationMatch: boolean;
   facilityConfirmed: boolean;
   officialSourceConfirmed: boolean;
@@ -327,6 +334,24 @@ function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function summarizeEvidence(input: {
+  locationMatch: boolean;
+  facilityConfirmed: boolean;
+  categoryMatch: boolean;
+  officialSourceConfirmed: boolean;
+  plausibleCleaningNeed: boolean;
+  sourceName: string;
+}) {
+  return [
+    `Source: ${input.sourceName}`,
+    `Location match: ${input.locationMatch ? "yes" : "no"}`,
+    `Facility confirmed: ${input.facilityConfirmed ? "yes" : "no"}`,
+    `Category match: ${input.categoryMatch ? "yes" : "no"}`,
+    `Official source: ${input.officialSourceConfirmed ? "yes" : "no"}`,
+    `Cleaning need signal: ${input.plausibleCleaningNeed ? "yes" : "no"}`,
+  ].join(" | ");
+}
+
 export async function runDiscoveryLeadQualityGate(
   input: DiscoveryGateCandidateInput,
 ): Promise<DiscoveryQualityGateResult> {
@@ -351,6 +376,29 @@ export async function runDiscoveryLeadQualityGate(
   const categoryMatch = hasCategoryMatch(input.category, text);
   const officialSourceConfirmed = isOfficialSource(input.sourceUrl);
   const plausibleCleaningNeed = hasPlausibleCleaningNeed(text);
+  const evidenceSummary = summarizeEvidence({
+    locationMatch,
+    facilityConfirmed,
+    categoryMatch,
+    officialSourceConfirmed,
+    plausibleCleaningNeed,
+    sourceName: input.sourceName,
+  });
+
+  const missingEvidence: string[] = [];
+  if (!locationMatch) missingEvidence.push("location_match");
+  if (!facilityConfirmed) missingEvidence.push("physical_location");
+  if (!categoryMatch) missingEvidence.push("category_relevance");
+  if (!officialSourceConfirmed) missingEvidence.push("trusted_source");
+  if (!plausibleCleaningNeed) missingEvidence.push("cleaning_need_signal");
+
+  const conflictingEvidence: string[] = [];
+  if (
+    locationMatch &&
+    /out of state|remote only|nationwide listing/.test(text)
+  ) {
+    conflictingEvidence.push("location_conflict");
+  }
 
   let candidateName = normalizedBusinessName;
   const evidence: string[] = [];
@@ -369,6 +417,14 @@ export async function runDiscoveryLeadQualityGate(
         eligibilityStatus: "Rejected",
         leadEligibilityScore: 0,
         rejectionReason: "property_listing_without_owner",
+        gateStage: "pre_enrichment",
+        gateRule: "property_listing_without_owner",
+        missingEvidence,
+        conflictingEvidence,
+        recommendedCorrectiveAction: "identify property manager",
+        providerReasoning:
+          "Property listing detected but no owner/manager/leasing organization could be identified.",
+        evidenceSummary,
         locationMatch,
         facilityConfirmed,
         officialSourceConfirmed,
@@ -385,6 +441,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 0,
       rejectionReason: "missing_business_name",
+      gateStage: "pre_enrichment",
+      gateRule: "missing_business_name",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "improve query",
+      providerReasoning:
+        "Candidate record did not include a usable business name and physical location evidence.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -400,6 +464,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 0,
       rejectionReason: "social_profile_only",
+      gateStage: "pre_enrichment",
+      gateRule: "social_profile_only",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "supply official website",
+      providerReasoning:
+        "Primary source appears to be a social profile instead of an official business source.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -415,6 +487,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 18,
       rejectionReason: "weak_source_evidence",
+      gateStage: "pre_enrichment",
+      gateRule: "generic_page",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "improve query",
+      providerReasoning:
+        "Generic page type (home/contact/locations) did not provide strong business evidence.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -430,6 +510,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 0,
       rejectionReason: "product_or_software_page",
+      gateStage: "pre_enrichment",
+      gateRule: "product_or_software_page",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "reject provider source type",
+      providerReasoning:
+        "Source content appears to be product/software/e-commerce material.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -445,6 +533,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 12,
       rejectionReason: "wrong_market",
+      gateStage: "pre_enrichment",
+      gateRule: "wrong_market",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "widen/narrow radius",
+      providerReasoning:
+        "Candidate did not match the requested market location filters.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -460,6 +556,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 20,
       rejectionReason: "no_physical_location",
+      gateStage: "pre_enrichment",
+      gateRule: "no_physical_location",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "supply official website",
+      providerReasoning:
+        "No physical commercial location evidence was identified.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -475,6 +579,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 28,
       rejectionReason: "category_mismatch",
+      gateStage: "pre_enrichment",
+      gateRule: "category_mismatch",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "improve query",
+      providerReasoning:
+        "Candidate evidence did not align with the requested discovery category.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -490,6 +602,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore: 22,
       rejectionReason: "directory_listing_only",
+      gateStage: "pre_enrichment",
+      gateRule: "directory_listing_only",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "supply official website",
+      providerReasoning:
+        "Directory listing lacked identifiable underlying official business evidence.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -505,6 +625,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Needs Research",
       leadEligibilityScore: 45,
       rejectionReason: null,
+      gateStage: "pre_enrichment",
+      gateRule: "trusted_source_missing",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "supply official website",
+      providerReasoning:
+        "Candidate appears plausible but trusted official source confirmation is missing.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -538,6 +666,14 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Rejected",
       leadEligibilityScore,
       rejectionReason: "weak_source_evidence",
+      gateStage: "post_enrichment",
+      gateRule: "eligibility_score_below_threshold",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction: "improve query",
+      providerReasoning:
+        "Combined evidence was insufficient after scoring and rule evaluation.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -553,6 +689,15 @@ export async function runDiscoveryLeadQualityGate(
       eligibilityStatus: "Needs Research",
       leadEligibilityScore,
       rejectionReason: null,
+      gateStage: "post_enrichment",
+      gateRule: "needs_research_threshold",
+      missingEvidence,
+      conflictingEvidence,
+      recommendedCorrectiveAction:
+        "research again using current provider pipeline",
+      providerReasoning:
+        "Candidate has partial evidence and requires additional verification.",
+      evidenceSummary,
       locationMatch,
       facilityConfirmed,
       officialSourceConfirmed,
@@ -567,6 +712,14 @@ export async function runDiscoveryLeadQualityGate(
     eligibilityStatus: "Eligible",
     leadEligibilityScore,
     rejectionReason: null,
+    gateStage: "post_enrichment",
+    gateRule: "eligible",
+    missingEvidence,
+    conflictingEvidence,
+    recommendedCorrectiveAction: null,
+    providerReasoning:
+      "Candidate met market, facility, category, and source quality expectations.",
+    evidenceSummary,
     locationMatch,
     facilityConfirmed,
     officialSourceConfirmed,

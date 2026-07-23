@@ -106,6 +106,76 @@ type DiscoverySnapshot = {
   metrics: LeadDiscoveryMetrics;
 };
 
+type InspectorRun = {
+  run_id: string;
+  started_at: string;
+  status: RunStatus;
+  businesses_found: number;
+  processed_count: number;
+  inserted_count: number;
+  failed_count: number;
+};
+
+type InspectorItem = {
+  item_id: string;
+  run_id: string;
+  city: string;
+  state: string;
+  category: string;
+  business_name: string;
+  website: string | null;
+  source_name: string | null;
+  source_url: string | null;
+  source_domain: string | null;
+  provider: "tavily" | "firecrawl" | null;
+  search_query: string | null;
+  lead_eligibility_score: number | null;
+  eligibility_status: "Eligible" | "Needs Research" | "Rejected" | null;
+  rejection_reason: string | null;
+  status: "queued" | "inserted" | "duplicate" | "failed";
+  gate_stage: "pre_enrichment" | "post_enrichment" | null;
+  gate_rule: string | null;
+  missing_evidence: string[] | null;
+  conflicting_evidence: string[] | null;
+  recommended_corrective_action: string | null;
+  provider_reasoning: string | null;
+  evidence_summary: string | null;
+  location_match: boolean | null;
+  facility_confirmed: boolean | null;
+  official_source_confirmed: boolean | null;
+  category_match: boolean | null;
+  override_status: boolean;
+  override_reason: string | null;
+  overridden_by_user_id: string | null;
+  overridden_at: string | null;
+  dismissed: boolean;
+  dismissed_reason: string | null;
+  dismissed_by_user_id: string | null;
+  dismissed_at: string | null;
+  potential_lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type InspectorSnapshot = {
+  items: InspectorItem[];
+  runs: InspectorRun[];
+};
+
+type InspectorFilters = {
+  runId: string;
+  provider: string;
+  category: string;
+  city: string;
+  eligibilityStatus: string;
+  rejectionReason: string;
+  itemStatus: string;
+  minScore: string;
+  maxScore: string;
+  dismissed: string;
+  search: string;
+};
+
 function formatDate(value: string | null) {
   if (!value) {
     return "-";
@@ -142,6 +212,30 @@ export function SuperAdminLeadDiscoveryWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [data, setData] = useState<DiscoverySnapshot | null>(null);
+  const [inspectorLoading, setInspectorLoading] = useState(false);
+  const [inspectorError, setInspectorError] = useState<string | null>(null);
+  const [inspectorData, setInspectorData] = useState<InspectorSnapshot | null>(
+    null,
+  );
+  const [selectedInspectorItemId, setSelectedInspectorItemId] = useState<
+    string | null
+  >(null);
+  const [selectedInspectorItem, setSelectedInspectorItem] =
+    useState<InspectorItem | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [inspectorFilters, setInspectorFilters] = useState<InspectorFilters>({
+    runId: "",
+    provider: "",
+    category: "",
+    city: "",
+    eligibilityStatus: "",
+    rejectionReason: "",
+    itemStatus: "",
+    minScore: "",
+    maxScore: "",
+    dismissed: "false",
+    search: "",
+  });
 
   const [areaCity, setAreaCity] = useState("");
   const [areaState, setAreaState] = useState("");
@@ -234,9 +328,127 @@ export function SuperAdminLeadDiscoveryWorkspace() {
     }
   }, []);
 
+  const loadInspector = useCallback(async () => {
+    setInspectorLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+
+      if (inspectorFilters.runId) params.set("runId", inspectorFilters.runId);
+      if (inspectorFilters.provider)
+        params.set("provider", inspectorFilters.provider);
+      if (inspectorFilters.category)
+        params.set("category", inspectorFilters.category);
+      if (inspectorFilters.city) params.set("city", inspectorFilters.city);
+      if (inspectorFilters.eligibilityStatus)
+        params.set("eligibilityStatus", inspectorFilters.eligibilityStatus);
+      if (inspectorFilters.rejectionReason)
+        params.set("rejectionReason", inspectorFilters.rejectionReason);
+      if (inspectorFilters.itemStatus)
+        params.set("itemStatus", inspectorFilters.itemStatus);
+      if (inspectorFilters.minScore)
+        params.set("minScore", inspectorFilters.minScore);
+      if (inspectorFilters.maxScore)
+        params.set("maxScore", inspectorFilters.maxScore);
+      if (inspectorFilters.dismissed)
+        params.set("dismissed", inspectorFilters.dismissed);
+      if (inspectorFilters.search)
+        params.set("search", inspectorFilters.search);
+
+      const response = await fetch(
+        `/api/super-admin/lead-discovery/inspector?${params.toString()}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      const body = (await response.json()) as
+        | ({ success: true } & InspectorSnapshot)
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setInspectorError(
+          body.success ? "Unable to load discovery inspector." : body.message,
+        );
+        return;
+      }
+
+      setInspectorError(null);
+      setInspectorData({ items: body.items, runs: body.runs });
+
+      if (!selectedInspectorItemId && body.items.length > 0) {
+        setSelectedInspectorItemId(body.items[0].item_id);
+        setSelectedInspectorItem(body.items[0]);
+      } else if (selectedInspectorItemId) {
+        const current = body.items.find(
+          (item) => item.item_id === selectedInspectorItemId,
+        );
+        if (current) {
+          setSelectedInspectorItem(current);
+        }
+      }
+    } catch {
+      setInspectorError("Unable to load discovery inspector.");
+    } finally {
+      setInspectorLoading(false);
+    }
+  }, [inspectorFilters, selectedInspectorItemId]);
+
+  const runInspectorAction = useCallback(
+    async (
+      itemId: string,
+      payload:
+        | { action: "rerun_gate" }
+        | { action: "needs_research" }
+        | { action: "research_again" }
+        | { action: "approve_override"; confirm: boolean; reason: string }
+        | { action: "dismiss"; reason?: string }
+        | { action: "restore" },
+      successMessage: string,
+    ) => {
+      setError(null);
+      setSuccess(null);
+
+      try {
+        const response = await fetch(
+          `/api/super-admin/lead-discovery/inspector/${itemId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+
+        const body = (await response.json()) as
+          | { success: true }
+          | { success: false; message: string };
+
+        if (!response.ok || !body.success) {
+          setError(
+            body.success
+              ? "Unable to update discovery inspector item."
+              : body.message,
+          );
+          return;
+        }
+
+        setSuccess(successMessage);
+        await loadWorkspace();
+        await loadInspector();
+      } catch {
+        setError("Unable to update discovery inspector item.");
+      }
+    },
+    [loadInspector, loadWorkspace],
+  );
+
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    void loadInspector();
+  }, [loadInspector]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -245,6 +457,14 @@ export function SuperAdminLeadDiscoveryWorkspace() {
 
     return () => window.clearInterval(interval);
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadInspector();
+    }, 9000);
+
+    return () => window.clearInterval(interval);
+  }, [loadInspector]);
 
   useEffect(() => {
     if (!activeRun) {
@@ -475,6 +695,50 @@ export function SuperAdminLeadDiscoveryWorkspace() {
 
   const metrics = data?.metrics;
 
+  const selectedInspector = useMemo(() => {
+    if (!selectedInspectorItemId) {
+      return selectedInspectorItem;
+    }
+
+    return (
+      inspectorData?.items.find(
+        (item) => item.item_id === selectedInspectorItemId,
+      ) ?? selectedInspectorItem
+    );
+  }, [inspectorData?.items, selectedInspectorItem, selectedInspectorItemId]);
+
+  const inspectorProviders = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (inspectorData?.items ?? [])
+            .map((item) => item.provider)
+            .filter(Boolean) as string[],
+        ),
+      ),
+    [inspectorData?.items],
+  );
+
+  const inspectorCategories = useMemo(
+    () =>
+      Array.from(
+        new Set((inspectorData?.items ?? []).map((item) => item.category)),
+      ),
+    [inspectorData?.items],
+  );
+
+  const inspectorRejectionReasons = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (inspectorData?.items ?? [])
+            .map((item) => item.rejection_reason)
+            .filter(Boolean) as string[],
+        ),
+      ),
+    [inspectorData?.items],
+  );
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,116,144,0.18),_transparent_38%),linear-gradient(180deg,_#020617_0%,_#020617_100%)] text-white">
       <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
@@ -693,14 +957,35 @@ export function SuperAdminLeadDiscoveryWorkspace() {
           <MetricCard
             label="Accepted candidates"
             value={metrics?.acceptedCandidates ?? 0}
+            onClick={() => {
+              setInspectorFilters((current) => ({
+                ...current,
+                eligibilityStatus: "Eligible",
+                dismissed: "false",
+              }));
+            }}
           />
           <MetricCard
             label="Needs research candidates"
             value={metrics?.needsResearchCandidates ?? 0}
+            onClick={() => {
+              setInspectorFilters((current) => ({
+                ...current,
+                eligibilityStatus: "Needs Research",
+                dismissed: "false",
+              }));
+            }}
           />
           <MetricCard
             label="Rejected candidates"
             value={metrics?.rejectedCandidates ?? 0}
+            onClick={() => {
+              setInspectorFilters((current) => ({
+                ...current,
+                eligibilityStatus: "Rejected",
+                dismissed: "false",
+              }));
+            }}
           />
         </section>
 
@@ -830,6 +1115,7 @@ export function SuperAdminLeadDiscoveryWorkspace() {
                   <th className="px-2 py-2">Inserted</th>
                   <th className="px-2 py-2">Duplicates</th>
                   <th className="px-2 py-2">Failures</th>
+                  <th className="px-2 py-2">Inspector</th>
                 </tr>
               </thead>
               <tbody>
@@ -847,10 +1133,439 @@ export function SuperAdminLeadDiscoveryWorkspace() {
                     <td className="px-2 py-2">{run.inserted_count}</td>
                     <td className="px-2 py-2">{run.duplicates_skipped}</td>
                     <td className="px-2 py-2">{run.failed_count}</td>
+                    <td className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInspectorFilters((current) => ({
+                            ...current,
+                            runId: run.run_id,
+                            dismissed: "false",
+                          }));
+                        }}
+                        className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20"
+                      >
+                        Inspect
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section className="mb-5 rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                Discovery Inspector
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Drill into candidate gate outcomes and run corrective actions.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadInspector()}
+              className="rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500/40"
+            >
+              {inspectorLoading ? "Loading..." : "Refresh Inspector"}
+            </button>
+          </div>
+
+          {inspectorError ? (
+            <div className="mb-3 rounded-2xl border border-rose-700/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-100">
+              {inspectorError}
+            </div>
+          ) : null}
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <select
+              value={inspectorFilters.runId}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  runId: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All runs</option>
+              {(inspectorData?.runs ?? []).map((run) => (
+                <option key={run.run_id} value={run.run_id}>
+                  {formatDate(run.started_at)} ({run.status})
+                </option>
+              ))}
+            </select>
+            <select
+              value={inspectorFilters.provider}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  provider: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All providers</option>
+              {inspectorProviders.map((provider) => (
+                <option key={provider} value={provider}>
+                  {provider}
+                </option>
+              ))}
+            </select>
+            <select
+              value={inspectorFilters.category}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  category: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All categories</option>
+              {inspectorCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <select
+              value={inspectorFilters.eligibilityStatus}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  eligibilityStatus: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All eligibility statuses</option>
+              <option value="Eligible">Eligible</option>
+              <option value="Needs Research">Needs Research</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            <select
+              value={inspectorFilters.itemStatus}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  itemStatus: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All item statuses</option>
+              <option value="queued">Queued</option>
+              <option value="inserted">Inserted</option>
+              <option value="duplicate">Duplicate</option>
+              <option value="failed">Failed</option>
+            </select>
+            <input
+              value={inspectorFilters.city}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  city: event.target.value,
+                }))
+              }
+              placeholder="City"
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500"
+            />
+            <select
+              value={inspectorFilters.rejectionReason}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  rejectionReason: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">All rejection reasons</option>
+              {inspectorRejectionReasons.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+            <input
+              value={inspectorFilters.minScore}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  minScore: event.target.value,
+                }))
+              }
+              placeholder="Min score"
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500"
+            />
+            <input
+              value={inspectorFilters.maxScore}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  maxScore: event.target.value,
+                }))
+              }
+              placeholder="Max score"
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500"
+            />
+            <select
+              value={inspectorFilters.dismissed}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  dismissed: event.target.value,
+                }))
+              }
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <option value="">Dismissed and active</option>
+              <option value="false">Active only</option>
+              <option value="true">Dismissed only</option>
+            </select>
+            <input
+              value={inspectorFilters.search}
+              onChange={(event) =>
+                setInspectorFilters((current) => ({
+                  ...current,
+                  search: event.target.value,
+                }))
+              }
+              placeholder="Search business/domain/query"
+              className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 lg:col-span-2"
+            />
+          </div>
+
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70">
+              <table className="min-w-full text-left text-xs text-slate-200">
+                <thead className="sticky top-0 bg-slate-950">
+                  <tr className="border-b border-slate-800 text-slate-500">
+                    <th className="px-2 py-2">Business</th>
+                    <th className="px-2 py-2">Status</th>
+                    <th className="px-2 py-2">Eligibility</th>
+                    <th className="px-2 py-2">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(inspectorData?.items ?? []).map((item) => {
+                    const selected = selectedInspectorItemId === item.item_id;
+                    return (
+                      <tr
+                        key={item.item_id}
+                        onClick={() => {
+                          setSelectedInspectorItemId(item.item_id);
+                          setSelectedInspectorItem(item);
+                        }}
+                        className={`cursor-pointer border-b border-slate-900/70 ${
+                          selected ? "bg-cyan-500/10" : "hover:bg-slate-900/60"
+                        }`}
+                      >
+                        <td className="px-2 py-2">
+                          <p className="font-semibold text-slate-100">
+                            {item.business_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {item.city}, {item.state} | {item.category}
+                          </p>
+                        </td>
+                        <td className="px-2 py-2">{item.status}</td>
+                        <td className="px-2 py-2">
+                          {item.eligibility_status ?? "Unknown"}
+                        </td>
+                        <td className="px-2 py-2">
+                          {item.lead_eligibility_score ?? "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200">
+              {!selectedInspector ? (
+                <p className="text-slate-500">Select a candidate to inspect.</p>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-white">
+                    {selectedInspector.business_name}
+                  </p>
+                  <p className="mt-1 text-slate-500">
+                    {selectedInspector.city}, {selectedInspector.state} |{" "}
+                    {selectedInspector.category}
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    <p>Status: {selectedInspector.status}</p>
+                    <p>
+                      Eligibility:{" "}
+                      {selectedInspector.eligibility_status ?? "Unknown"}
+                    </p>
+                    <p>
+                      Score: {selectedInspector.lead_eligibility_score ?? "-"}
+                    </p>
+                    <p>Provider: {selectedInspector.provider ?? "Unknown"}</p>
+                    <p>Gate stage: {selectedInspector.gate_stage ?? "-"}</p>
+                    <p>Gate rule: {selectedInspector.gate_rule ?? "-"}</p>
+                    <p>
+                      Rejection reason:{" "}
+                      {selectedInspector.rejection_reason ?? "-"}
+                    </p>
+                    <p>
+                      Recommended correction:{" "}
+                      {selectedInspector.recommended_corrective_action ?? "-"}
+                    </p>
+                    <p>
+                      Source domain: {selectedInspector.source_domain ?? "-"}
+                    </p>
+                    <p>Source URL: {selectedInspector.source_url ?? "-"}</p>
+                    <p>Search query: {selectedInspector.search_query ?? "-"}</p>
+                    <p>
+                      Missing evidence:{" "}
+                      {(selectedInspector.missing_evidence ?? []).join(", ") ||
+                        "-"}
+                    </p>
+                    <p>
+                      Conflicts:{" "}
+                      {(selectedInspector.conflicting_evidence ?? []).join(
+                        ", ",
+                      ) || "-"}
+                    </p>
+                    <p>
+                      Provider reasoning:{" "}
+                      {selectedInspector.provider_reasoning ?? "-"}
+                    </p>
+                    <p>
+                      Evidence summary:{" "}
+                      {selectedInspector.evidence_summary ?? "-"}
+                    </p>
+                    <p>
+                      Dismissed: {selectedInspector.dismissed ? "Yes" : "No"}
+                      {selectedInspector.dismissed_reason
+                        ? ` (${selectedInspector.dismissed_reason})`
+                        : ""}
+                    </p>
+                    <p>
+                      Override:{" "}
+                      {selectedInspector.override_status ? "Yes" : "No"}
+                      {selectedInspector.override_reason
+                        ? ` (${selectedInspector.override_reason})`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void runInspectorAction(
+                          selectedInspector.item_id,
+                          { action: "rerun_gate" },
+                          "Quality gate re-ran for selected candidate.",
+                        )
+                      }
+                      className="rounded-full border border-cyan-500/50 bg-cyan-500/10 px-3 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/20"
+                    >
+                      Rerun Gate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void runInspectorAction(
+                          selectedInspector.item_id,
+                          { action: "needs_research" },
+                          "Candidate marked as Needs Research.",
+                        )
+                      }
+                      className="rounded-full border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 font-semibold text-amber-100 hover:bg-amber-500/20"
+                    >
+                      Send to Needs Research
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void runInspectorAction(
+                          selectedInspector.item_id,
+                          { action: "research_again" },
+                          "Additional provider research completed for candidate.",
+                        )
+                      }
+                      className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-100 hover:bg-emerald-500/20"
+                    >
+                      Research Again
+                    </button>
+                    {selectedInspector.dismissed ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runInspectorAction(
+                            selectedInspector.item_id,
+                            { action: "restore" },
+                            "Candidate restored from dismissed state.",
+                          )
+                        }
+                        className="rounded-full border border-slate-500/50 bg-slate-500/10 px-3 py-1.5 font-semibold text-slate-100 hover:bg-slate-500/20"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runInspectorAction(
+                            selectedInspector.item_id,
+                            {
+                              action: "dismiss",
+                              reason: "Manually dismissed in inspector",
+                            },
+                            "Candidate dismissed from future discovery work.",
+                          )
+                        }
+                        className="rounded-full border border-rose-500/50 bg-rose-500/10 px-3 py-1.5 font-semibold text-rose-100 hover:bg-rose-500/20"
+                      >
+                        Dismiss
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2">
+                    <p className="mb-1 text-[11px] uppercase tracking-[0.12em] text-slate-400">
+                      Manual Approve Override
+                    </p>
+                    <input
+                      value={overrideReason}
+                      onChange={(event) =>
+                        setOverrideReason(event.target.value)
+                      }
+                      placeholder="Required override reason"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={overrideReason.trim().length < 3}
+                      onClick={() =>
+                        void runInspectorAction(
+                          selectedInspector.item_id,
+                          {
+                            action: "approve_override",
+                            confirm: true,
+                            reason: overrideReason.trim(),
+                          },
+                          "Candidate manually approved and sent to potential leads.",
+                        )
+                      }
+                      className="mt-2 rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+                    >
+                      Approve to Potential Leads
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </section>
 
@@ -988,10 +1703,27 @@ export function SuperAdminLeadDiscoveryWorkspace() {
 function MetricCard({
   label,
   value,
+  onClick,
 }: {
   label: string;
   value: string | number;
+  onClick?: () => void;
 }) {
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 text-left hover:border-cyan-500/40"
+        onClick={onClick}
+      >
+        <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+          {label}
+        </p>
+        <p className="mt-2 text-lg font-semibold text-cyan-100">{value}</p>
+      </button>
+    );
+  }
+
   return (
     <article className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3">
       <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">

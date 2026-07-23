@@ -43,16 +43,25 @@ export type DiscoveryArea = {
 export type DiscoveryCandidate = {
   businessName: string;
   website: string | null;
+  provider: "tavily" | "firecrawl";
   sourceName: string;
   sourceUrl: string | null;
   sourceTitle: string | null;
   sourceSnippet: string | null;
+  inspectedUrls: string[];
   city: string;
   state: string;
   category: DiscoveryCategory;
   leadEligibilityScore: number;
   eligibilityStatus: DiscoveryEligibilityStatus;
   rejectionReason: DiscoveryRejectionReason | null;
+  gateStage: "pre_enrichment" | "post_enrichment";
+  gateRule: string | null;
+  missingEvidence: string[];
+  conflictingEvidence: string[];
+  recommendedCorrectiveAction: string | null;
+  providerReasoning: string;
+  evidenceSummary: string;
   locationMatch: boolean;
   facilityConfirmed: boolean;
   officialSourceConfirmed: boolean;
@@ -63,6 +72,7 @@ export type DiscoveryCandidate = {
 };
 
 type DiscoveryCandidatesPartition = {
+  searchQuery: string;
   accepted: DiscoveryCandidate[];
   rejected: DiscoveryCandidate[];
 };
@@ -138,6 +148,31 @@ function dedupeCandidates(candidates: DiscoveryCandidate[]) {
   }
 
   return deduped;
+}
+
+function candidateKey(candidate: {
+  businessName: string;
+  city: string;
+  state: string;
+}) {
+  return `${candidate.businessName.toLowerCase().trim()}|${candidate.city
+    .toLowerCase()
+    .trim()}|${candidate.state.toLowerCase().trim()}`;
+}
+
+function domainFromUrl(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(
+      value.startsWith("http") ? value : `https://${value}`,
+    );
+    return parsed.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 function elapsedSeconds(startedAtIso: string) {
@@ -318,6 +353,13 @@ async function evaluateDiscoveryCandidates(params: {
         leadEligibilityScore: gated.leadEligibilityScore,
         eligibilityStatus: gated.eligibilityStatus,
         rejectionReason: gated.rejectionReason,
+        gateStage: gated.gateStage,
+        gateRule: gated.gateRule,
+        missingEvidence: gated.missingEvidence,
+        conflictingEvidence: gated.conflictingEvidence,
+        recommendedCorrectiveAction: gated.recommendedCorrectiveAction,
+        providerReasoning: gated.providerReasoning,
+        evidenceSummary: gated.evidenceSummary,
         locationMatch: gated.locationMatch,
         facilityConfirmed: gated.facilityConfirmed,
         officialSourceConfirmed: gated.officialSourceConfirmed,
@@ -362,6 +404,13 @@ export async function discoverPublicBusinesses(params: {
     category: params.category,
     eligibilityStatus: "Rejected" as DiscoveryEligibilityStatus,
     rejectionReason: null,
+    gateStage: "pre_enrichment" as const,
+    gateRule: null,
+    missingEvidence: [],
+    conflictingEvidence: [],
+    recommendedCorrectiveAction: null,
+    providerReasoning: "Pending gate evaluation.",
+    evidenceSummary: "Pending gate evaluation.",
     locationMatch: false,
     facilityConfirmed: false,
     officialSourceConfirmed: false,
@@ -377,6 +426,7 @@ export async function discoverPublicBusinesses(params: {
   const combinedRejected = [...gated.rejected, ...gated.needsResearch];
 
   return {
+    searchQuery: providerCandidates.query,
     accepted: dedupeCandidates(gated.accepted).slice(0, params.limit),
     rejected: dedupeCandidates(combinedRejected).slice(0, params.limit * 2),
   };
@@ -579,8 +629,35 @@ async function queueCandidatesForBatch(params: {
       limit: Math.min(params.batchSize, remaining),
     });
 
-    if (candidates.accepted.length > 0) {
-      const insertRows = candidates.accepted.map((candidate) => ({
+    const { data: dismissedRows, error: dismissedError } = await params.supabase
+      .from("lead_discovery_run_items")
+      .select("business_name,city,state")
+      .eq("dismissed", true)
+      .limit(4000);
+
+    if (dismissedError) {
+      throw new Error(dismissedError.message);
+    }
+
+    const dismissedKeys = new Set(
+      (dismissedRows ?? []).map((row) =>
+        candidateKey({
+          businessName: row.business_name,
+          city: row.city,
+          state: row.state,
+        }),
+      ),
+    );
+
+    const acceptedCandidates = candidates.accepted.filter(
+      (candidate) => !dismissedKeys.has(candidateKey(candidate)),
+    );
+    const rejectedCandidates = candidates.rejected.filter(
+      (candidate) => !dismissedKeys.has(candidateKey(candidate)),
+    );
+
+    if (acceptedCandidates.length > 0) {
+      const insertRows = acceptedCandidates.map((candidate) => ({
         run_id: params.run.run_id,
         area_id: area.area_id,
         city: area.city,
@@ -591,8 +668,29 @@ async function queueCandidatesForBatch(params: {
         website: candidate.website,
         source_name: candidate.sourceName,
         source_url: candidate.sourceUrl,
+        source_domain: domainFromUrl(candidate.sourceUrl),
+        source_title: candidate.sourceTitle,
+        source_snippet: candidate.sourceSnippet,
+        search_query: candidates.searchQuery,
+        provider: candidate.provider,
+        inspected_urls: candidate.inspectedUrls,
+        pages_inspected: [
+          {
+            provider: candidate.provider,
+            source_name: candidate.sourceName,
+            source_url: candidate.sourceUrl,
+            source_title: candidate.sourceTitle,
+          },
+        ],
         lead_eligibility_score: candidate.leadEligibilityScore,
         eligibility_status: candidate.eligibilityStatus,
+        gate_stage: candidate.gateStage,
+        gate_rule: candidate.gateRule,
+        missing_evidence: candidate.missingEvidence,
+        conflicting_evidence: candidate.conflictingEvidence,
+        recommended_corrective_action: candidate.recommendedCorrectiveAction,
+        provider_reasoning: candidate.providerReasoning,
+        evidence_summary: candidate.evidenceSummary,
         location_match: candidate.locationMatch,
         facility_confirmed: candidate.facilityConfirmed,
         official_source_confirmed: candidate.officialSourceConfirmed,
@@ -609,11 +707,11 @@ async function queueCandidatesForBatch(params: {
         throw new Error(queueError.message);
       }
 
-      discoveredAdded += candidates.accepted.length;
+      discoveredAdded += acceptedCandidates.length;
     }
 
-    if (candidates.rejected.length > 0) {
-      const rejectedRows = candidates.rejected.map((candidate) => ({
+    if (rejectedCandidates.length > 0) {
+      const rejectedRows = rejectedCandidates.map((candidate) => ({
         run_id: params.run.run_id,
         area_id: area.area_id,
         city: area.city,
@@ -624,8 +722,29 @@ async function queueCandidatesForBatch(params: {
         website: candidate.website,
         source_name: candidate.sourceName,
         source_url: candidate.sourceUrl,
+        source_domain: domainFromUrl(candidate.sourceUrl),
+        source_title: candidate.sourceTitle,
+        source_snippet: candidate.sourceSnippet,
+        search_query: candidates.searchQuery,
+        provider: candidate.provider,
+        inspected_urls: candidate.inspectedUrls,
+        pages_inspected: [
+          {
+            provider: candidate.provider,
+            source_name: candidate.sourceName,
+            source_url: candidate.sourceUrl,
+            source_title: candidate.sourceTitle,
+          },
+        ],
         lead_eligibility_score: candidate.leadEligibilityScore,
         eligibility_status: candidate.eligibilityStatus,
+        gate_stage: candidate.gateStage,
+        gate_rule: candidate.gateRule,
+        missing_evidence: candidate.missingEvidence,
+        conflicting_evidence: candidate.conflictingEvidence,
+        recommended_corrective_action: candidate.recommendedCorrectiveAction,
+        provider_reasoning: candidate.providerReasoning,
+        evidence_summary: candidate.evidenceSummary,
         location_match: candidate.locationMatch,
         facility_confirmed: candidate.facilityConfirmed,
         official_source_confirmed: candidate.officialSourceConfirmed,
@@ -644,7 +763,7 @@ async function queueCandidatesForBatch(params: {
         throw new Error(rejectedError.message);
       }
 
-      filteredRejectedAdded += candidates.rejected.length;
+      filteredRejectedAdded += rejectedCandidates.length;
     }
 
     exhausted = cursorAfter.exhausted;

@@ -54,10 +54,12 @@ export type DiscoveryFacilityLikelihood = "high" | "medium" | "low";
 export type DiscoveryProviderCandidate = {
   businessName: string;
   website: string | null;
+  provider: "tavily" | "firecrawl";
   sourceName: string;
   sourceUrl: string | null;
   sourceTitle: string | null;
   sourceSnippet: string | null;
+  inspectedUrls: string[];
   sourceType: DiscoverySourceType;
   city: string;
   state: string;
@@ -987,10 +989,12 @@ export async function discoverCandidatesWithProviders(params: {
       return {
         businessName: provisionalName,
         website: sourceUrl,
+        provider: "tavily",
         sourceName: "Tavily",
         sourceUrl,
         sourceTitle,
         sourceSnippet,
+        inspectedUrls: sourceUrl ? [sourceUrl] : [],
         sourceType,
         city: params.city,
         state: params.state,
@@ -1069,15 +1073,23 @@ export async function discoverCandidatesWithProviders(params: {
       return {
         ...candidate,
         businessName: nextBusinessName,
+        provider: "firecrawl",
         sourceName: "Firecrawl",
         sourceTitle: scrapedTitle ?? candidate.sourceTitle,
         sourceSnippet: nextSnippet || candidate.sourceSnippet,
+        inspectedUrls: [
+          ...new Set(
+            [...candidate.inspectedUrls, candidate.sourceUrl].filter(
+              Boolean,
+            ) as string[],
+          ),
+        ],
         leadEligibilityScore: assessment.score,
         rejectionReason: assessment.rejectionReason,
         facilityLikelihood: assessment.facilityLikelihood,
         hasPhysicalAddressEvidence: assessment.hasPhysicalAddressEvidence,
         hasCategoryEvidence: assessment.hasCategoryEvidence,
-      };
+      } satisfies DiscoveryProviderCandidate;
     }),
   );
 
