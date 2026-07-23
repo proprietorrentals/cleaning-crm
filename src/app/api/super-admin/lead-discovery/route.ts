@@ -136,47 +136,61 @@ export async function GET() {
   const supabase = await createServerSupabaseClient();
   const todayIso = startOfTodayIso();
 
-  const [areasResult, runsResult, queueResult, discoveredTodayResult] =
-    await Promise.all([
-      supabase
-        .from("lead_discovery_areas")
-        .select(
-          "area_id,city,state,zip_code,radius_miles,is_active,created_at,updated_at",
-        )
-        .eq("is_active", true)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("lead_discovery_runs")
-        .select(
-          "run_id,status,started_at,completed_at,duration_seconds,daily_limit,selected_categories,selected_area_ids,businesses_found,processed_count,inserted_count,duplicates_skipped,failed_count,percent_complete,average_confidence,stop_requested,error_message,created_at",
-        )
-        .order("started_at", { ascending: false })
-        .limit(40),
-      supabase
-        .from("potential_marketplace_leads")
-        .select(
-          "potential_lead_id,business_name,city,state,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,organization_type,outsourcing_likelihood,procurement_notes,recommended_next_step,discovered_at",
-        )
-        .eq("discovered_via", "discovery")
-        .order("opportunity_score", { ascending: false, nullsFirst: false })
-        .order("ai_confidence", { ascending: false })
-        .order("discovered_at", { ascending: false })
-        .limit(80),
-      supabase
-        .from("potential_marketplace_leads")
-        .select(
-          "potential_lead_id,city,organization_type,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,discovered_at",
-        )
-        .eq("discovered_via", "discovery")
-        .gte("discovered_at", todayIso)
-        .order("discovered_at", { ascending: false }),
-    ]);
+  const [
+    areasResult,
+    runsResult,
+    queueResult,
+    discoveredTodayResult,
+    qualityItemsResult,
+  ] = await Promise.all([
+    supabase
+      .from("lead_discovery_areas")
+      .select(
+        "area_id,city,state,zip_code,radius_miles,is_active,created_at,updated_at",
+      )
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("lead_discovery_runs")
+      .select(
+        "run_id,status,started_at,completed_at,duration_seconds,daily_limit,selected_categories,selected_area_ids,businesses_found,processed_count,inserted_count,duplicates_skipped,failed_count,percent_complete,average_confidence,stop_requested,error_message,created_at",
+      )
+      .order("started_at", { ascending: false })
+      .limit(40),
+    supabase
+      .from("potential_marketplace_leads")
+      .select(
+        "potential_lead_id,business_name,city,state,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,organization_type,outsourcing_likelihood,procurement_notes,recommended_next_step,discovered_at",
+      )
+      .eq("discovered_via", "discovery")
+      .order("opportunity_score", { ascending: false, nullsFirst: false })
+      .order("ai_confidence", { ascending: false })
+      .order("discovered_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("potential_marketplace_leads")
+      .select(
+        "potential_lead_id,city,organization_type,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,discovered_at",
+      )
+      .eq("discovered_via", "discovery")
+      .gte("discovered_at", todayIso)
+      .order("discovered_at", { ascending: false }),
+    supabase
+      .from("lead_discovery_run_items")
+      .select(
+        "item_id,category,source_name,status,lead_eligibility_score,eligibility_status,rejection_reason,created_at",
+      )
+      .gte("created_at", todayIso)
+      .order("created_at", { ascending: false })
+      .limit(3000),
+  ]);
 
   const errors = [
     areasResult.error,
     runsResult.error,
     queueResult.error,
     discoveredTodayResult.error,
+    qualityItemsResult.error,
   ].filter(Boolean);
 
   if (errors.length > 0) {
@@ -202,6 +216,16 @@ export async function GET() {
     ai_confidence: number;
     needs_manual_verification: boolean | null;
     discovered_at: string | null;
+  }>;
+  const qualityItems = (qualityItemsResult.data ?? []) as Array<{
+    item_id: string;
+    category: string;
+    source_name: string | null;
+    status: string;
+    lead_eligibility_score: number | null;
+    eligibility_status: "Eligible" | "Needs Research" | "Rejected" | null;
+    rejection_reason: string | null;
+    created_at: string;
   }>;
 
   const businessesDiscoveredToday = discoveredToday.length;
@@ -267,6 +291,104 @@ export async function GET() {
   const cityCounts = new Map<string, number>();
   const orgTypeCounts = new Map<string, number>();
 
+  const acceptedCandidates = qualityItems.filter(
+    (item) => item.eligibility_status === "Eligible",
+  ).length;
+  const rejectedCandidates = qualityItems.filter(
+    (item) => item.eligibility_status === "Rejected",
+  ).length;
+  const needsResearchCandidates = qualityItems.filter(
+    (item) => item.eligibility_status === "Needs Research",
+  ).length;
+
+  const scoredEligibility = qualityItems.filter(
+    (item) => typeof item.lead_eligibility_score === "number",
+  );
+
+  const averageEligibilityScore =
+    scoredEligibility.length > 0
+      ? Number(
+          (
+            scoredEligibility.reduce(
+              (sum, item) => sum + (item.lead_eligibility_score ?? 0),
+              0,
+            ) / scoredEligibility.length
+          ).toFixed(1),
+        )
+      : 0;
+
+  const rejectionReasonCounts = new Map<string, number>();
+  const providerBuckets = new Map<
+    string,
+    { total: number; rejected: number }
+  >();
+  const categoryBuckets = new Map<
+    string,
+    { total: number; rejected: number }
+  >();
+
+  for (const item of qualityItems) {
+    if (item.rejection_reason) {
+      rejectionReasonCounts.set(
+        item.rejection_reason,
+        (rejectionReasonCounts.get(item.rejection_reason) ?? 0) + 1,
+      );
+    }
+
+    const provider = (item.source_name ?? "Unknown").trim() || "Unknown";
+    const providerEntry = providerBuckets.get(provider) ?? {
+      total: 0,
+      rejected: 0,
+    };
+    providerEntry.total += 1;
+    if (item.eligibility_status === "Rejected") {
+      providerEntry.rejected += 1;
+    }
+    providerBuckets.set(provider, providerEntry);
+
+    const category = (item.category ?? "Unknown").trim() || "Unknown";
+    const categoryEntry = categoryBuckets.get(category) ?? {
+      total: 0,
+      rejected: 0,
+    };
+    categoryEntry.total += 1;
+    if (item.eligibility_status === "Rejected") {
+      categoryEntry.rejected += 1;
+    }
+    categoryBuckets.set(category, categoryEntry);
+  }
+
+  const topRejectionReasons = [...rejectionReasonCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([reason, count]) => ({ reason, count }));
+
+  const rejectionRateByProvider = [...providerBuckets.entries()]
+    .map(([provider, bucket]) => ({
+      provider,
+      total: bucket.total,
+      rejected: bucket.rejected,
+      rejectionRate:
+        bucket.total > 0
+          ? Number(((bucket.rejected / bucket.total) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.rejectionRate - a.rejectionRate)
+    .slice(0, 8);
+
+  const rejectionRateByCategory = [...categoryBuckets.entries()]
+    .map(([category, bucket]) => ({
+      category,
+      total: bucket.total,
+      rejected: bucket.rejected,
+      rejectionRate:
+        bucket.total > 0
+          ? Number(((bucket.rejected / bucket.total) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.rejectionRate - a.rejectionRate)
+    .slice(0, 8);
+
   for (const lead of discoveredToday) {
     cityCounts.set(lead.city, (cityCounts.get(lead.city) ?? 0) + 1);
     const orgType = lead.organization_type ?? "unknown";
@@ -302,6 +424,13 @@ export async function GET() {
       averageConfidence,
       averageOpportunityScore,
       gradeDistribution,
+      acceptedCandidates,
+      rejectedCandidates,
+      needsResearchCandidates,
+      averageEligibilityScore,
+      topRejectionReasons,
+      rejectionRateByProvider,
+      rejectionRateByCategory,
       topCities,
       topOrganizationTypes,
     },

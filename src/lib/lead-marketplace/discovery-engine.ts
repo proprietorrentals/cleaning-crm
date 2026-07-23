@@ -1,6 +1,11 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  type DiscoveryEligibilityStatus,
+  type DiscoveryRejectionReason,
+  runDiscoveryLeadQualityGate,
+} from "@/lib/lead-marketplace/discovery-lead-quality-gate";
 import { createPotentialLeadFromResearch } from "@/lib/lead-marketplace/potential-lead-pipeline";
 import { discoverCandidatesWithProviders } from "@/lib/lead-marketplace/research-providers";
 
@@ -46,7 +51,12 @@ export type DiscoveryCandidate = {
   state: string;
   category: DiscoveryCategory;
   leadEligibilityScore: number;
-  rejectionReason: string | null;
+  eligibilityStatus: DiscoveryEligibilityStatus;
+  rejectionReason: DiscoveryRejectionReason | null;
+  locationMatch: boolean;
+  facilityConfirmed: boolean;
+  officialSourceConfirmed: boolean;
+  categoryMatch: boolean;
   hasPhysicalAddressEvidence: boolean;
   hasCategoryEvidence: boolean;
   facilityLikelihood: "high" | "medium" | "low";
@@ -270,12 +280,71 @@ async function releaseRunLock(params: {
     .eq("processing_locked_by", params.workerId);
 }
 
+async function evaluateDiscoveryCandidates(params: {
+  candidates: Array<
+    Omit<
+      DiscoveryCandidate,
+      | "eligibilityStatus"
+      | "rejectionReason"
+      | "locationMatch"
+      | "facilityConfirmed"
+      | "officialSourceConfirmed"
+      | "categoryMatch"
+    > & {
+      rejectionReason: string | null;
+    }
+  >;
+  area: DiscoveryArea;
+  category: DiscoveryCategory;
+}) {
+  const evaluated = await Promise.all(
+    params.candidates.map(async (candidate) => {
+      const gated = await runDiscoveryLeadQualityGate({
+        businessName: candidate.businessName,
+        website: candidate.website,
+        sourceName: candidate.sourceName,
+        sourceUrl: candidate.sourceUrl,
+        sourceTitle: candidate.sourceTitle,
+        sourceSnippet: candidate.sourceSnippet,
+        category: params.category,
+        city: params.area.city,
+        state: params.area.state,
+        zipCode: params.area.zip_code,
+      });
+
+      return {
+        ...candidate,
+        businessName: gated.normalizedBusinessName || candidate.businessName,
+        leadEligibilityScore: gated.leadEligibilityScore,
+        eligibilityStatus: gated.eligibilityStatus,
+        rejectionReason: gated.rejectionReason,
+        locationMatch: gated.locationMatch,
+        facilityConfirmed: gated.facilityConfirmed,
+        officialSourceConfirmed: gated.officialSourceConfirmed,
+        categoryMatch: gated.categoryMatch,
+      } satisfies DiscoveryCandidate;
+    }),
+  );
+
+  return {
+    accepted: evaluated.filter(
+      (candidate) => candidate.eligibilityStatus === "Eligible",
+    ),
+    needsResearch: evaluated.filter(
+      (candidate) => candidate.eligibilityStatus === "Needs Research",
+    ),
+    rejected: evaluated.filter(
+      (candidate) => candidate.eligibilityStatus === "Rejected",
+    ),
+  };
+}
+
 export async function discoverPublicBusinesses(params: {
   area: DiscoveryArea;
   category: DiscoveryCategory;
   limit: number;
 }): Promise<DiscoveryCandidatesPartition> {
-  const candidates = await discoverCandidatesWithProviders({
+  const providerCandidates = await discoverCandidatesWithProviders({
     city: params.area.city,
     state: params.area.state,
     zipCode: params.area.zip_code,
@@ -283,23 +352,33 @@ export async function discoverPublicBusinesses(params: {
     limit: params.limit,
   });
 
-  const typedAccepted: DiscoveryCandidate[] = candidates.accepted.map(
-    (candidate) => ({
-      ...candidate,
-      category: params.category,
-    }),
-  );
+  const seededCandidates = [
+    ...providerCandidates.accepted,
+    ...providerCandidates.rejected,
+  ];
 
-  const typedRejected: DiscoveryCandidate[] = candidates.rejected.map(
-    (candidate) => ({
-      ...candidate,
-      category: params.category,
-    }),
-  );
+  const typedCandidates = seededCandidates.map((candidate) => ({
+    ...candidate,
+    category: params.category,
+    eligibilityStatus: "Rejected" as DiscoveryEligibilityStatus,
+    rejectionReason: null,
+    locationMatch: false,
+    facilityConfirmed: false,
+    officialSourceConfirmed: false,
+    categoryMatch: false,
+  }));
+
+  const gated = await evaluateDiscoveryCandidates({
+    candidates: typedCandidates,
+    area: params.area,
+    category: params.category,
+  });
+
+  const combinedRejected = [...gated.rejected, ...gated.needsResearch];
 
   return {
-    accepted: dedupeCandidates(typedAccepted).slice(0, params.limit),
-    rejected: dedupeCandidates(typedRejected).slice(0, params.limit * 2),
+    accepted: dedupeCandidates(gated.accepted).slice(0, params.limit),
+    rejected: dedupeCandidates(combinedRejected).slice(0, params.limit * 2),
   };
 }
 
@@ -513,6 +592,11 @@ async function queueCandidatesForBatch(params: {
         source_name: candidate.sourceName,
         source_url: candidate.sourceUrl,
         lead_eligibility_score: candidate.leadEligibilityScore,
+        eligibility_status: candidate.eligibilityStatus,
+        location_match: candidate.locationMatch,
+        facility_confirmed: candidate.facilityConfirmed,
+        official_source_confirmed: candidate.officialSourceConfirmed,
+        category_match: candidate.categoryMatch,
         rejection_reason: null,
         status: "queued",
       }));
@@ -541,8 +625,12 @@ async function queueCandidatesForBatch(params: {
         source_name: candidate.sourceName,
         source_url: candidate.sourceUrl,
         lead_eligibility_score: candidate.leadEligibilityScore,
-        rejection_reason:
-          candidate.rejectionReason ?? "Rejected before AI research.",
+        eligibility_status: candidate.eligibilityStatus,
+        location_match: candidate.locationMatch,
+        facility_confirmed: candidate.facilityConfirmed,
+        official_source_confirmed: candidate.officialSourceConfirmed,
+        category_match: candidate.categoryMatch,
+        rejection_reason: candidate.rejectionReason ?? "weak_source_evidence",
         failure_reason:
           candidate.rejectionReason ?? "Rejected before AI research.",
         status: "failed",
@@ -749,6 +837,8 @@ export async function processLeadDiscoveryRunBatch(params: {
             .from("lead_discovery_run_items")
             .update({
               status: "duplicate",
+              eligibility_status: "Rejected",
+              rejection_reason: "duplicate",
               potential_lead_id: created.lead.potential_lead_id,
             })
             .eq("item_id", item.item_id);

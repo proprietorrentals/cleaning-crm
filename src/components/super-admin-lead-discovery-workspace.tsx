@@ -78,6 +78,23 @@ type LeadDiscoveryMetrics = {
   averageConfidence: number;
   averageOpportunityScore: number;
   gradeDistribution: Record<"A+" | "A" | "B" | "C" | "D", number>;
+  acceptedCandidates: number;
+  rejectedCandidates: number;
+  needsResearchCandidates: number;
+  averageEligibilityScore: number;
+  topRejectionReasons: Array<{ reason: string; count: number }>;
+  rejectionRateByProvider: Array<{
+    provider: string;
+    total: number;
+    rejected: number;
+    rejectionRate: number;
+  }>;
+  rejectionRateByCategory: Array<{
+    category: string;
+    total: number;
+    rejected: number;
+    rejectionRate: number;
+  }>;
   topCities: Array<{ city: string; count: number }>;
   topOrganizationTypes: Array<{ organizationType: string; count: number }>;
 };
@@ -637,7 +654,7 @@ export function SuperAdminLeadDiscoveryWorkspace() {
           </div>
         </section>
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <MetricCard
             label="Businesses discovered today"
             value={metrics?.businessesDiscoveredToday ?? 0}
@@ -666,6 +683,89 @@ export function SuperAdminLeadDiscoveryWorkspace() {
             label="Average confidence"
             value={`${metrics?.averageConfidence ?? 0}%`}
           />
+          <MetricCard
+            label="Average eligibility"
+            value={`${metrics?.averageEligibilityScore ?? 0}`}
+          />
+        </section>
+
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <MetricCard
+            label="Accepted candidates"
+            value={metrics?.acceptedCandidates ?? 0}
+          />
+          <MetricCard
+            label="Needs research candidates"
+            value={metrics?.needsResearchCandidates ?? 0}
+          />
+          <MetricCard
+            label="Rejected candidates"
+            value={metrics?.rejectedCandidates ?? 0}
+          />
+        </section>
+
+        <section className="mb-5 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Top Rejection Reasons
+            </p>
+            <div className="mt-3 space-y-2 text-sm text-slate-200">
+              {(metrics?.topRejectionReasons ?? []).length === 0 ? (
+                <p className="text-slate-500">
+                  No rejected candidates yet today.
+                </p>
+              ) : (
+                (metrics?.topRejectionReasons ?? []).map((entry) => (
+                  <p key={entry.reason}>
+                    {entry.reason}:{" "}
+                    <span className="text-rose-200">{entry.count}</span>
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Rejection Rate by Provider
+            </p>
+            <div className="mt-3 space-y-2 text-sm text-slate-200">
+              {(metrics?.rejectionRateByProvider ?? []).length === 0 ? (
+                <p className="text-slate-500">
+                  No provider quality data yet today.
+                </p>
+              ) : (
+                (metrics?.rejectionRateByProvider ?? []).map((entry) => (
+                  <p key={entry.provider}>
+                    {entry.provider}:{" "}
+                    <span className="text-amber-200">
+                      {entry.rejectionRate}%
+                    </span>
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Rejection Rate by Category
+            </p>
+            <div className="mt-3 space-y-2 text-sm text-slate-200">
+              {(metrics?.rejectionRateByCategory ?? []).length === 0 ? (
+                <p className="text-slate-500">
+                  No category quality data yet today.
+                </p>
+              ) : (
+                (metrics?.rejectionRateByCategory ?? []).map((entry) => (
+                  <p key={entry.category}>
+                    {entry.category}:{" "}
+                    <span className="text-amber-200">
+                      {entry.rejectionRate}%
+                    </span>
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="mb-5 grid gap-4 lg:grid-cols-2">
