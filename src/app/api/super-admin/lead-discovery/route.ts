@@ -178,7 +178,7 @@ export async function GET() {
     supabase
       .from("lead_discovery_run_items")
       .select(
-        "item_id,category,source_name,status,lead_eligibility_score,eligibility_status,rejection_reason,created_at",
+        "item_id,category,source_name,source_domain,status,lead_eligibility_score,eligibility_status,rejection_reason,created_at",
       )
       .gte("created_at", todayIso)
       .order("created_at", { ascending: false })
@@ -221,6 +221,7 @@ export async function GET() {
     item_id: string;
     category: string;
     source_name: string | null;
+    source_domain: string | null;
     status: string;
     lead_eligibility_score: number | null;
     eligibility_status: "Eligible" | "Needs Research" | "Rejected" | null;
@@ -318,6 +319,7 @@ export async function GET() {
       : 0;
 
   const rejectionReasonCounts = new Map<string, number>();
+  const weakSourceDomainCounts = new Map<string, number>();
   const providerBuckets = new Map<
     string,
     { total: number; rejected: number }
@@ -333,6 +335,14 @@ export async function GET() {
         item.rejection_reason,
         (rejectionReasonCounts.get(item.rejection_reason) ?? 0) + 1,
       );
+
+      if (item.rejection_reason === "weak_source_evidence") {
+        const domain = (item.source_domain ?? "unknown").trim() || "unknown";
+        weakSourceDomainCounts.set(
+          domain,
+          (weakSourceDomainCounts.get(domain) ?? 0) + 1,
+        );
+      }
     }
 
     const provider = (item.source_name ?? "Unknown").trim() || "Unknown";
@@ -389,6 +399,11 @@ export async function GET() {
     .sort((a, b) => b.rejectionRate - a.rejectionRate)
     .slice(0, 8);
 
+  const weakSourceDomains = [...weakSourceDomainCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([domain, count]) => ({ domain, count }));
+
   for (const lead of discoveredToday) {
     cityCounts.set(lead.city, (cityCounts.get(lead.city) ?? 0) + 1);
     const orgType = lead.organization_type ?? "unknown";
@@ -431,6 +446,7 @@ export async function GET() {
       topRejectionReasons,
       rejectionRateByProvider,
       rejectionRateByCategory,
+      weakSourceDomains,
       topCities,
       topOrganizationTypes,
     },

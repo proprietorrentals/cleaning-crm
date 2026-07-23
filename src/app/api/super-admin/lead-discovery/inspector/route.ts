@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
   const provider = searchParams.get("provider");
   const category = searchParams.get("category");
   const city = searchParams.get("city");
+  const sourceDomain = searchParams.get("sourceDomain");
   const eligibilityStatus = searchParams.get("eligibilityStatus");
   const rejectionReason = searchParams.get("rejectionReason");
   const itemStatus = searchParams.get("itemStatus");
@@ -71,15 +72,15 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("lead_discovery_run_items")
     .select(
-      "item_id,run_id,city,state,category,business_name,website,source_name,source_url,source_domain,provider,search_query,lead_eligibility_score,eligibility_status,rejection_reason,status,gate_stage,gate_rule,missing_evidence,conflicting_evidence,recommended_corrective_action,provider_reasoning,evidence_summary,location_match,facility_confirmed,official_source_confirmed,category_match,override_status,override_reason,overridden_by_user_id,overridden_at,dismissed,dismissed_reason,dismissed_by_user_id,dismissed_at,potential_lead_id,created_at,updated_at",
+      "item_id,run_id,city,state,category,business_name,website,source_name,source_url,source_domain,source_title,source_snippet,provider,search_query,inspected_urls,pages_inspected,lead_eligibility_score,eligibility_status,rejection_reason,status,gate_stage,gate_rule,missing_evidence,conflicting_evidence,recommended_corrective_action,provider_reasoning,evidence_summary,location_match,facility_confirmed,official_source_confirmed,category_match,override_status,override_reason,overridden_by_user_id,overridden_at,dismissed,dismissed_reason,dismissed_by_user_id,dismissed_at,potential_lead_id,failure_reason,inspector_audit_log,created_at,updated_at",
     )
-    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (runId) query = query.eq("run_id", runId);
   if (provider) query = query.eq("provider", provider);
   if (category) query = query.eq("category", category);
   if (city) query = query.ilike("city", city.trim());
+  if (sourceDomain) query = query.ilike("source_domain", sourceDomain.trim());
   if (eligibilityStatus)
     query = query.eq("eligibility_status", eligibilityStatus);
   if (rejectionReason) query = query.eq("rejection_reason", rejectionReason);
@@ -94,6 +95,14 @@ export async function GET(request: NextRequest) {
     query = query.or(
       `business_name.ilike.${value},city.ilike.${value},state.ilike.${value},source_domain.ilike.${value},source_url.ilike.${value},search_query.ilike.${value}`,
     );
+  }
+
+  if (eligibilityStatus === "Rejected") {
+    query = query
+      .order("lead_eligibility_score", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
   }
 
   const [{ data: items, error: itemsError }, { data: runs, error: runsError }] =
