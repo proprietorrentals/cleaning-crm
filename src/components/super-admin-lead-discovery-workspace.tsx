@@ -57,6 +57,8 @@ type QueueLead = {
   city: string;
   state: string;
   status: "New" | "AI Reviewed" | "Needs Review" | "Verified" | "Rejected";
+  opportunity_score: number | null;
+  opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
   ai_confidence: number;
   needs_manual_verification: boolean | null;
   organization_type: string | null;
@@ -74,6 +76,8 @@ type LeadDiscoveryMetrics = {
   duplicateBusinessesSkipped: number;
   discoverySuccessRate: number;
   averageConfidence: number;
+  averageOpportunityScore: number;
+  gradeDistribution: Record<"A+" | "A" | "B" | "C" | "D", number>;
   topCities: Array<{ city: string; count: number }>;
   topOrganizationTypes: Array<{ organizationType: string; count: number }>;
 };
@@ -757,8 +761,8 @@ export function SuperAdminLeadDiscoveryWorkspace() {
                 Discovery Queue
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Newest discoveries first. Human review is required before
-                marketplace promotion.
+                Sorted by opportunity score, then AI confidence, then newest.
+                Human review is required before marketplace promotion.
               </p>
             </div>
             <Link
@@ -793,6 +797,12 @@ export function SuperAdminLeadDiscoveryWorkspace() {
                     </span>
                   </div>
                   <div className="mt-3 space-y-1 text-sm text-slate-300">
+                    <p>
+                      Opportunity score: {lead.opportunity_score ?? "Unscored"}
+                      {lead.opportunity_grade
+                        ? ` (Grade ${lead.opportunity_grade})`
+                        : ""}
+                    </p>
                     <p>AI confidence: {Math.round(lead.ai_confidence)}%</p>
                     <p>
                       Organization:{" "}

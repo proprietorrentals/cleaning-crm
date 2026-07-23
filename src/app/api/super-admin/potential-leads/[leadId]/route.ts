@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createMarketplaceLeadFromSeed } from "@/lib/lead-marketplace/create-marketplace-lead";
+import { refreshPotentialLeadResearch } from "@/lib/lead-marketplace/potential-lead-pipeline";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireSuperAdminAccess } from "@/lib/supabase/super-admin";
 
@@ -14,6 +15,7 @@ const patchSchema = z.discriminatedUnion("action", [
     action: z.literal("needs_research"),
     note: z.string().max(4000).optional(),
   }),
+  z.object({ action: z.literal("refresh_research") }),
 ]);
 
 type PotentialLeadRow = {
@@ -31,6 +33,34 @@ type PotentialLeadRow = {
   ai_confidence: number;
   ai_reasoning: string | null;
   research_notes: string | null;
+  estimated_building_size: string | null;
+  estimated_monthly_contract_value: number | null;
+  contract_value_confidence: number;
+  outsourcing_likelihood: "High" | "Medium" | "Low" | "Unknown";
+  organization_type:
+    | "public sector"
+    | "education"
+    | "healthcare"
+    | "office"
+    | "industrial"
+    | "retail"
+    | "multifamily"
+    | "nonprofit"
+    | "unknown";
+  opportunity_summary: string | null;
+  recommended_next_step: string | null;
+  procurement_notes: string | null;
+  research_sources: Array<{
+    name: string;
+    url: string | null;
+    note: string | null;
+  }> | null;
+  needs_manual_verification: boolean | null;
+  opportunity_score: number | null;
+  opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
+  score_breakdown: Record<string, unknown> | null;
+  score_version: string | null;
+  scored_at: string | null;
   status: "New" | "AI Reviewed" | "Needs Review" | "Verified" | "Rejected";
   verified_marketplace_lead_id: string | null;
 };
@@ -143,7 +173,7 @@ export async function PATCH(
   const { data: current, error: loadError } = await supabase
     .from("potential_marketplace_leads")
     .select(
-      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_contract_value,ai_confidence,ai_reasoning,research_notes,status,verified_marketplace_lead_id",
+      "potential_lead_id,business_name,website,phone,email,address,city,state,zip_code,property_type,estimated_building_size,estimated_monthly_contract_value,contract_value_confidence,outsourcing_likelihood,organization_type,opportunity_summary,recommended_next_step,procurement_notes,estimated_contract_value,opportunity_score,opportunity_grade,score_breakdown,score_version,scored_at,ai_confidence,ai_reasoning,research_notes,research_sources,needs_manual_verification,status,verified_marketplace_lead_id",
     )
     .eq("potential_lead_id", leadId)
     .maybeSingle<PotentialLeadRow>();
@@ -160,6 +190,39 @@ export async function PATCH(
       { success: false, message: "Potential lead not found." },
       { status: 404 },
     );
+  }
+
+  if (parsed.data.action === "refresh_research") {
+    try {
+      const refreshed = await refreshPotentialLeadResearch({
+        supabase,
+        leadId,
+        input: {
+          businessName: current.business_name,
+          city: current.city,
+          state: current.state,
+          website: current.website,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        action: "refresh_research",
+        lead: refreshed.lead,
+        research: refreshed.research,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to refresh lead research.",
+        },
+        { status: 500 },
+      );
+    }
   }
 
   if (parsed.data.action === "verify") {

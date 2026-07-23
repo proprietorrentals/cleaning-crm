@@ -41,6 +41,23 @@ type PotentialLead = {
   recommended_next_step: string | null;
   procurement_notes: string | null;
   estimated_contract_value: number;
+  opportunity_score: number | null;
+  opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
+  score_breakdown: {
+    version: string;
+    scoredAt: string;
+    total: number;
+    grade: "A+" | "A" | "B" | "C" | "D";
+    ineligible: boolean;
+    items: Array<{
+      factor: string;
+      points: number;
+      evidence: string[];
+      penalty?: string;
+    }>;
+  } | null;
+  score_version: string | null;
+  scored_at: string | null;
   ai_confidence: number;
   ai_reasoning: string | null;
   research_notes: string | null;
@@ -54,6 +71,21 @@ type PotentialLead = {
   verified_marketplace_lead_id: string | null;
   reviewed_at: string | null;
   created_at: string;
+};
+
+type OpportunityMetrics = {
+  averageOpportunityScore: number;
+  gradeDistribution: Record<"A+" | "A" | "B" | "C" | "D", number>;
+  topScoringOrganizationTypes: Array<{
+    organizationType: string;
+    averageScore: number;
+    count: number;
+  }>;
+  topScoringCities: Array<{
+    city: string;
+    averageScore: number;
+    count: number;
+  }>;
 };
 
 type WorkspaceProps = {
@@ -132,6 +164,22 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function scoreToStars(score: number | null) {
+  const normalized = typeof score === "number" ? score : 0;
+  return Math.max(0, Math.min(5, Math.round(normalized / 20)));
+}
+
+function renderStars(score: number | null) {
+  const stars = scoreToStars(score);
+  return Array.from({ length: 5 }, (_, index) =>
+    index < stars ? "★" : "☆",
+  ).join("");
+}
+
+function formatPoints(value: number) {
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
 export function SuperAdminPotentialLeadsWorkspace({
   scope,
   title,
@@ -142,6 +190,9 @@ export function SuperAdminPotentialLeadsWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [opportunityGradeFilter, setOpportunityGradeFilter] = useState("");
+  const [minOpportunityScore, setMinOpportunityScore] = useState("");
+  const [maxOpportunityScore, setMaxOpportunityScore] = useState("");
   const [researchBusinessName, setResearchBusinessName] = useState("");
   const [researchCity, setResearchCity] = useState("");
   const [researchState, setResearchState] = useState("");
@@ -149,6 +200,7 @@ export function SuperAdminPotentialLeadsWorkspace({
   const [researching, setResearching] = useState(false);
   const [focusedLeadId, setFocusedLeadId] = useState<string | null>(null);
   const [leads, setLeads] = useState<PotentialLead[]>([]);
+  const [metrics, setMetrics] = useState<OpportunityMetrics | null>(null);
   const leadCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const filteredCountLabel = useMemo(() => {
@@ -162,6 +214,15 @@ export function SuperAdminPotentialLeadsWorkspace({
 
     const params = new URLSearchParams({ scope });
     if (search.trim()) params.set("search", search.trim());
+    if (opportunityGradeFilter) {
+      params.set("opportunityGrade", opportunityGradeFilter);
+    }
+    if (minOpportunityScore.trim()) {
+      params.set("minOpportunityScore", minOpportunityScore.trim());
+    }
+    if (maxOpportunityScore.trim()) {
+      params.set("maxOpportunityScore", maxOpportunityScore.trim());
+    }
 
     try {
       const response = await fetch(
@@ -169,7 +230,7 @@ export function SuperAdminPotentialLeadsWorkspace({
       );
 
       const body = (await response.json()) as
-        | { success: true; leads: PotentialLead[] }
+        | { success: true; leads: PotentialLead[]; metrics: OpportunityMetrics }
         | { success: false; message: string };
 
       if (!response.ok || !body.success) {
@@ -180,12 +241,19 @@ export function SuperAdminPotentialLeadsWorkspace({
       }
 
       setLeads(body.leads);
+      setMetrics(body.metrics);
     } catch {
       setError("Unable to load potential leads.");
     } finally {
       setLoading(false);
     }
-  }, [scope, search]);
+  }, [
+    maxOpportunityScore,
+    minOpportunityScore,
+    opportunityGradeFilter,
+    scope,
+    search,
+  ]);
 
   useEffect(() => {
     void loadLeads();
@@ -208,7 +276,7 @@ export function SuperAdminPotentialLeadsWorkspace({
   const runLeadAction = useCallback(
     async (
       leadId: string,
-      action: "verify" | "reject" | "needs_research",
+      action: "verify" | "reject" | "needs_research" | "refresh_research",
       successMessage: string,
     ) => {
       setSavingLeadId(leadId);
@@ -311,6 +379,38 @@ export function SuperAdminPotentialLeadsWorkspace({
     researchWebsite,
   ]);
 
+  const runBackfill = useCallback(async () => {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/super-admin/potential-leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "backfill_scores", limit: 400 }),
+      });
+
+      const body = (await response.json()) as
+        | {
+            success: true;
+            result: { scanned: number; updated: number };
+          }
+        | { success: false; message: string };
+
+      if (!response.ok || !body.success) {
+        setError(body.success ? "Backfill failed." : body.message);
+        return;
+      }
+
+      setSuccess(
+        `Backfill complete. Scanned ${body.result.scanned} lead(s), updated ${body.result.updated}.`,
+      );
+      await loadLeads();
+    } catch {
+      setError("Unable to run opportunity score backfill.");
+    }
+  }, [loadLeads]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,116,144,0.18),_transparent_38%),linear-gradient(180deg,_#020617_0%,_#020617_100%)] text-white">
       <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
@@ -355,19 +455,62 @@ export function SuperAdminPotentialLeadsWorkspace({
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
                 Search Existing Leads
               </p>
-              <div className="mt-3 flex flex-wrap gap-3">
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search business, website, email, phone, or address"
-                  className="min-w-[220px] flex-1 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                  className="min-w-[220px] rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 lg:col-span-2"
                 />
+                <select
+                  value={opportunityGradeFilter}
+                  onChange={(event) =>
+                    setOpportunityGradeFilter(event.target.value)
+                  }
+                  className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100"
+                >
+                  <option value="">All Grades</option>
+                  <option value="A+">A+</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={minOpportunityScore}
+                    onChange={(event) =>
+                      setMinOpportunityScore(event.target.value)
+                    }
+                    placeholder="Min score"
+                    inputMode="numeric"
+                    className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                  />
+                  <input
+                    value={maxOpportunityScore}
+                    onChange={(event) =>
+                      setMaxOpportunityScore(event.target.value)
+                    }
+                    placeholder="Max score"
+                    inputMode="numeric"
+                    className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => void loadLeads()}
                   className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
                 >
                   Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runBackfill()}
+                  className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20"
+                >
+                  Backfill Missing Scores
                 </button>
               </div>
             </div>
@@ -430,6 +573,61 @@ export function SuperAdminPotentialLeadsWorkspace({
           <div className="mb-4 rounded-2xl border border-emerald-700/40 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
             {success}
           </div>
+        ) : null}
+
+        {metrics ? (
+          <section className="mb-5 grid gap-4 lg:grid-cols-4">
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Avg Opportunity Score
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-cyan-100">
+                {metrics.averageOpportunityScore}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-3">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Grade Distribution
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                {(["A+", "A", "B", "C", "D"] as const).map((grade) => (
+                  <span
+                    key={grade}
+                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-slate-200"
+                  >
+                    {grade}: {metrics.gradeDistribution[grade]}
+                  </span>
+                ))}
+              </div>
+            </article>
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-2">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Top Scoring Organization Types
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                {metrics.topScoringOrganizationTypes.map((entry) => (
+                  <li key={entry.organizationType}>
+                    {formatOrganizationType(
+                      entry.organizationType as PotentialLead["organization_type"],
+                    )}
+                    {` - avg ${entry.averageScore} (${entry.count})`}
+                  </li>
+                ))}
+              </ul>
+            </article>
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-2">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Top Scoring Cities
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                {metrics.topScoringCities.map((entry) => (
+                  <li
+                    key={entry.city}
+                  >{`${entry.city} - avg ${entry.averageScore} (${entry.count})`}</li>
+                ))}
+              </ul>
+            </article>
+          </section>
         ) : null}
 
         <section className="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-4 shadow-2xl shadow-slate-950/20">
@@ -505,6 +703,24 @@ export function SuperAdminPotentialLeadsWorkspace({
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-emerald-700/30 bg-emerald-950/20 p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/80">
+                          Opportunity Score
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-emerald-100">
+                          {typeof lead.opportunity_score === "number"
+                            ? `${lead.opportunity_score}/100`
+                            : "Unscored"}
+                        </p>
+                        <p className="mt-1 text-xs text-emerald-100/80">
+                          {lead.opportunity_grade
+                            ? `Grade ${lead.opportunity_grade}`
+                            : "Grade pending"}
+                        </p>
+                        <p className="mt-1 text-base leading-none text-amber-300">
+                          {renderStars(lead.opportunity_score)}
+                        </p>
+                      </div>
                       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                           Annual Contract
@@ -659,12 +875,63 @@ export function SuperAdminPotentialLeadsWorkspace({
                       )}
                     </div>
 
+                    <details className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                      <summary className="cursor-pointer text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Score Breakdown
+                      </summary>
+                      {lead.score_breakdown?.items?.length ? (
+                        <ul className="mt-2 space-y-2 text-xs text-slate-300">
+                          {lead.score_breakdown.items.map((item, index) => (
+                            <li
+                              key={`${lead.potential_lead_id}-breakdown-${item.factor}-${index}`}
+                              className="rounded-xl border border-slate-800 bg-slate-950/70 p-2"
+                            >
+                              <p className="font-semibold text-slate-100">
+                                {item.factor} ({formatPoints(item.points)})
+                              </p>
+                              <p className="mt-1 text-slate-400">
+                                {item.evidence.slice(0, 2).join(" | ")}
+                              </p>
+                              {item.penalty ? (
+                                <p className="mt-1 text-amber-300">
+                                  Penalty: {item.penalty}
+                                </p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Breakdown unavailable. Use backfill or refresh
+                          research.
+                        </p>
+                      )}
+                    </details>
+
                     <div className="mt-4 text-xs text-slate-500">
                       <p>Created: {formatDate(lead.created_at)}</p>
                       <p>Last reviewed: {formatDate(lead.reviewed_at)}</p>
+                      <p>
+                        Score diagnostics: {lead.score_version ?? "n/a"} |{" "}
+                        {formatDate(lead.scored_at)}
+                      </p>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          void runLeadAction(
+                            lead.potential_lead_id,
+                            "refresh_research",
+                            "Research refreshed and opportunity score recalculated.",
+                          )
+                        }
+                        className="rounded-full border border-cyan-500/50 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+                      >
+                        Refresh Research
+                      </button>
                       <button
                         type="button"
                         disabled={disabled || lead.status === "Verified"}

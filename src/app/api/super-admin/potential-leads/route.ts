@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  backfillPotentialLeadOpportunityScores,
   createPotentialLeadFromResearch,
   POTENTIAL_LEAD_SELECT,
   type PotentialLeadRow,
@@ -17,6 +18,9 @@ const querySchema = z.object({
   state: z.string().trim().min(2).max(2).optional(),
   city: z.string().trim().min(1).max(80).optional(),
   propertyType: z.string().trim().min(1).max(80).optional(),
+  opportunityGrade: z.enum(["A+", "A", "B", "C", "D"]).optional(),
+  minOpportunityScore: z.coerce.number().int().min(0).max(100).optional(),
+  maxOpportunityScore: z.coerce.number().int().min(0).max(100).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -24,13 +28,12 @@ const createSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
   city: z.string().trim().max(80).optional(),
   state: z.string().trim().length(2).optional(),
-  website: z
-    .string()
-    .trim()
-    .url()
-    .max(250)
-    .optional()
-    .or(z.literal("")),
+  website: z.string().trim().url().max(250).optional().or(z.literal("")),
+});
+
+const backfillSchema = z.object({
+  action: z.literal("backfill_scores"),
+  limit: z.coerce.number().int().min(1).max(1000).optional(),
 });
 
 function normalizeWhitespace(value: string) {
@@ -77,6 +80,12 @@ export async function GET(request: NextRequest) {
     state: request.nextUrl.searchParams.get("state") ?? undefined,
     city: request.nextUrl.searchParams.get("city") ?? undefined,
     propertyType: request.nextUrl.searchParams.get("propertyType") ?? undefined,
+    opportunityGrade:
+      request.nextUrl.searchParams.get("opportunityGrade") ?? undefined,
+    minOpportunityScore:
+      request.nextUrl.searchParams.get("minOpportunityScore") ?? undefined,
+    maxOpportunityScore:
+      request.nextUrl.searchParams.get("maxOpportunityScore") ?? undefined,
     limit: request.nextUrl.searchParams.get("limit") ?? undefined,
   });
 
@@ -97,6 +106,8 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("potential_marketplace_leads")
     .select(POTENTIAL_LEAD_SELECT)
+    .order("opportunity_score", { ascending: false, nullsFirst: false })
+    .order("ai_confidence", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(filter.limit ?? 200);
 
@@ -128,6 +139,18 @@ export async function GET(request: NextRequest) {
     query = query.ilike("property_type", `%${filter.propertyType}%`);
   }
 
+  if (filter.opportunityGrade) {
+    query = query.eq("opportunity_grade", filter.opportunityGrade);
+  }
+
+  if (typeof filter.minOpportunityScore === "number") {
+    query = query.gte("opportunity_score", filter.minOpportunityScore);
+  }
+
+  if (typeof filter.maxOpportunityScore === "number") {
+    query = query.lte("opportunity_score", filter.maxOpportunityScore);
+  }
+
   if (filter.search) {
     const escaped = filter.search.replace(/,/g, " ").trim();
     query = query.or(
@@ -150,9 +173,92 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const metricsQuery = await supabase
+    .from("potential_marketplace_leads")
+    .select("opportunity_score,opportunity_grade,organization_type,city")
+    .not("opportunity_score", "is", null)
+    .limit(2000);
+
+  if (metricsQuery.error) {
+    return NextResponse.json(
+      { success: false, message: metricsQuery.error.message },
+      { status: 500 },
+    );
+  }
+
+  const metricRows = (metricsQuery.data ?? []) as Array<{
+    opportunity_score: number;
+    opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
+    organization_type: string | null;
+    city: string | null;
+  }>;
+
+  const averageOpportunityScore =
+    metricRows.length > 0
+      ? Number(
+          (
+            metricRows.reduce((sum, row) => sum + row.opportunity_score, 0) /
+            metricRows.length
+          ).toFixed(1),
+        )
+      : 0;
+
+  const gradeDistribution = {
+    "A+": 0,
+    A: 0,
+    B: 0,
+    C: 0,
+    D: 0,
+  };
+
+  const orgBuckets = new Map<string, { count: number; sum: number }>();
+  const cityBuckets = new Map<string, { count: number; sum: number }>();
+
+  for (const row of metricRows) {
+    if (row.opportunity_grade) {
+      gradeDistribution[row.opportunity_grade] += 1;
+    }
+
+    const orgKey = row.organization_type ?? "unknown";
+    const orgEntry = orgBuckets.get(orgKey) ?? { count: 0, sum: 0 };
+    orgEntry.count += 1;
+    orgEntry.sum += row.opportunity_score;
+    orgBuckets.set(orgKey, orgEntry);
+
+    const cityKey = row.city?.trim() || "Unknown";
+    const cityEntry = cityBuckets.get(cityKey) ?? { count: 0, sum: 0 };
+    cityEntry.count += 1;
+    cityEntry.sum += row.opportunity_score;
+    cityBuckets.set(cityKey, cityEntry);
+  }
+
+  const topScoringOrganizationTypes = [...orgBuckets.entries()]
+    .map(([organizationType, value]) => ({
+      organizationType,
+      averageScore: Number((value.sum / value.count).toFixed(1)),
+      count: value.count,
+    }))
+    .sort((a, b) => b.averageScore - a.averageScore || b.count - a.count)
+    .slice(0, 5);
+
+  const topScoringCities = [...cityBuckets.entries()]
+    .map(([city, value]) => ({
+      city,
+      averageScore: Number((value.sum / value.count).toFixed(1)),
+      count: value.count,
+    }))
+    .sort((a, b) => b.averageScore - a.averageScore || b.count - a.count)
+    .slice(0, 5);
+
   return NextResponse.json({
     success: true,
     leads: (data ?? []) as PotentialLeadRow[],
+    metrics: {
+      averageOpportunityScore,
+      gradeDistribution,
+      topScoringOrganizationTypes,
+      topScoringCities,
+    },
   });
 }
 
@@ -163,6 +269,36 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = await request.json().catch(() => null);
+  const parsedBackfill = backfillSchema.safeParse(payload);
+
+  if (parsedBackfill.success) {
+    const supabase = await createServerSupabaseClient();
+
+    try {
+      const result = await backfillPotentialLeadOpportunityScores({
+        supabase,
+        limit: parsedBackfill.data.limit ?? 300,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Opportunity score backfill completed.",
+        result,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to backfill opportunity scores.",
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   const parsed = createSchema.safeParse(payload);
 
   if (!parsed.success) {

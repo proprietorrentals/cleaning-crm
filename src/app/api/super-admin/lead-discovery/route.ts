@@ -83,6 +83,8 @@ type QueueLeadRow = {
   city: string;
   state: string;
   status: "New" | "AI Reviewed" | "Needs Review" | "Verified" | "Rejected";
+  opportunity_score: number | null;
+  opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
   ai_confidence: number;
   needs_manual_verification: boolean | null;
   organization_type: string | null;
@@ -153,15 +155,17 @@ export async function GET() {
       supabase
         .from("potential_marketplace_leads")
         .select(
-          "potential_lead_id,business_name,city,state,status,ai_confidence,needs_manual_verification,organization_type,outsourcing_likelihood,procurement_notes,recommended_next_step,discovered_at",
+          "potential_lead_id,business_name,city,state,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,organization_type,outsourcing_likelihood,procurement_notes,recommended_next_step,discovered_at",
         )
         .eq("discovered_via", "discovery")
+        .order("opportunity_score", { ascending: false, nullsFirst: false })
+        .order("ai_confidence", { ascending: false })
         .order("discovered_at", { ascending: false })
         .limit(80),
       supabase
         .from("potential_marketplace_leads")
         .select(
-          "potential_lead_id,city,organization_type,status,ai_confidence,needs_manual_verification,discovered_at",
+          "potential_lead_id,city,organization_type,status,opportunity_score,opportunity_grade,ai_confidence,needs_manual_verification,discovered_at",
         )
         .eq("discovered_via", "discovery")
         .gte("discovered_at", todayIso)
@@ -193,6 +197,8 @@ export async function GET() {
     city: string;
     organization_type: string | null;
     status: "New" | "AI Reviewed" | "Needs Review" | "Verified" | "Rejected";
+    opportunity_score: number | null;
+    opportunity_grade: "A+" | "A" | "B" | "C" | "D" | null;
     ai_confidence: number;
     needs_manual_verification: boolean | null;
     discovered_at: string | null;
@@ -236,6 +242,28 @@ export async function GET() {
         )
       : 0;
 
+  const scoredToday = discoveredToday.filter(
+    (lead) => typeof lead.opportunity_score === "number",
+  );
+
+  const averageOpportunityScore =
+    scoredToday.length > 0
+      ? Math.round(
+          scoredToday.reduce(
+            (total, lead) => total + (lead.opportunity_score ?? 0),
+            0,
+          ) / scoredToday.length,
+        )
+      : 0;
+
+  const gradeDistribution = {
+    "A+": 0,
+    A: 0,
+    B: 0,
+    C: 0,
+    D: 0,
+  };
+
   const cityCounts = new Map<string, number>();
   const orgTypeCounts = new Map<string, number>();
 
@@ -243,6 +271,10 @@ export async function GET() {
     cityCounts.set(lead.city, (cityCounts.get(lead.city) ?? 0) + 1);
     const orgType = lead.organization_type ?? "unknown";
     orgTypeCounts.set(orgType, (orgTypeCounts.get(orgType) ?? 0) + 1);
+
+    if (lead.opportunity_grade) {
+      gradeDistribution[lead.opportunity_grade] += 1;
+    }
   }
 
   const topCities = [...cityCounts.entries()]
@@ -268,6 +300,8 @@ export async function GET() {
       duplicateBusinessesSkipped,
       discoverySuccessRate,
       averageConfidence,
+      averageOpportunityScore,
+      gradeDistribution,
       topCities,
       topOrganizationTypes,
     },
